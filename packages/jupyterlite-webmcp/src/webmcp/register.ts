@@ -105,6 +105,10 @@ export class WebMCPRegistry {
   ): Promise<unknown> {
     const started = Date.now();
     const requestInput = (input as Record<string, unknown>) ?? {};
+    // Announce the call before running it, so the presence layer can say
+    // "running cell 6" because a call really is in flight rather than
+    // inferring it from how recently something finished.
+    const inFlightId = this._beginActivity(tool.name, requestInput);
     try {
       const payload = await tool.handler(requestInput, {
         signal: options?.signal
@@ -143,6 +147,52 @@ export class WebMCPRegistry {
         durationMs
       });
       return errorResult(structured);
+    } finally {
+      this._endActivity(inFlightId);
+    }
+  }
+
+  /**
+   * Note that a tool call has started, returning the id used to close it out.
+   *
+   * Returns `null` when there is no activity log, or when deriving the target
+   * cells fails: presence is decoration, and it must never be able to break an
+   * actual tool call.
+   */
+  private _beginActivity(
+    tool: string,
+    input: Record<string, unknown>
+  ): string | null {
+    if (!this._activity) {
+      return null;
+    }
+    try {
+      const derived = deriveActivity({
+        tool,
+        input,
+        payload: null,
+        ok: true,
+        durationMs: 0
+      });
+      return this._activity.beginInvocation({
+        tool,
+        kind: derived.kind,
+        cellIds: derived.cellIds
+      });
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /** Note that a tool call has settled. */
+  private _endActivity(id: string | null): void {
+    if (!this._activity || id === null) {
+      return;
+    }
+    try {
+      this._activity.endInvocation(id);
+    } catch (error) {
+      // Presence must never break a tool call.
     }
   }
 

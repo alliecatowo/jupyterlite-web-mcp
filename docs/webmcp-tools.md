@@ -732,3 +732,94 @@ panel uses.
 - **Concurrency:** activates the notebook, reveals the anchored cell, and
   (for a `source-range` anchor that still resolves to a range) focuses the
   editor and applies that selection. Purely a view-state change.
+
+---
+
+## Export
+
+### `jupyter_export_notebook`
+
+- **Title:** Export the notebook
+- **Description:** "Export the notebook as a portable markdown document:
+  markdown cells verbatim, code cells as fenced code blocks, and (by
+  default) their text and error outputs, with images represented only by a
+  placeholder, never embedded. Use this to hand the notebook to another
+  tool (upload it, email it, put it in a document) without a manual
+  export."
+- **Read/write:** read-only (`readOnlyHint: true`, `untrustedContentHint: true`)
+- **Inputs:**
+  | Field | Type | Default |
+  | --- | --- | --- |
+  | `notebookPath` | string or null | current notebook |
+  | `format` | `"markdown"` | `"markdown"` (the only value today; the enum exists so more formats can be added later) |
+  | `includeOutputs` | boolean | `true` |
+- **Output:**
+  ```ts
+  {
+    notebookPath: string;
+    document: string;
+    truncated: boolean;
+    cellCount: number;
+    hiddenCellCount: number;
+  }
+  ```
+  `document` renders markdown cells verbatim; code cells as fenced
+  ` ```python ` blocks; and, when `includeOutputs` is true, each code cell's
+  text/stream output and error tracebacks as fenced blocks. An image or
+  other binary output is never embedded: it becomes a single placeholder
+  line, `![output](<mime type>, <N> bytes — not included)`. The rendering is
+  implemented in `src/jupyter/export.ts`, a pure module with no
+  `@jupyterlab/*` dependency, so it is unit-tested directly
+  (`tests/unit/export.spec.ts`).
+- **Bounds:** `document` bounded to `LIMITS.MAX_EXPORT_BYTES` (40 KiB); at
+  most `LIMITS.MAX_EXPORT_CELLS` (500) cells are walked, in notebook order;
+  either bound sets `truncated: true`. Text/error outputs go through the
+  same serializer (and the same `MAX_TEXT_OUTPUT_BYTES` bound) as
+  `jupyter_get_cells`.
+- **Errors:** standard notebook-resolution errors
+  (`NO_ACTIVE_NOTEBOOK`/`NOTEBOOK_NOT_FOUND`); `INVALID_ARGUMENT` if
+  `format` is not `"markdown"`.
+- **Cell visibility:** respects per-cell agent access exactly like
+  `jupyter_get_cells`: a `"none"`-access cell is omitted from the document
+  entirely — never even a placeholder — and counted in `hiddenCellCount`,
+  which is always present (even when zero).
+- **Concurrency:** always reads the live model, including unsaved edits;
+  read-only, so it never marks the notebook dirty.
+
+---
+
+## Output selection
+
+### `jupyter_get_output_selection`
+
+- **Title:** Read the selected output
+- **Description:** "Read the text the user last selected inside a rendered
+  cell output, if any is currently recorded. Returns null when nothing is
+  selected, the selection crossed cells or notebook chrome, or it no longer
+  matches the output it was taken from."
+- **Read/write:** read-only (`readOnlyHint: true`, `untrustedContentHint: true`)
+- **Inputs:** none (`{}`)
+- **Output:** the tracker's current selection record, or `null`:
+  ```ts
+  {
+    cellId: string;
+    outputIndex: number;
+    text: string;
+    range?: { start: number; end: number };
+    outputFingerprint: string;
+    capturedAt: string;
+  } | null
+  ```
+- **Registration:** conditional in `buildTools` itself — its third argument,
+  an `OutputSelectionTracker` (`src/selection/capture.ts`), is optional, and
+  this tool is only added when one is supplied. `src/index.ts` always wires
+  one in (the `jupyterlite-webmcp:output-selection` plugin), so the shipped
+  extension registers all 22 tools; a build that omits the tracker registers
+  21, without this one. The tracker records a bounded output-selection
+  record when a non-empty browser selection falls wholly inside one
+  notebook output — never an arbitrary page selection — and is `null`
+  whenever it crosses cells, includes notebook chrome, or can't be
+  represented as bounded text.
+- **Errors:** none thrown.
+- **Concurrency:** read-only; reflects whatever the tracker currently holds
+  at call time.

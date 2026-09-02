@@ -34,6 +34,21 @@ have jupyterlab || install "jupyterlab~=4.6.0"
 echo "==> building the frontend extension"
 npm --prefix packages/jupyterlite-webmcp run build:prod
 
+# The editable install snapshots the labextension into the environment's
+# share/jupyter/labextensions instead of linking it, so a rebuilt extension is
+# invisible to `jupyter lite build` until that copy is refreshed. Silently
+# shipping a stale bundle is the worst possible failure here, so refresh it
+# explicitly from what we just built.
+echo "==> refreshing the installed labextension"
+built="packages/jupyterlite-webmcp/jupyterlite_webmcp/labextension"
+installed="$("$python" -c "import sys, os; print(os.path.join(sys.prefix, 'share', 'jupyter', 'labextensions', 'jupyterlite-webmcp'))")"
+if [ -d "$built" ] && [ -e "$installed" ] && [ ! -L "$installed" ]; then
+  rm -rf "$installed"
+  mkdir -p "$(dirname "$installed")"
+  cp -r "$built" "$installed"
+  echo "    refreshed $installed"
+fi
+
 echo "==> installing the JupyterLite build dependencies"
 have jupyterlite_core || install -r requirements.txt
 

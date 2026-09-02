@@ -1,50 +1,60 @@
 /**
- * A small status-bar item reporting whether WebMCP tools are registered in
- * this browser, with a click-to-open diagnostics popover.
+ * A small status-bar item reporting what the browser agent can see and is
+ * doing right now, with a click-to-open diagnostics popover.
+ *
+ * The persistent text deliberately does not repeat what the host agent's
+ * own UI already shows (its tool list). Instead it answers a question the
+ * host UI cannot: is an agent connected at all, and what is it doing in
+ * *this* notebook right now.
  */
+import { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
 import { showPopup, Popup } from '@jupyterlab/statusbar';
 import { Widget } from '@lumino/widgets';
 
-import { IWebMCPState } from '../webmcp/types';
+import { ActivityLog } from '../activity/model';
 import { WebMCPRegistry } from '../webmcp/register';
+import {
+  describeInFlight,
+  describeLiveState,
+  CellIndexResolver,
+  LIVE_STATE_WINDOW_MS,
+  summarize
+} from './statusText';
+
+export { describeInFlight, describeLiveState, summarize };
+export type { CellIndexResolver };
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return d.toTimeString().slice(0, 8);
 }
 
-function summarize(state: IWebMCPState): { text: string; title: string } {
-  if (state.registrationError) {
-    return {
-      text: 'WebMCP error',
-      title: 'WebMCP registration failed: ' + state.registrationError
-    };
-  }
-  if (!state.available) {
-    return {
-      text: 'WebMCP unavailable',
-      title: 'WebMCP is not available in this browser (no document.modelContext).'
-    };
-  }
-  return {
-    text: 'WebMCP · ' + state.toolCount + ' tools',
-    title:
-      'WebMCP · ' + state.toolCount + ' tool(s) registered — click for details.'
-  };
-}
-
 /**
- * A status-bar widget that renders {@link WebMCPRegistry.state} as plain
- * text, and opens a small diagnostics popover (availability, tool names,
+ * A status-bar widget rendering a quiet summary of agent presence, and
+ * opening a small diagnostics popover (availability, registered tools,
  * recent invocations) when clicked.
  */
 export class WebMCPStatus extends Widget {
-  constructor(registry: WebMCPRegistry) {
+  /**
+   * @param registry Drives availability/registration-error text.
+   * @param activity Optional presence/activity log, used to derive the
+   * brief live-state phrase shown while a tool call looks in flight.
+   * @param tracker Optional notebook tracker, used only to resolve a
+   * touched cell id to its current 1-based index for nicer live-state text
+   * (e.g. `'cell 6'` instead of `'a cell'`); the status line degrades
+   * gracefully without it.
+   */
+  constructor(registry: WebMCPRegistry, activity?: ActivityLog, tracker?: INotebookTracker) {
     super();
     this._registry = registry;
+    this._activity = activity ?? null;
+    this._tracker = tracker ?? null;
     this.addClass('jp-webmcp-StatusItem');
     this.node.addEventListener('click', this._onClick);
     registry.changed.connect(this._render, this);
+    if (this._activity) {
+      this._activity.changed.connect(this._onActivityChanged, this);
+    }
     this._render();
   }
 
@@ -53,6 +63,10 @@ export class WebMCPStatus extends Widget {
       return;
     }
     this.node.removeEventListener('click', this._onClick);
+    if (this._liveTimer !== null) {
+      clearTimeout(this._liveTimer);
+      this._liveTimer = null;
+    }
     if (this._popup) {
       this._popup.dispose();
       this._popup = null;
@@ -60,9 +74,49 @@ export class WebMCPStatus extends Widget {
     super.dispose();
   }
 
+  private _onActivityChanged = (): void => {
+    if (this._liveTimer !== null) {
+      clearTimeout(this._liveTimer);
+      this._liveTimer = null;
+    }
+    this._render();
+    // Re-render once more when the live phrase is due to expire, so the
+    // status settles back to idle on its own rather than staying stale
+    // until some unrelated signal happens to fire.
+    this._liveTimer = setTimeout(() => {
+      this._liveTimer = null;
+      this._render();
+    }, LIVE_STATE_WINDOW_MS + 50);
+  };
+
+  private _resolveCellIndex = (cellId: string): number | null => {
+    try {
+      const panel = this._tracker && this._tracker.currentWidget;
+      if (!panel || panel.isDisposed) {
+        return null;
+      }
+      const widgets = (panel as NotebookPanel).content.widgets;
+      for (let i = 0; i < widgets.length; i++) {
+        if (!widgets[i].isDisposed && widgets[i].model.id === cellId) {
+          return i;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   private _render = (): void => {
     const state = this._registry.state;
-    const { text, title } = summarize(state);
+    const latest =
+      this._activity && this._activity.events.length > 0 ? this._activity.events[0] : null;
+    // A genuinely in-flight call wins over the recently-finished heuristic,
+    // so "running cell 6" is a fact rather than an inference.
+    const live =
+      describeInFlight(this._activity?.inFlight ?? [], this._resolveCellIndex) ??
+      describeLiveState(latest, this._resolveCellIndex);
+    const { text, title } = summarize(state, live);
     this.node.textContent = text;
     this.title.caption = title;
     // `this.title` is a Lumino `Title`, not a DOM node: it drives tab labels
@@ -91,9 +145,7 @@ export class WebMCPStatus extends Widget {
     container.className = 'jp-webmcp-StatusPopup';
 
     const availability = document.createElement('div');
-    availability.textContent = state.available
-      ? 'Available: yes'
-      : 'Available: no';
+    availability.textContent = state.available ? 'Available: yes' : 'Available: no';
     container.appendChild(availability);
 
     if (state.registrationError) {
@@ -133,5 +185,8 @@ export class WebMCPStatus extends Widget {
   }
 
   private _popup: Popup | null = null;
+  private _liveTimer: ReturnType<typeof setTimeout> | null = null;
   private _registry: WebMCPRegistry;
+  private _activity: ActivityLog | null;
+  private _tracker: INotebookTracker | null;
 }

@@ -47,7 +47,7 @@ This package contributes two plugins, both `autoStart: true`:
   provides the `IReviewStore` token that the tools plugin depends on.
 
 - **`jupyterlite-webmcp:tools`** — WebMCP tool registration. Feature-detects
-  `document.modelContext`; if present, builds and registers all 19 tools
+  `document.modelContext`; if present, builds and registers all 22 tools
   once, at activation, against the live notebook tracker and the review
   store above. If absent, it does nothing beyond an optional status-bar
   indicator.

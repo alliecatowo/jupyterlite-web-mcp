@@ -31,7 +31,7 @@ the case for each with specifics from this repository, not adjectives.
 
 ## WebMCP Leverage (25%)
 
-Every one of the 19 registered tools operates on state that exists **only**
+Every one of the 22 registered tools operates on state that exists **only**
 inside one browser tab, with no backend an ordinary MCP server could talk
 to: the live `NotebookPanel` model, including edits never saved to disk
 (`jupyter_get_cells` reads `sharedModel.getSource()` directly, never
@@ -73,7 +73,7 @@ hosted on Vercel instead. 218 unit tests (jest) and 37 browser integration
 tests (Playwright, against the built static site) run in CI
 (`.github/workflows/test.yml`) alongside ESLint, Prettier, and `tsc`, all
 green. In Chrome 150 with WebMCP enabled, driven through the real
-`document.modelContext`, all 19 tools register, `getTools()` returns them
+`document.modelContext`, all 22 tools register, `getTools()` returns them
 with annotations intact, and `executeTool()` round-trips end to end.
 
 ## Potential Impact (25%)

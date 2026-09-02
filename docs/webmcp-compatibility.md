@@ -22,7 +22,7 @@ never re-registered: a change of notebook, cell, cursor, kernel or comment is a
 change of *state*, and every tool reads the current state when it runs.
 
 Registration is guarded so a hot-reloaded plugin cannot register twice; a
-browser test asserts the registry sees exactly 19 tools and no duplicates.
+browser test asserts the registry sees exactly 22 tools and no duplicates.
 
 ## Browser support
 
@@ -46,8 +46,8 @@ Verified on the public deployment in Chrome 150 with WebMCP off:
 To turn it on in a Chromium-based browser that has the trial, enable
 **Experimental Web Platform features** at `chrome://flags` and restart. Verified
 on the public deployment in Chrome 150 with the flag on: `document.modelContext`
-is an object, `getTools()` returns all 19 tools with their annotations intact,
-and the status bar reads `WebMCP · 19 tools`.
+is an object, `getTools()` returns all 22 tools with their annotations intact,
+and the status bar reflects that the agent is connected.
 
 ## Calling convention, as Chrome actually implements it
 

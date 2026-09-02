@@ -105,7 +105,7 @@ what each platform (JupyterLab, Notebook 7, JupyterLite) was independently
 verified to do.
 
 <details>
-<summary><strong>Tools (19 registered)</strong></summary>
+<summary><strong>Tools (22 registered)</strong></summary>
 
 Full documentation, including inputs, outputs, bounds, and error codes, is
 in [`docs/webmcp-tools.md`](docs/webmcp-tools.md).
@@ -117,6 +117,7 @@ in [`docs/webmcp-tools.md`](docs/webmcp-tools.md).
 | `jupyter_open_notebook` | write (UI) | Open a notebook and bring it to the front. |
 | `jupyter_create_notebook` | write | Create and open a new, empty notebook. |
 | `jupyter_get_cells` | read | Read live cells, including unsaved edits, with source hashes. |
+| `jupyter_get_cell_access` | read | Report per-cell agent access (write/read/none) and provenance history. |
 | `jupyter_insert_cell` | write | Insert a visible cell; never executes it. |
 | `jupyter_update_cell` | write | Replace a cell's source, guarded by a source hash. |
 | `jupyter_delete_cell` | write | Delete a cell, guarded by a source hash. |
@@ -131,6 +132,8 @@ in [`docs/webmcp-tools.md`](docs/webmcp-tools.md).
 | `jupyter_resolve_comment` | write | Mark a thread resolved, preserving history. |
 | `jupyter_reopen_comment` | write | Reopen a resolved thread. |
 | `jupyter_focus_comment` | write (view) | Scroll to and select what a thread is anchored to. |
+| `jupyter_export_notebook` | read | Export the notebook as a bounded markdown document. |
+| `jupyter_get_output_selection` | read | Read the user's last selected output text, if any. |
 
 </details>
 
@@ -271,11 +274,12 @@ shared with the human, so the tool never interrupts work the human launched
 manually.
 
 Verified in Chrome 150 with WebMCP enabled, on the live demo, through the
-real `document.modelContext`: all 19 tools register, `getTools()` returns
+real `document.modelContext`: all 22 tools register, `getTools()` returns
 them with annotations intact, `executeTool()` round-trips, and the status
-bar reads `WebMCP · 19 tools`. With WebMCP off, `document.modelContext` is
-`undefined`, both plugins still activate, the Review panel still works, and
-the status bar reads `WebMCP unavailable`.
+bar reflects that an agent is connected. With WebMCP off,
+`document.modelContext` is `undefined`, both plugins still activate, the
+Review panel still works, and the status bar reflects that no agent is
+connected.
 
 **WebMCP cannot wake, summon, or notify an agent.** Selecting code, editing
 a cell, moving a widget slider, or adding or replying to a review comment

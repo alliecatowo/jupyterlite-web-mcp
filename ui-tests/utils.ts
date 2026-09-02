@@ -21,10 +21,10 @@ export async function openLab(
   await page.evaluate(() => (window as any).jupyterapp.restored);
 }
 
-/** Wait until all 19 WebMCP tools have registered. */
+/** Wait until all 22 WebMCP tools have registered. */
 export async function waitForTools(page: Page): Promise<void> {
   await page.waitForFunction(
-    () => ((window as any).__webmcp?.toolNames() ?? []).length >= 19,
+    () => ((window as any).__webmcp?.toolNames() ?? []).length >= 22,
     null,
     { timeout: 60_000 }
   );

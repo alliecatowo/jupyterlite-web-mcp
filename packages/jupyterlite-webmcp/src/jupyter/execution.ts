@@ -2,6 +2,7 @@ import { CodeCell, ICodeCellModel, MarkdownCell } from '@jupyterlab/cells';
 import { NotebookPanel } from '@jupyterlab/notebook';
 
 import { assertCellAccessible, cellAccess, IMetadataCell, recordCellHistory } from '../access/guard';
+import { LIMITS } from '../limits';
 import { toolError } from './errors';
 import { INotebookInfo, kernelInfo, notebookInfo, resolveNotebook } from './notebook';
 import { serializeOutputs, summarizeOutputs } from './outputs';
@@ -81,7 +82,20 @@ export async function runCells(
   const stopOnError = params.stopOnError !== false;
 
   const indices: number[] = [];
-  if (params.cellIds && params.cellIds.length > 0) {
+  if (params.cellIds) {
+    if (params.cellIds.length === 0) {
+      throw toolError(
+        'INVALID_ARGUMENT',
+        '"cellIds" must not be an empty array; omit it to run the active cell.'
+      );
+    }
+    if (params.cellIds.length > LIMITS.MAX_CELL_IDS_PER_CALL) {
+      throw toolError(
+        'INVALID_ARGUMENT',
+        `"cellIds" must not have more than ${LIMITS.MAX_CELL_IDS_PER_CALL} entries.`,
+        { count: params.cellIds.length }
+      );
+    }
     for (let i = 0; i < params.cellIds.length; i++) {
       indices.push(requireCellIndex(panel, params.cellIds[i], 'write'));
     }

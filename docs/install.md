@@ -82,9 +82,9 @@ present in the browser you're using:
 document.modelContext && typeof document.modelContext.registerTool === 'function'
 ```
 
-If that is `false`, the extension registers nothing, the status bar reads
-`WebMCP unavailable`, and the notebook — including the Review panel — works
-exactly as it otherwise would. If it is `true` and this extension is
-installed, the status bar reads `WebMCP · 19 tools`. See
-`docs/webmcp-compatibility.md` for how to enable WebMCP in a Chromium build
-that has the trial, and its calling convention once enabled.
+If that is `false`, the extension registers nothing, and the notebook —
+including the Review panel — works exactly as it otherwise would. If it is
+`true` and this extension is installed, all 22 tools register (see
+`docs/webmcp-tools.md`) and the status bar reflects that an agent is
+connected. See `docs/webmcp-compatibility.md` for how to enable WebMCP in a
+Chromium build that has the trial, and its calling convention once enabled.

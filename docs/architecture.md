@@ -109,7 +109,7 @@ reader/writer of exactly the same model, exposed outward through
 | `src/jupyter/revisions.ts` | `stableHash`, `hashCellSource`, and `computeNotebookRevision` — the deterministic, non-cryptographic hashing this project's concurrency guarantees are built on. |
 | `src/jupyter/errors.ts` | The closed `ErrorCode` union, the `ToolError` exception type, and `normalizeError`, which reduces any thrown value to a plain `{error, message, ...}` object. |
 | `src/webmcp/schemas.ts` | The JSON Schema for every tool's input, keyed by tool name. |
-| `src/webmcp/tools.ts` | Builds all 20 `IToolDefinition`s: argument parsing/validation, then a call into `src/jupyter/*` or `src/review/*`, then a plain JSON payload. |
+| `src/webmcp/tools.ts` | Builds all 22 `IToolDefinition`s (21 without an output-selection tracker): argument parsing/validation, then a call into `src/jupyter/*` or `src/review/*`, then a plain JSON payload. |
 | `src/webmcp/results.ts` | `boundJson`, `okResult`, `errorResult` — bounds a JSON payload's serialized size and builds the `{content, structuredContent, isError}` envelope. |
 | `src/webmcp/register.ts` | `WebMCPRegistry`: feature-detects `document.modelContext`, registers every tool exactly once, wraps each tool's `execute` to normalize errors and record diagnostics, and exposes live registration state for the status bar item. |
 | `src/webmcp/types.ts` | `IToolDefinition`, `IWebMCPState`, `IInvocationRecord` — the plain-data shapes the registry and status UI share. |

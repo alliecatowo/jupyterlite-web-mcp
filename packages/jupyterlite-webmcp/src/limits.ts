@@ -20,5 +20,22 @@ export const LIMITS = {
   MAX_PREVIEW_CHARS: 400,
   MAX_SUMMARY_CHARS: 600,
   MAX_CELL_HISTORY_ENTRIES: 20,
-  HISTORY_COALESCE_WINDOW_MS: 60 * 1000
+  HISTORY_COALESCE_WINDOW_MS: 60 * 1000,
+  /**
+   * Maximum accepted size of a cell `source` written by
+   * `jupyter_insert_cell`/`jupyter_update_cell`. Deliberately larger than
+   * `MAX_CELL_SOURCE_BYTES` (which bounds what a *read* returns): a write
+   * input is real notebook content the human will see and keep, not a
+   * summary handed to an agent, so it is rejected outright rather than
+   * silently truncated.
+   */
+  MAX_CELL_SOURCE_WRITE_BYTES: 256 * 1024,
+  /** Maximum accepted byte length of a notebook/file `name`. */
+  MAX_NAME_BYTES: 256,
+  /** Maximum number of cell ids accepted in one id-array argument. */
+  MAX_CELL_IDS_PER_CALL: 100,
+  /** Maximum rendered size of a `jupyter_export_notebook` document. */
+  MAX_EXPORT_BYTES: 40 * 1024,
+  /** Maximum number of cells `jupyter_export_notebook` will walk. */
+  MAX_EXPORT_CELLS: 500
 };

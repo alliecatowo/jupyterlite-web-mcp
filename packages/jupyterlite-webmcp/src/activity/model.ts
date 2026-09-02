@@ -83,6 +83,26 @@ export const HUMAN_PARTICIPANT: IParticipant = {
  * This is presentation state only: nothing about tool correctness depends
  * on it, and it is never persisted.
  */
+/**
+ * A tool call that has started but not yet finished.
+ *
+ * The presence layer needs this to be a real signal rather than an inference
+ * from how recently something completed: "running" must mean a call is
+ * actually in flight, never a guess dressed up as one.
+ */
+export interface IInFlightInvocation {
+  /** Correlates the start with its completion. */
+  id: string;
+  /** Tool being invoked. */
+  tool: string;
+  /** What kind of work it is, derived from the tool name. */
+  kind: ActivityKind;
+  /** Cells the input names, when it names any. */
+  cellIds: string[];
+  /** When the call started, as an ISO timestamp. */
+  startedAt: string;
+}
+
 export class ActivityLog {
   constructor() {
     this._participants = [HUMAN_PARTICIPANT, AGENT_PARTICIPANT];
@@ -106,6 +126,39 @@ export class ActivityLog {
   /** Records a new event, evicting the oldest event once the bound is hit. */
   record(event: IActivityEvent): void {
     this._events = [event, ...this._events].slice(0, MAX_ACTIVITY_EVENTS);
+    this._changed.emit();
+  }
+
+  /** Tool calls currently in flight, oldest first. */
+  get inFlight(): readonly IInFlightInvocation[] {
+    return this._inFlight;
+  }
+
+  /**
+   * Note that a tool call has started.
+   *
+   * @returns an id to hand back to {@link endInvocation} when it settles.
+   */
+  beginInvocation(
+    invocation: Omit<IInFlightInvocation, 'id' | 'startedAt'>
+  ): string {
+    const id = `inflight-${++this._inFlightSeq}`;
+    this._inFlight = this._inFlight.concat({
+      ...invocation,
+      id,
+      startedAt: new Date().toISOString()
+    });
+    this._changed.emit();
+    return id;
+  }
+
+  /** Note that a tool call has settled. Unknown ids are ignored. */
+  endInvocation(id: string): void {
+    const remaining = this._inFlight.filter(entry => entry.id !== id);
+    if (remaining.length === this._inFlight.length) {
+      return;
+    }
+    this._inFlight = remaining;
     this._changed.emit();
   }
 
@@ -134,10 +187,13 @@ export class ActivityLog {
   /** Clears every recorded event. */
   clear(): void {
     this._events = [];
+    this._inFlight = [];
     this._changed.emit();
   }
 
   private _events: IActivityEvent[] = [];
   private _participants: IParticipant[];
+  private _inFlight: IInFlightInvocation[] = [];
+  private _inFlightSeq = 0;
   private _changed = new Signal<ActivityLog, void>(this);
 }

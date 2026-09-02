@@ -18,6 +18,11 @@ import { INotebookInfo, notebookInfo, resolveNotebook } from './notebook';
 import { ISerializedOutput, serializeOutputs } from './outputs';
 import { hashCellSource } from './revisions';
 import { IJupyterEnv } from './workspace';
+import {
+  ExportFormat,
+  IExportCellInput,
+  renderNotebookMarkdown
+} from './export';
 
 /** Cell types a tool may create. */
 const CELL_TYPES = ['code', 'markdown', 'raw'];
@@ -101,6 +106,95 @@ export function requireCellIndex(
   const cell = panel.context.model.cells.get(index) as unknown as IMetadataCell;
   assertCellAccessible(cellId, panel.context.path, cellAccess(cell), intent);
   return index;
+}
+
+/**
+ * Validates and resolves a `startIndex`/`endIndex` cell range against a live
+ * notebook, returning the visible cell indices in range plus how many were
+ * hidden (`access: "none"`).
+ *
+ * Deliberately **rejects** an out-of-range request rather than clamping it:
+ * a negative `startIndex`/`endIndex`, or an `endIndex` before `startIndex`,
+ * is a caller bug that should surface as `INVALID_ARGUMENT`, not be silently
+ * reinterpreted as "start from zero" or "empty range". This is the fix for
+ * the live-tested defect where `jupyter_get_cells({ startIndex: -1 })` was
+ * clamped to `0` even though the advertised schema declares `minimum: 0` —
+ * neither the browser nor the host WebMCP runtime is guaranteed to enforce
+ * that schema constraint, so the handler must never rely on it.
+ */
+function resolveCellRange(
+  model: INotebookModel,
+  startIndex?: number | null,
+  endIndex?: number | null
+): { indices: number[]; hiddenCellCount: number } {
+  const start = startIndex ?? 0;
+  if (!Number.isInteger(start) || start < 0) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"startIndex" must be an integer >= 0, got ${start}.`,
+      { startIndex: start }
+    );
+  }
+  const end = endIndex ?? start + LIMITS.DEFAULT_CELLS_RETURNED;
+  if (!Number.isInteger(end) || end < 0) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"endIndex" must be an integer >= 0, got ${end}.`,
+      { endIndex: end }
+    );
+  }
+  if (end < start) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"endIndex" (${end}) must not be less than "startIndex" (${start}).`,
+      { startIndex: start, endIndex: end }
+    );
+  }
+
+  const indices: number[] = [];
+  let hiddenCellCount = 0;
+  const boundedEnd = Math.min(end, model.cells.length);
+  for (let i = start; i < boundedEnd; i++) {
+    const cell = model.cells.get(i) as unknown as IMetadataCell;
+    if (cellAccess(cell) === 'none') {
+      hiddenCellCount++;
+      continue;
+    }
+    indices.push(i);
+  }
+  return { indices, hiddenCellCount };
+}
+
+/** Validates a batch of explicit cell ids: non-empty, and within the call cap. */
+function checkCellIdBatch(cellIds: string[]): void {
+  if (cellIds.length === 0) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      '"cellIds" must not be an empty array; omit it to read a range instead.'
+    );
+  }
+  if (cellIds.length > LIMITS.MAX_CELL_IDS_PER_CALL) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"cellIds" must not have more than ${LIMITS.MAX_CELL_IDS_PER_CALL} entries.`,
+      { count: cellIds.length }
+    );
+  }
+}
+
+/**
+ * Rejects a cell `source` write outright once it exceeds
+ * `LIMITS.MAX_CELL_SOURCE_WRITE_BYTES`, rather than silently truncating real
+ * notebook content the human would then see was quietly cut short.
+ */
+function checkSourceSize(source: string): void {
+  if (source.length > LIMITS.MAX_CELL_SOURCE_WRITE_BYTES) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"source" exceeds the maximum size of ${LIMITS.MAX_CELL_SOURCE_WRITE_BYTES} bytes.`,
+      { length: source.length }
+    );
+  }
 }
 
 function boundSource(source: string): { text: string; truncated: boolean } {
@@ -203,7 +297,8 @@ export async function getCells(
 
   let indices: number[] = [];
   let hiddenCellCount = 0;
-  if (params.cellIds && params.cellIds.length > 0) {
+  if (params.cellIds) {
+    checkCellIdBatch(params.cellIds);
     // Explicit ids are resolved with a `'read'` intent: a `read`-access cell
     // is returned, but a `none` cell is indistinguishable from a bad id
     // (CELL_NOT_FOUND) — see `assertCellAccessible`.
@@ -211,19 +306,9 @@ export async function getCells(
       indices.push(requireCellIndex(panel, params.cellIds[i], 'read'));
     }
   } else {
-    const start = Math.max(0, params.startIndex ?? 0);
-    const end = Math.min(
-      params.endIndex ?? start + LIMITS.DEFAULT_CELLS_RETURNED,
-      model.cells.length
-    );
-    for (let i = start; i < end; i++) {
-      const cell = model.cells.get(i) as unknown as IMetadataCell;
-      if (cellAccess(cell) === 'none') {
-        hiddenCellCount++;
-        continue;
-      }
-      indices.push(i);
-    }
+    const range = resolveCellRange(model, params.startIndex, params.endIndex);
+    indices = range.indices;
+    hiddenCellCount = range.hiddenCellCount;
   }
 
   let omittedCount = 0;
@@ -270,24 +355,15 @@ export async function getCellAccess(
 
   let indices: number[] = [];
   let hiddenCellCount = 0;
-  if (params.cellIds && params.cellIds.length > 0) {
+  if (params.cellIds) {
+    checkCellIdBatch(params.cellIds);
     for (let i = 0; i < params.cellIds.length; i++) {
       indices.push(requireCellIndex(panel, params.cellIds[i], 'read'));
     }
   } else {
-    const start = Math.max(0, params.startIndex ?? 0);
-    const end = Math.min(
-      params.endIndex ?? start + LIMITS.DEFAULT_CELLS_RETURNED,
-      model.cells.length
-    );
-    for (let i = start; i < end; i++) {
-      const cell = model.cells.get(i) as unknown as IMetadataCell;
-      if (cellAccess(cell) === 'none') {
-        hiddenCellCount++;
-        continue;
-      }
-      indices.push(i);
-    }
+    const range = resolveCellRange(model, params.startIndex, params.endIndex);
+    indices = range.indices;
+    hiddenCellCount = range.hiddenCellCount;
   }
 
   let omittedCount = 0;
@@ -348,6 +424,7 @@ export async function insertCell(
       { position }
     );
   }
+  checkSourceSize(params.source ?? '');
 
   let insertIndex = model.cells.length;
   if (model.cells.length > 0) {
@@ -406,6 +483,7 @@ export async function updateCell(
   if (typeof params.source !== 'string') {
     throw toolError('INVALID_ARGUMENT', 'source must be a string.');
   }
+  checkSourceSize(params.source);
   if (!params.expectedSourceHash) {
     throw toolError(
       'INVALID_ARGUMENT',
@@ -490,5 +568,67 @@ export async function deleteCell(
     notebook: notebookInfo(panel),
     deletedCellId: params.cellId,
     activeCellId: activeCell ? activeCell.model.id : null
+  };
+}
+
+/**
+ * Export the notebook as a portable document, so an agent can hand it
+ * onward to its own tools (upload it, email it, put it in a document)
+ * without a human doing a manual export.
+ *
+ * Read-only. Respects per-cell agent access exactly like {@link getCells}: a
+ * `"none"` cell is omitted entirely (never even its existence), and the
+ * count of omitted cells is reported as `hiddenCellCount` rather than a
+ * silent gap.
+ */
+export async function exportNotebook(
+  env: IJupyterEnv,
+  params: {
+    notebookPath?: string | null;
+    format?: ExportFormat;
+    includeOutputs?: boolean;
+  } = {}
+): Promise<{
+  notebookPath: string;
+  document: string;
+  truncated: boolean;
+  cellCount: number;
+  hiddenCellCount: number;
+}> {
+  const panel = await resolveNotebook(env, params.notebookPath);
+  const model = panel.context.model;
+  const includeOutputs = params.includeOutputs !== false;
+
+  const visible: IExportCellInput[] = [];
+  let hiddenCellCount = 0;
+  const total = Math.min(model.cells.length, LIMITS.MAX_EXPORT_CELLS);
+  for (let i = 0; i < total; i++) {
+    const cell = model.cells.get(i) as unknown as IMetadataCell;
+    if (cellAccess(cell) === 'none') {
+      hiddenCellCount++;
+      continue;
+    }
+    const cellModel = model.cells.get(i);
+    let outputs: unknown[] = [];
+    if (includeOutputs && cellModel.type === 'code') {
+      const raw = (cellModel.sharedModel.toJSON() as { outputs?: unknown[] })
+        .outputs;
+      outputs = raw ?? [];
+    }
+    visible.push({
+      id: cellModel.id,
+      type: cellModel.type,
+      source: cellModel.sharedModel.getSource(),
+      outputs
+    });
+  }
+
+  const rendered = renderNotebookMarkdown(visible, { includeOutputs });
+  return {
+    notebookPath: panel.context.path,
+    document: rendered.document,
+    truncated: rendered.truncated || model.cells.length > total,
+    cellCount: rendered.cellCount,
+    hiddenCellCount
   };
 }

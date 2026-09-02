@@ -4,6 +4,7 @@ import { NotebookPanel } from '@jupyterlab/notebook';
 
 import { resolveCellIndex } from '../access/guard';
 import { LIMITS } from '../limits';
+import { toolError } from './errors';
 import {
   IKernelInfo,
   INotebookInfo,
@@ -197,6 +198,24 @@ export async function getContext(
 }
 
 /**
+ * Rejects a `{line, column}` position whose fields are not non-negative
+ * integers, rather than passing a malformed position through to the editor.
+ */
+function checkPosition(position: IPosition | null | undefined, key: string): void {
+  if (!position) {
+    return;
+  }
+  const { line, column } = position;
+  if (!Number.isInteger(line) || line < 0 || !Number.isInteger(column) || column < 0) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"${key}" must be {line, column} with non-negative integers.`,
+      { [key]: position }
+    );
+  }
+}
+
+/**
  * Point the human at a specific cell, and optionally at an exact expression
  * inside it, using the notebook's own selection rendering.
  */
@@ -209,6 +228,11 @@ export async function focusCell(
     selection?: { start: IPosition; end: IPosition } | null;
   }
 ): Promise<{ notebook: INotebookInfo; focus: IFocusContext }> {
+  checkPosition(params.cursor, 'cursor');
+  if (params.selection) {
+    checkPosition(params.selection.start, 'selection.start');
+    checkPosition(params.selection.end, 'selection.end');
+  }
   const panel = await resolveNotebook(env, params.notebookPath, {
     activate: true
   });

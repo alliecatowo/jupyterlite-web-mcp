@@ -19,7 +19,9 @@ import { registerReviewCommands, ReviewCommandIDs } from './review/commands';
 import { ReviewMarkers } from './review/markers';
 import { ReviewPanel } from './review/panel';
 import { ReviewStore } from './review/storage';
-import { IActivityLog, IReviewStore } from './tokens';
+import { OutputSelectionTracker } from './selection/capture';
+import { IActivityLog, IOutputSelectionTracker, IReviewStore } from './tokens';
+import { AskAboutCommandIDs, AskAboutOutputAffordance, registerAskAboutCommands } from './ui/askAbout';
 import { WebMCPStatus } from './ui/status';
 import { WebMCPRegistry } from './webmcp/register';
 import { buildTools } from './webmcp/tools';
@@ -121,10 +123,39 @@ const activityPlugin: JupyterFrontEndPlugin<ActivityLog> = {
       restorer.add(panel, 'jupyterlite-webmcp-activity');
     }
 
-    const markers = new ActivityMarkers(tracker, log);
+    const markers = new ActivityMarkers(tracker, log, {
+      revealActivityPanel: () => app.shell.activateById(panel.id)
+    });
     app.shell.disposed.connect(() => markers.dispose());
 
     return log;
+  }
+};
+
+/**
+ * Output-selection tracking and the human-handoff "Ask about..." commands.
+ *
+ * WebMCP cannot wake, notify, or interrupt an agent (see
+ * `docs/agent-collaboration-roadmap.md`). This plugin only ever prepares
+ * bounded context — a captured output selection — for an explicit human
+ * handoff, and works exactly the same with no agent connected.
+ */
+const outputSelectionPlugin: JupyterFrontEndPlugin<OutputSelectionTracker> = {
+  id: 'jupyterlite-webmcp:output-selection',
+  description: 'Tracks output-text selections and the "Ask about..." handoff commands.',
+  autoStart: true,
+  requires: [INotebookTracker],
+  provides: IOutputSelectionTracker,
+  activate: (app: JupyterFrontEnd, tracker: INotebookTracker): OutputSelectionTracker => {
+    const outputSelection = new OutputSelectionTracker(tracker);
+    app.shell.disposed.connect(() => outputSelection.dispose());
+
+    registerAskAboutCommands({ app, tracker, outputSelection });
+
+    const affordance = new AskAboutOutputAffordance(tracker, outputSelection);
+    app.shell.disposed.connect(() => affordance.dispose());
+
+    return outputSelection;
   }
 };
 
@@ -142,7 +173,7 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
     'Expose the live JupyterLite workspace to a compatible browser agent through WebMCP.',
   autoStart: true,
   requires: [INotebookTracker, IDocumentManager, IReviewStore],
-  optional: [IDefaultFileBrowser, IStatusBar, IActivityLog],
+  optional: [IDefaultFileBrowser, IStatusBar, IActivityLog, IOutputSelectionTracker],
   activate: (
     app: JupyterFrontEnd,
     tracker: INotebookTracker,
@@ -150,13 +181,14 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
     review: ReviewStore,
     fileBrowser: IDefaultFileBrowser | null,
     statusBar: IStatusBar | null,
-    activity: ActivityLog | null
+    activity: ActivityLog | null,
+    outputSelection: OutputSelectionTracker | null
   ): void => {
     const env: IJupyterEnv = { app, docManager, tracker, fileBrowser };
     const registry = new WebMCPRegistry(activity ?? undefined);
 
     if (statusBar) {
-      const item = new WebMCPStatus(registry);
+      const item = new WebMCPStatus(registry, activity ?? undefined, tracker);
       statusBar.registerStatusItem('jupyterlite-webmcp:status', {
         item,
         align: 'right',
@@ -164,10 +196,12 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
       });
     }
 
-    void app.started.then(() => registry.register(buildTools(env, review)));
+    void app.started.then(() =>
+      registry.register(buildTools(env, review, outputSelection ?? undefined))
+    );
   }
 };
 
-export { ReviewCommandIDs, AccessCommandIDs, IReviewStore, IActivityLog };
+export { ReviewCommandIDs, AccessCommandIDs, AskAboutCommandIDs, IReviewStore, IActivityLog, IOutputSelectionTracker };
 
-export default [reviewPlugin, accessPlugin, activityPlugin, webmcpPlugin];
+export default [reviewPlugin, accessPlugin, activityPlugin, outputSelectionPlugin, webmcpPlugin];

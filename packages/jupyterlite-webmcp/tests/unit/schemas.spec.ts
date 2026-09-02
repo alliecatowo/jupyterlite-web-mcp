@@ -20,7 +20,9 @@ const EXPECTED_TOOL_NAMES = [
   'jupyter_reply_comment',
   'jupyter_resolve_comment',
   'jupyter_reopen_comment',
-  'jupyter_focus_comment'
+  'jupyter_focus_comment',
+  'jupyter_export_notebook',
+  'jupyter_get_output_selection'
 ];
 
 describe('SCHEMAS', () => {

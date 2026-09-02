@@ -1,14 +1,17 @@
 import { cellAccess, IMetadataCell } from '../access/guard';
 import {
   deleteCell,
+  exportNotebook,
   getCellAccess,
   getCells,
   insertCell,
   updateCell
 } from '../jupyter/cells';
 import { toolError } from '../jupyter/errors';
+import { EXPORT_FORMATS } from '../jupyter/export';
 import { kernelAction, runCells } from '../jupyter/execution';
 import { focusCell, getContext, readFocus, revealCell } from '../jupyter/focus';
+import { OutputSelectionTracker } from '../selection/capture';
 import {
   createNotebook,
   kernelInfo,
@@ -110,6 +113,119 @@ function readRange(value: unknown, key: string): ISourceRange | null {
   };
 }
 
+/** UTF-8 byte length of `value`, used by the byte-bounded string checks below. */
+function utf8Bytes(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/**
+ * Validates that an optional string argument does not exceed `maxBytes` of
+ * UTF-8. Every free-text tool input (a message, a name, a source) must be
+ * bounded this way and rejected outright when it is not: the advertised
+ * schema cannot be trusted to enforce this by itself (see the module-level
+ * note on `jupyter_get_cells({ startIndex: -1 })`), and silently truncating
+ * real content a human will keep is worse than refusing it.
+ */
+function boundedText(input: Input, key: string, maxBytes: number): string | null {
+  const value = optionalString(input, key);
+  if (value === null) {
+    return null;
+  }
+  if (utf8Bytes(value) > maxBytes) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"${key}" exceeds the maximum size of ${maxBytes} bytes.`,
+      { key, bytes: utf8Bytes(value) }
+    );
+  }
+  return value;
+}
+
+/** Like {@link boundedText}, but the argument is required and non-empty. */
+function requiredBoundedText(input: Input, key: string, maxBytes: number): string {
+  const value = requiredString(input, key);
+  if (utf8Bytes(value) > maxBytes) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"${key}" exceeds the maximum size of ${maxBytes} bytes.`,
+      { key, bytes: utf8Bytes(value) }
+    );
+  }
+  return value;
+}
+
+/** Validates an optional integer argument, rejecting rather than clamping. */
+function boundedInteger(
+  input: Input,
+  key: string,
+  opts: { min?: number; max?: number } = {}
+): number | null {
+  const value = optionalNumber(input, key);
+  if (value === null) {
+    return null;
+  }
+  if (!Number.isInteger(value)) {
+    throw toolError('INVALID_ARGUMENT', `"${key}" must be an integer.`, { [key]: value });
+  }
+  if (opts.min !== undefined && value < opts.min) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"${key}" must be >= ${opts.min}, got ${value}.`,
+      { [key]: value }
+    );
+  }
+  if (opts.max !== undefined && value > opts.max) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"${key}" must be <= ${opts.max}, got ${value}.`,
+      { [key]: value }
+    );
+  }
+  return value;
+}
+
+/** Validates a required string argument is one of a closed set of values. */
+function requiredEnum<T extends string>(input: Input, key: string, allowed: readonly T[]): T {
+  const value = requiredString(input, key);
+  if ((allowed as readonly string[]).indexOf(value) === -1) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"${key}" must be one of: ${allowed.join(', ')}.`,
+      { [key]: value }
+    );
+  }
+  return value as T;
+}
+
+/** Like {@link requiredEnum}, but the argument is optional. */
+function optionalEnum<T extends string>(input: Input, key: string, allowed: readonly T[]): T | null {
+  const value = optionalString(input, key);
+  if (value === null) {
+    return null;
+  }
+  if ((allowed as readonly string[]).indexOf(value) === -1) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"${key}" must be one of: ${allowed.join(', ')}.`,
+      { [key]: value }
+    );
+  }
+  return value as T;
+}
+
+/** Closed set of `jupyter_kernel_action` actions, mirroring `SCHEMAS`. */
+const KERNEL_ACTIONS = ['interrupt', 'restart'] as const;
+
+/** Closed set of `jupyter_list_comments` `status` values. */
+const COMMENT_STATUSES = ['open', 'resolved', 'all'] as const;
+
+/** Closed set of `jupyter_list_comments` `scope` values. */
+const COMMENT_SCOPES = ['notebook', 'current-cell'] as const;
+
+/** Closed set of `jupyter_create_comment` anchor `kind` values. */
+const ANCHOR_KINDS = ['cell', 'source-range', 'output'] as const;
+
+
 /** Bounded summary of a thread, used by the list tool. */
 function threadSummary(
   store: ReviewStore,
@@ -151,7 +267,8 @@ function threadSummary(
  */
 export function buildTools(
   env: IJupyterEnv,
-  review: ReviewStore
+  review: ReviewStore,
+  outputSelection?: OutputSelectionTracker
 ): IToolDefinition[] {
   const counts = (panel: Parameters<ReviewStore['counts']>[0]) =>
     review.counts(panel);
@@ -178,7 +295,9 @@ export function buildTools(
         listWorkspace(env, {
           path: optionalString(input, 'path'),
           recursive: optionalBoolean(input, 'recursive') === true,
-          limit: optionalNumber(input, 'limit') ?? undefined
+          limit:
+            boundedInteger(input, 'limit', { min: 1, max: LIMITS.MAX_WORKSPACE_ROWS }) ??
+            undefined
         })
     },
 
@@ -215,7 +334,7 @@ export function buildTools(
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       handler: async input => {
         const created = await createNotebook(env, {
-          name: requiredString(input, 'name'),
+          name: requiredBoundedText(input, 'name', LIMITS.MAX_NAME_BYTES),
           directory: optionalString(input, 'directory'),
           kernel: optionalString(input, 'kernel')
         });
@@ -238,8 +357,8 @@ export function buildTools(
         getCells(env, {
           notebookPath: optionalString(input, 'notebookPath'),
           cellIds: optionalStringArray(input, 'cellIds'),
-          startIndex: optionalNumber(input, 'startIndex'),
-          endIndex: optionalNumber(input, 'endIndex'),
+          startIndex: boundedInteger(input, 'startIndex', { min: 0 }),
+          endIndex: boundedInteger(input, 'endIndex', { min: 0 }),
           includeSource: optionalBoolean(input, 'includeSource') !== false,
           includeOutputs: optionalBoolean(input, 'includeOutputs') === true
         })
@@ -256,8 +375,8 @@ export function buildTools(
         getCellAccess(env, {
           notebookPath: optionalString(input, 'notebookPath'),
           cellIds: optionalStringArray(input, 'cellIds'),
-          startIndex: optionalNumber(input, 'startIndex'),
-          endIndex: optionalNumber(input, 'endIndex')
+          startIndex: boundedInteger(input, 'startIndex', { min: 0 }),
+          endIndex: boundedInteger(input, 'endIndex', { min: 0 })
         })
     },
 
@@ -372,7 +491,7 @@ export function buildTools(
       handler: async input =>
         kernelAction(env, {
           notebookPath: optionalString(input, 'notebookPath'),
-          action: requiredString(input, 'action')
+          action: requiredEnum(input, 'action', KERNEL_ACTIONS)
         })
     },
 
@@ -388,13 +507,12 @@ export function buildTools(
           env,
           optionalString(input, 'notebookPath')
         );
-        const scope = optionalString(input, 'scope') ?? 'notebook';
-        const status = (optionalString(input, 'status') ??
+        const scope = optionalEnum(input, 'scope', COMMENT_SCOPES) ?? 'notebook';
+        const status = (optionalEnum(input, 'status', COMMENT_STATUSES) ??
           'open') as ThreadStatus | 'all';
-        const limit = Math.min(
-          optionalNumber(input, 'limit') ?? LIMITS.MAX_COMMENTS_RETURNED,
-          LIMITS.MAX_COMMENTS_RETURNED
-        );
+        const limit =
+          boundedInteger(input, 'limit', { min: 1, max: LIMITS.MAX_COMMENTS_RETURNED }) ??
+          LIMITS.MAX_COMMENTS_RETURNED;
         const cellId =
           scope === 'current-cell'
             ? (panel.content.activeCell?.model.id ?? null)
@@ -480,7 +598,7 @@ export function buildTools(
           optionalString(input, 'notebookPath')
         );
         const rawAnchor = (input.anchor ?? {}) as Input;
-        const kind = requiredString(rawAnchor, 'kind') as AnchorKind;
+        const kind = requiredEnum(rawAnchor, 'kind', ANCHOR_KINDS) as AnchorKind;
         const cellId = requiredString(rawAnchor, 'cellId');
         let anchor: IAnchor = { kind, cellId };
 
@@ -494,7 +612,7 @@ export function buildTools(
             }
           }
           const explicit = readRange(rawAnchor.selection, 'anchor.selection');
-          const text = optionalString(rawAnchor, 'text');
+          const text = boundedText(rawAnchor, 'text', LIMITS.MAX_SELECTED_TEXT_BYTES);
           let range: ISourceRange;
           if (explicit) {
             range = explicit;
@@ -519,14 +637,15 @@ export function buildTools(
           }
           anchor = makeSourceAnchor(cellId, source, range);
         } else if (kind === 'output') {
-          const outputIndex = optionalNumber(rawAnchor, 'outputIndex') ?? 0;
+          const outputIndex =
+            boundedInteger(rawAnchor, 'outputIndex', { min: 0 }) ?? 0;
           anchor = review.buildOutputAnchor(panel, cellId, outputIndex);
         }
 
         const thread = review.createThread(
           panel,
           anchor,
-          requiredString(input, 'message'),
+          requiredBoundedText(input, 'message', LIMITS.MAX_COMMENT_BODY_BYTES),
           AGENT_AUTHOR
         );
         return {
@@ -552,7 +671,7 @@ export function buildTools(
         const thread = review.reply(
           panel,
           requiredString(input, 'threadId'),
-          requiredString(input, 'message'),
+          requiredBoundedText(input, 'message', LIMITS.MAX_COMMENT_BODY_BYTES),
           AGENT_AUTHOR
         );
         return { notebookPath: panel.context.path, thread };
@@ -575,7 +694,7 @@ export function buildTools(
           panel,
           requiredString(input, 'threadId'),
           'resolved',
-          optionalString(input, 'resolutionMessage'),
+          boundedText(input, 'resolutionMessage', LIMITS.MAX_COMMENT_BODY_BYTES),
           AGENT_AUTHOR
         );
         return { notebookPath: panel.context.path, thread };
@@ -645,8 +764,35 @@ export function buildTools(
           notebook: notebookInfo(panel)
         };
       }
+    },
+
+    {
+      name: 'jupyter_export_notebook',
+      title: 'Export the notebook',
+      description:
+        'Export the notebook as a portable markdown document: markdown cells verbatim, code cells as fenced code blocks, and (by default) their text and error outputs, with images represented only by a placeholder, never embedded. Use this to hand the notebook to another tool (upload it, email it, put it in a document) without a manual export.',
+      inputSchema: SCHEMAS.jupyter_export_notebook,
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
+      handler: async input =>
+        exportNotebook(env, {
+          notebookPath: optionalString(input, 'notebookPath'),
+          format: optionalEnum(input, 'format', EXPORT_FORMATS) ?? 'markdown',
+          includeOutputs: optionalBoolean(input, 'includeOutputs') !== false
+        })
     }
   ];
+
+  if (outputSelection) {
+    tools.push({
+      name: 'jupyter_get_output_selection',
+      title: 'Read the selected output',
+      description:
+        'Read the text the user last selected inside a rendered cell output, if any is currently recorded. Returns null when nothing is selected, the selection crossed cells or notebook chrome, or it no longer matches the output it was taken from.',
+      inputSchema: SCHEMAS.jupyter_get_output_selection,
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
+      handler: async () => outputSelection.current
+    });
+  }
 
   return tools;
 }

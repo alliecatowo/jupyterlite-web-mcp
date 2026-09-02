@@ -105,13 +105,14 @@ export async function listWorkspace(
   } = {}
 ): Promise<IWorkspaceListing> {
   const root = validatePath(params.path);
-  const limit = Math.max(
-    1,
-    Math.min(
-      params.limit ?? LIMITS.MAX_WORKSPACE_ROWS,
-      LIMITS.MAX_WORKSPACE_ROWS
-    )
-  );
+  const limit = params.limit ?? LIMITS.MAX_WORKSPACE_ROWS;
+  if (!Number.isInteger(limit) || limit < 1 || limit > LIMITS.MAX_WORKSPACE_ROWS) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      `"limit" must be an integer between 1 and ${LIMITS.MAX_WORKSPACE_ROWS}, got ${limit}.`,
+      { limit }
+    );
+  }
   const contents = contentsManager(env);
 
   const entries: IWorkspaceEntry[] = [];

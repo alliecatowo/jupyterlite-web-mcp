@@ -354,5 +354,30 @@ export const SCHEMAS: Record<string, Record<string, unknown>> = {
     },
     required: ['threadId'],
     additionalProperties: false
+  },
+
+  jupyter_export_notebook: {
+    type: 'object',
+    properties: {
+      notebookPath: NOTEBOOK_PATH,
+      format: {
+        type: 'string',
+        enum: ['markdown'],
+        default: 'markdown',
+        description: 'Output document format. Only "markdown" exists today.'
+      },
+      includeOutputs: {
+        type: 'boolean',
+        default: true,
+        description: 'Include bounded text/error outputs of code cells.'
+      }
+    },
+    additionalProperties: false
+  },
+
+  jupyter_get_output_selection: {
+    type: 'object',
+    properties: {},
+    additionalProperties: false
   }
 };
