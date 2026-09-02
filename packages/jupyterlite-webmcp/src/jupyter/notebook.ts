@@ -38,6 +38,23 @@ export interface IResolveOptions {
 }
 
 /**
+ * Wait until the service manager, and in particular the kernel spec registry,
+ * is ready.
+ *
+ * In JupyterLite the kernels are registered by frontend extensions during
+ * start-up, so a tool invoked very early would otherwise see no kernels at all.
+ */
+async function serviceManagerReady(env: IJupyterEnv): Promise<void> {
+  try {
+    await env.app.serviceManager.ready;
+    await env.app.serviceManager.kernelspecs.ready;
+  } catch (error) {
+    // A service that never becomes ready must not block a notebook from
+    // opening; the notebook simply opens without a kernel.
+  }
+}
+
+/**
  * Resolve a notebook panel from an optional path.
  *
  * With no path this returns the notebook the human is currently working in.
@@ -69,6 +86,14 @@ export async function resolveNotebook(
 
   const normalized = validatePath(path);
   let widget = env.docManager.findWidget(normalized);
+
+  // Opening a notebook before JupyterLite has registered its kernel specs
+  // leaves the panel with no kernel and pops a "Select Kernel" dialog at the
+  // user. Waiting for the service manager lets the notebook start its own
+  // preferred kernel, exactly as it would if the user had opened it.
+  if (!widget) {
+    await serviceManagerReady(env);
+  }
 
   if (!widget) {
     if (!open) {
@@ -179,6 +204,7 @@ export async function createNotebook(
     );
   }
 
+  await serviceManagerReady(env);
   const created = await contents.newUntitled({
     type: 'notebook',
     path: directory
