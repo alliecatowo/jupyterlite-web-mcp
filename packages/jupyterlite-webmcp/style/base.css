@@ -1,3 +1,15 @@
+:root {
+  /*
+   * Presence colors for the activity layer's two participants. Chosen to sit
+   * apart from `--jp-brand-color1` (used for review-thread markers) and from
+   * each other, to read clearly as small swatches/edge-markers on both the
+   * light and dark JupyterLab themes, and to avoid pure red/green so a
+   * failed call never reads as a stoplight.
+   */
+  --jp-webmcp-agent-color: #8a5cf6;
+  --jp-webmcp-human-color: #0e9384;
+}
+
 .jp-webmcp-ReviewPanel {
   padding: 8px;
   overflow: auto;
@@ -147,4 +159,166 @@
   outline: 2px solid var(--jp-brand-color1);
   outline-offset: 2px;
   transition: outline-color 0.2s ease-in-out;
+}
+
+.jp-webmcp-ActivityPanel {
+  padding: 8px;
+  overflow: auto;
+  font-size: var(--jp-ui-font-size1);
+  color: var(--jp-ui-font-color1);
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.jp-webmcp-participants {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--jp-border-color2);
+}
+
+.jp-webmcp-participant {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.jp-webmcp-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-top: 3px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.jp-webmcp-participant-info {
+  min-width: 0;
+}
+
+.jp-webmcp-participant-name {
+  font-weight: 600;
+}
+
+.jp-webmcp-participant-status {
+  font-size: var(--jp-ui-font-size0, 11px);
+  color: var(--jp-ui-font-color2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-webmcp-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jp-webmcp-activity-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 2px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.jp-webmcp-activity-row:hover {
+  background: var(--jp-layout-color2);
+}
+
+.jp-webmcp-activity-failed {
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-webmcp-activity-time {
+  flex: 0 0 auto;
+  font-size: var(--jp-ui-font-size0, 11px);
+  color: var(--jp-ui-font-color3, var(--jp-ui-font-color2));
+  min-width: 3.5em;
+}
+
+.jp-webmcp-activity-chip {
+  flex: 0 0 auto;
+  font-size: var(--jp-ui-font-size0, 11px);
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--jp-layout-color2);
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-webmcp-activity-chip-write,
+.jp-webmcp-activity-chip-run {
+  background: var(--jp-webmcp-agent-color);
+  color: var(--jp-ui-inverse-font-color1, #fff);
+}
+
+.jp-webmcp-activity-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-webmcp-activity-failed .jp-webmcp-activity-summary {
+  font-style: italic;
+}
+
+/*
+ * Left-edge presence marker on a cell, mirroring `.jp-webmcp-hasComments`
+ * above: a `box-shadow: inset` on the input wrapper so it can never shift
+ * layout. The transition lives on the wrapper itself (not on the marker
+ * class), so removing the marker class actually fades the shadow out
+ * instead of cutting it off. Intensity/style varies subtly by kind.
+ */
+.jp-Cell > .jp-Cell-inputWrapper {
+  transition: box-shadow 3.5s ease-out;
+}
+
+.jp-Cell.jp-webmcp-activity > .jp-Cell-inputWrapper {
+  box-shadow: inset 3px 0 0 0 var(--jp-webmcp-agent-color);
+}
+
+.jp-Cell.jp-webmcp-activity-read > .jp-Cell-inputWrapper {
+  box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--jp-webmcp-agent-color) 55%, transparent);
+}
+
+.jp-Cell.jp-webmcp-activity-write > .jp-Cell-inputWrapper {
+  box-shadow: inset 3px 0 0 0 var(--jp-webmcp-agent-color);
+}
+
+.jp-Cell.jp-webmcp-activity-focus > .jp-Cell-inputWrapper,
+.jp-Cell.jp-webmcp-activity-navigate > .jp-Cell-inputWrapper {
+  box-shadow: inset 3px 0 0 0 color-mix(in srgb, var(--jp-webmcp-agent-color) 75%, transparent);
+}
+
+.jp-Cell.jp-webmcp-activity-run > .jp-Cell-inputWrapper {
+  box-shadow: inset 3px 0 0 0 var(--jp-webmcp-agent-color);
+  animation: jp-webmcp-activity-pulse 1s ease-in-out 2;
+}
+
+.jp-OutputArea-child {
+  transition: outline-color 3.5s ease-out;
+}
+
+.jp-OutputArea-child.jp-webmcp-activity {
+  outline: 2px solid color-mix(in srgb, var(--jp-webmcp-agent-color) 70%, transparent);
+  outline-offset: 1px;
+}
+
+@keyframes jp-webmcp-activity-pulse {
+  0%,
+  100% {
+    box-shadow: inset 3px 0 0 0 var(--jp-webmcp-agent-color);
+  }
+  50% {
+    box-shadow: inset 5px 0 0 0 var(--jp-webmcp-agent-color);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jp-Cell.jp-webmcp-activity-run > .jp-Cell-inputWrapper {
+    animation: none;
+  }
 }

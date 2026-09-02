@@ -1,5 +1,7 @@
 import { ISignal, Signal } from '@lumino/signaling';
 
+import { AGENT_PARTICIPANT, ActivityLog } from '../activity/model';
+import { deriveActivity } from '../activity/derive';
 import { normalizeError } from '../jupyter/errors';
 import { errorResult, okResult } from './results';
 import { IInvocationRecord, IToolDefinition, IWebMCPState } from './types';
@@ -15,6 +17,16 @@ const MAX_RECENT = 10;
  * capability, and every tool reads the current state when it is invoked.
  */
 export class WebMCPRegistry {
+  /**
+   * @param activity Optional presence/activity log. When provided, every
+   * completed invocation is also recorded there as an {@link IActivityEvent}
+   * (in addition to the diagnostics popover's own recent-invocation list,
+   * which is unaffected either way).
+   */
+  constructor(activity?: ActivityLog) {
+    this._activity = activity ?? null;
+  }
+
   /** Emitted whenever {@link state} changes. */
   get changed(): ISignal<WebMCPRegistry, void> {
     return this._changed;
@@ -92,28 +104,63 @@ export class WebMCPRegistry {
     options: { signal: AbortSignal }
   ): Promise<unknown> {
     const started = Date.now();
+    const requestInput = (input as Record<string, unknown>) ?? {};
     try {
-      const payload = await tool.handler(
-        (input as Record<string, unknown>) ?? {},
-        { signal: options?.signal }
-      );
+      const payload = await tool.handler(requestInput, {
+        signal: options?.signal
+      });
+      const durationMs = Date.now() - started;
       this._record({
         name: tool.name,
         ok: true,
         at: new Date().toISOString(),
-        durationMs: Date.now() - started
+        durationMs
+      });
+      this._recordActivity({
+        tool: tool.name,
+        input: requestInput,
+        payload,
+        ok: true,
+        durationMs
       });
       return okResult(payload);
     } catch (error) {
       const structured = normalizeError(error);
+      const durationMs = Date.now() - started;
       this._record({
         name: tool.name,
         ok: false,
         errorCode: structured.error,
         at: new Date().toISOString(),
-        durationMs: Date.now() - started
+        durationMs
+      });
+      this._recordActivity({
+        tool: tool.name,
+        input: requestInput,
+        payload: structured,
+        ok: false,
+        errorCode: structured.error,
+        durationMs
       });
       return errorResult(structured);
+    }
+  }
+
+  private _recordActivity(facts: Parameters<typeof deriveActivity>[0]): void {
+    if (!this._activity) {
+      return;
+    }
+    try {
+      const derived = deriveActivity(facts);
+      this._activity.record({
+        ...derived,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        at: new Date().toISOString(),
+        participantId: AGENT_PARTICIPANT.id
+      });
+    } catch {
+      // The activity layer is presentation only and must never break a
+      // tool invocation.
     }
   }
 
@@ -135,4 +182,5 @@ export class WebMCPRegistry {
     recent: []
   };
   private _changed = new Signal<WebMCPRegistry, void>(this);
+  private _activity: ActivityLog | null;
 }

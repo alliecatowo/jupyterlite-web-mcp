@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Build the JupyterLite site, including the prebuilt frontend extension.
+#
+# Used by both the Vercel build and by anyone reproducing the deployment
+# locally. jupyter-builder, which bundles the labextension, is a console
+# script from the jupyterlab Python package, so the Python environment has to
+# exist before the JavaScript build runs.
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$root"
+
+python="${PYTHON:-python3}"
+
+# Install into "$python"'s environment. A uv-created virtualenv has no pip
+# module of its own, so fall back to `uv pip` when that is what we are in.
+install() {
+  if "$python" -m pip --version >/dev/null 2>&1; then
+    "$python" -m pip install --quiet --disable-pip-version-check "$@"
+  elif command -v uv >/dev/null 2>&1; then
+    uv pip install --quiet --python "$python" "$@"
+  else
+    echo "neither pip nor uv is available for $python" >&2
+    return 1
+  fi
+}
+
+# Skip an install that would be a no-op, so a local rebuild is fast.
+have() { "$python" -c "import $1" >/dev/null 2>&1; }
+
+echo "==> installing the extension build toolchain"
+have jupyterlab || install "jupyterlab~=4.6.0"
+
+echo "==> building the frontend extension"
+npm --prefix packages/jupyterlite-webmcp run build:prod
+
+echo "==> installing the JupyterLite build dependencies"
+have jupyterlite_core || install -r requirements.txt
+
+echo "==> building the JupyterLite site"
+rm -rf dist .jupyterlite.doit.db
+"$python" -m jupyterlite_core.app build --contents content --output-dir dist
+
+# The deployment headers travel with the built site, so a prebuilt deploy of
+# dist/ is cross-origin isolated exactly like a Git-integration build.
+cp vercel.json dist/vercel.json
+
+echo "==> done: dist/"

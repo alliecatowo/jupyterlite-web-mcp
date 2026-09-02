@@ -8,12 +8,15 @@ import { IDefaultFileBrowser } from '@jupyterlab/filebrowser';
 import { INotebookTracker } from '@jupyterlab/notebook';
 import { IStatusBar } from '@jupyterlab/statusbar';
 
+import { ActivityLog } from './activity/model';
+import { ActivityMarkers } from './activity/markers';
+import { ActivityPanel } from './activity/panel';
 import { IJupyterEnv } from './jupyter/workspace';
 import { registerReviewCommands, ReviewCommandIDs } from './review/commands';
 import { ReviewMarkers } from './review/markers';
 import { ReviewPanel } from './review/panel';
 import { ReviewStore } from './review/storage';
-import { IReviewStore } from './tokens';
+import { IActivityLog, IReviewStore } from './tokens';
 import { WebMCPStatus } from './ui/status';
 import { WebMCPRegistry } from './webmcp/register';
 import { buildTools } from './webmcp/tools';
@@ -62,6 +65,41 @@ const reviewPlugin: JupyterFrontEndPlugin<ReviewStore> = {
 };
 
 /**
+ * Presence / activity layer.
+ *
+ * Shows, in the ordinary spirit of collaborative-editor presence, what each
+ * participant — the human, or the browser agent accompanying them — is
+ * touching right now and did recently. Additive: the tools plugin works
+ * exactly the same with or without it.
+ */
+const activityPlugin: JupyterFrontEndPlugin<ActivityLog> = {
+  id: 'jupyterlite-webmcp:activity',
+  description: 'Presence and recent-activity timeline for the notebook.',
+  autoStart: true,
+  requires: [INotebookTracker],
+  optional: [ILayoutRestorer],
+  provides: IActivityLog,
+  activate: (
+    app: JupyterFrontEnd,
+    tracker: INotebookTracker,
+    restorer: ILayoutRestorer | null
+  ): ActivityLog => {
+    const log = new ActivityLog();
+
+    const panel = new ActivityPanel({ app, tracker, log });
+    app.shell.add(panel, 'right', { rank: 901 });
+    if (restorer) {
+      restorer.add(panel, 'jupyterlite-webmcp-activity');
+    }
+
+    const markers = new ActivityMarkers(tracker, log);
+    app.shell.disposed.connect(() => markers.dispose());
+
+    return log;
+  }
+};
+
+/**
  * WebMCP tool registration.
  *
  * Progressive enhancement: when the browser exposes `document.modelContext`
@@ -75,17 +113,18 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
     'Expose the live JupyterLite workspace to a compatible browser agent through WebMCP.',
   autoStart: true,
   requires: [INotebookTracker, IDocumentManager, IReviewStore],
-  optional: [IDefaultFileBrowser, IStatusBar],
+  optional: [IDefaultFileBrowser, IStatusBar, IActivityLog],
   activate: (
     app: JupyterFrontEnd,
     tracker: INotebookTracker,
     docManager: IDocumentManager,
     review: ReviewStore,
     fileBrowser: IDefaultFileBrowser | null,
-    statusBar: IStatusBar | null
+    statusBar: IStatusBar | null,
+    activity: ActivityLog | null
   ): void => {
     const env: IJupyterEnv = { app, docManager, tracker, fileBrowser };
-    const registry = new WebMCPRegistry();
+    const registry = new WebMCPRegistry(activity ?? undefined);
 
     if (statusBar) {
       const item = new WebMCPStatus(registry);
@@ -100,6 +139,6 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
   }
 };
 
-export { ReviewCommandIDs, IReviewStore };
+export { ReviewCommandIDs, IReviewStore, IActivityLog };
 
-export default [reviewPlugin, webmcpPlugin];
+export default [reviewPlugin, activityPlugin, webmcpPlugin];

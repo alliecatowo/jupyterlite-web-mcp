@@ -1,5 +1,22 @@
 # Architecture
 
+## Where the code runs
+
+Everything in this extension runs in the browser: there is no server
+extension, no backend, and no Jupyter server. The notebooks, the file system
+and the review threads all live in the browser origin.
+
+One asset does come over the network on first load: JupyterLite fetches the
+Pyodide runtime from a CDN (`cdn.jsdelivr.net`), which is the JupyterLite
+default. The demo *data* is local — `data/customers.csv` ships with the site —
+so once the kernel has started, nothing the notebooks do needs the network.
+
+The deployment is served cross-origin isolated (`Cross-Origin-Opener-Policy:
+same-origin` and `Cross-Origin-Embedder-Policy: credentialless`), which gives
+the Pyodide worker a real `SharedArrayBuffer` for synchronous communication
+instead of the service-worker fallback. That is why the site is deployed on a
+host that can set response headers; GitHub Pages cannot.
+
 ## Dependency direction
 
 The extension is layered so that Jupyter semantics never depend on WebMCP,
