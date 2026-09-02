@@ -2,24 +2,23 @@
 
 > **Your notebook is already in the browser. Now your agent can be too.**
 
-**Live deployment: <https://allisoncoleman.github.io/jupyterlite-web-mcp/lab/index.html>**
+**Live deployment: <https://alliecatowo.github.io/jupyterlite-web-mcp/lab/index.html>**
 No sign-in, no server, no configuration — the notebooks, the files and the
 Python kernel all run in your browser tab.
 
-<!--
-DEMO PLACEHOLDER: a ~2-2.5 minute screen recording (GIF or video) goes here,
-following docs/demo-script.md. It has not been recorded yet.
+![The agent opening the notebook, running it, fixing the selected expression and leaving a review comment](docs/media/jupyterlite-webmcp-demo.gif)
 
-What you'd see:
-- Scene A: ordinary JupyterLite, a cell run by hand, no AI product visible.
-- Scene B: "Open the customer analysis notebook" — the notebook opens.
-- Scene C: the human mouse-selects `converted / visitors` and asks the agent
-  to fix just that; the source, execution count, and chart update in place.
-- Scene D: the human hand-edits an earlier filter cell and runs it, then asks
-  the agent to add a comparison below the chart without disturbing the edit.
-- Scene E: "Where is churn actually calculated?" — the notebook scrolls to
-  and highlights the relevant cell.
--->
+Recorded on the public deployment above, in Chrome with WebMCP enabled, driving
+the extension through the real `document.modelContext` API. In order: ordinary
+JupyterLite with the status bar reading `WebMCP - 19 tools`; the agent opening
+`customer-analysis.ipynb` and running it; the human selecting
+`converted / visitors` by hand; the agent reading that exact selection, fixing
+only that expression and re-running the cell so the printed conversion rate
+changes; the agent scrolling the notebook to `eligible_sessions` to point back
+at the human; and a review thread anchored to the corrected expression.
+
+The full shot list, with the tool calls expected at each step, is in
+[`docs/demo-script.md`](docs/demo-script.md).
 
 ## What it is
 
@@ -186,7 +185,7 @@ so the extension is picked up automatically.
 
 A public build of this repository is published by
 `.github/workflows/deploy.yml` to GitHub Pages on every push to `main`, at
-<https://allisoncoleman.github.io/jupyterlite-web-mcp/lab/index.html>. It is a
+<https://alliecatowo.github.io/jupyterlite-web-mcp/lab/index.html>. It is a
 plain static site: no authentication, no iframe, and the sample content is
 preloaded.
 

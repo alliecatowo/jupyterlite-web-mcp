@@ -23,7 +23,7 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/allisoncoleman/jupyterlite-web-mcp"
+Homepage = "https://github.com/alliecatowo/jupyterlite-web-mcp"
 
 [tool.hatch.build.targets.sdist]
 artifacts = ["jupyterlite_webmcp/labextension"]
