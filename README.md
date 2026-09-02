@@ -2,6 +2,10 @@
 
 > **Your notebook is already in the browser. Now your agent can be too.**
 
+**Live deployment: <https://alliecatowo.github.io/jupyterlite-web-mcp/lab/index.html>**
+No sign-in, no server, no configuration — the notebooks, the files and the
+Python kernel all run in your browser tab.
+
 <!--
 DEMO PLACEHOLDER: a ~2-2.5 minute screen recording (GIF or video) goes here,
 following docs/demo-script.md. It has not been recorded yet.
@@ -181,9 +185,10 @@ cd ../..
 so the extension is picked up automatically.
 
 A public build of this repository is published by
-`.github/workflows/deploy.yml` to GitHub Pages on pushes to `main`; the
-exact URL depends on where this repository is hosted, so check the
-repository's GitHub Pages settings rather than assuming a specific link.
+`.github/workflows/deploy.yml` to GitHub Pages on every push to `main`, at
+<https://alliecatowo.github.io/jupyterlite-web-mcp/lab/index.html>. It is a
+plain static site: no authentication, no iframe, and the sample content is
+preloaded.
 
 ## Testing
 

@@ -43,7 +43,7 @@ export function stableHash(input: string): string {
  * has changed.
  */
 export function hashCellSource(cellType: string, source: string): string {
-  return stableHash(cellType + ' ' + source);
+  return stableHash(cellType + '\u0000' + source);
 }
 
 /**
