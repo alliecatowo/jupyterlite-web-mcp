@@ -11,6 +11,8 @@ const ALL_TOOL_NAMES = [
   'jupyter_create_notebook',
   'jupyter_get_cells',
   'jupyter_get_cell_access',
+  'jupyter_export_notebook',
+  'jupyter_get_output_selection',
   'jupyter_insert_cell',
   'jupyter_update_cell',
   'jupyter_delete_cell',
@@ -39,8 +41,8 @@ function facts(partial: Partial<IInvocationFacts>): IInvocationFacts {
 }
 
 describe('activityKindFor', () => {
-  it('covers all 20 tool names', () => {
-    expect(ALL_TOOL_NAMES).toHaveLength(20);
+  it('covers all 22 tool names', () => {
+    expect(ALL_TOOL_NAMES).toHaveLength(22);
   });
 
   const expected: Record<string, string> = {
@@ -50,6 +52,8 @@ describe('activityKindFor', () => {
     jupyter_get_comment: 'read',
     jupyter_get_cells: 'read',
     jupyter_get_cell_access: 'read',
+    jupyter_export_notebook: 'read',
+    jupyter_get_output_selection: 'read',
     jupyter_insert_cell: 'write',
     jupyter_update_cell: 'write',
     jupyter_delete_cell: 'write',
@@ -70,7 +74,7 @@ describe('activityKindFor', () => {
     expect(activityKindFor(tool)).toBe(expected[tool]);
   });
 
-  it('every one of the 19 tools has an expected classification', () => {
+  it('every registered tool has an expected classification', () => {
     expect(Object.keys(expected).sort()).toEqual([...ALL_TOOL_NAMES].sort());
   });
 
@@ -338,6 +342,31 @@ describe('deriveActivity: failure phrasing', () => {
 });
 
 describe('deriveActivity: success summaries', () => {
+  it('names the explicit Markdown handoff rather than using a generic read', () => {
+    const event = deriveActivity(
+      facts({
+        tool: 'jupyter_export_notebook',
+        payload: { format: 'markdown' }
+      })
+    );
+    expect(event.kind).toBe('read');
+    expect(event.summary).toBe('exported the notebook as Markdown');
+  });
+
+  it('names a captured output selection precisely', () => {
+    const event = deriveActivity(
+      facts({
+        tool: 'jupyter_get_output_selection',
+        payload: { cellId: 'cell-a', outputIndex: 0 },
+        input: { cellId: 'cell-a' }
+      })
+    );
+    expect(event.kind).toBe('read');
+    expect(event.cellIds).toEqual(['cell-a']);
+    expect(event.outputIndex).toBe(0);
+    expect(event.summary).toBe('read the selected output from a cell');
+  });
+
   it('summarizes reading multiple cells', () => {
     const event = deriveActivity(
       facts({

@@ -70,6 +70,40 @@ test.describe.serial('kernel execution', () => {
     expect(followUp.payload.results[0].status).toBe('ok');
   });
 
+  test('runs a bounded contiguous range only after validating the whole range', async () => {
+    const first = await callTool(page, 'jupyter_insert_cell', {
+      cellType: 'markdown',
+      source: 'Range test: first'
+    });
+    const second = await callTool(page, 'jupyter_insert_cell', {
+      referenceCellId: first.payload.cell.id,
+      position: 'below',
+      cellType: 'markdown',
+      source: 'Range test: second'
+    });
+
+    const startIndex = first.payload.cell.index;
+    const endIndex = second.payload.cell.index + 1;
+    const run = await callTool(page, 'jupyter_run_cells', {
+      startIndex,
+      endIndex
+    });
+    expect(run.ok).toBe(true);
+    expect(run.payload.results.map((result: any) => result.cellId)).toEqual([
+      first.payload.cell.id,
+      second.payload.cell.id
+    ]);
+    expect(run.payload.results.every((result: any) => result.status === 'no-op')).toBe(true);
+
+    const ambiguous = await callTool(page, 'jupyter_run_cells', {
+      cellIds: [first.payload.cell.id],
+      startIndex,
+      endIndex
+    });
+    expect(ambiguous.ok).toBe(false);
+    expect(ambiguous.payload.error).toBe('INVALID_ARGUMENT');
+  });
+
   test('there is no tool that executes arbitrary source', async () => {
     const names: string[] = await page.evaluate(() => (window as any).__webmcp.toolNames());
     const suspicious = names.filter(n => /eval|exec|execute_code|run_code|kernel_eval/i.test(n));
@@ -79,6 +113,8 @@ test.describe.serial('kernel execution', () => {
     const props = def.inputSchema.properties ?? {};
     expect(props.source).toBeUndefined();
     expect(props.code).toBeUndefined();
+    expect(props.startIndex).toBeDefined();
+    expect(props.endIndex).toBeDefined();
   });
 
   // Run last: this discards kernel state, which would break subsequent tests

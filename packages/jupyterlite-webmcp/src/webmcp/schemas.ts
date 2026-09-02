@@ -215,7 +215,7 @@ export const SCHEMAS: Record<string, Record<string, unknown>> = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Cells to run, in order. Defaults to the active cell. Only cells that already exist in the notebook can be run.'
+          'Cells to run, in order. They are mutually exclusive with startIndex/endIndex. Defaults to the active cell. Only cells that already exist in the notebook can be run.'
       },
       startIndex: {
         type: 'integer',

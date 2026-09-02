@@ -338,4 +338,49 @@ test.describe.serial('review comments', () => {
 
     await openNotebook(page, 'customer-analysis.ipynb');
   });
+
+  test('a hidden cell also hides its review thread from the agent', async () => {
+    await page.evaluate(() => {
+      const panel = (window as any).jupyterapp.shell.currentWidget;
+      const cells = panel.context.model.cells;
+      for (let i = 0; i < cells.length; i++) {
+        if (cells.get(i).id === 'conversion-rate') {
+          panel.content.activeCellIndex = i;
+          return;
+        }
+      }
+      throw new Error('conversion-rate cell missing');
+    });
+
+    // This is the normal human-only command: editable -> read-only -> hidden.
+    await page.evaluate(async () => {
+      const commands = (window as any).jupyterapp.commands;
+      await commands.execute('jupyterlite-webmcp:cycle-cell-access');
+      await commands.execute('jupyterlite-webmcp:cycle-cell-access');
+    });
+
+    const hiddenThread = await callTool(page, 'jupyter_get_comment', {
+      threadId: sourceRangeThreadId
+    });
+    expect(hiddenThread.ok).toBe(false);
+    expect(hiddenThread.payload.error).toBe('CELL_NOT_FOUND');
+
+    const listed = await callTool(page, 'jupyter_list_comments', { status: 'all' });
+    expect(listed.ok).toBe(true);
+    expect(listed.payload.threads.map((thread: any) => thread.threadId)).not.toContain(
+      sourceRangeThreadId
+    );
+
+    const blockedCreate = await callTool(page, 'jupyter_create_comment', {
+      anchor: { kind: 'cell', cellId: 'conversion-rate' },
+      message: 'This must not disclose a hidden cell.'
+    });
+    expect(blockedCreate.ok).toBe(false);
+    expect(blockedCreate.payload.error).toBe('CELL_NOT_FOUND');
+
+    // Restore the ordinary default before this shared page is closed.
+    await page.evaluate(() =>
+      (window as any).jupyterapp.commands.execute('jupyterlite-webmcp:cycle-cell-access')
+    );
+  });
 });

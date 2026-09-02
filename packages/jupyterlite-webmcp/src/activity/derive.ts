@@ -29,6 +29,8 @@ const READ_TOOLS = new Set([
   'jupyter_get_context',
   'jupyter_get_cells',
   'jupyter_get_cell_access',
+  'jupyter_get_output_selection',
+  'jupyter_export_notebook',
   'jupyter_list_workspace',
   'jupyter_list_comments',
   'jupyter_get_comment'
@@ -122,6 +124,7 @@ function collectCellIds(payload: unknown, input: Record<string, unknown>): strin
   }
 
   pushId(ids, seen, get(payload, 'deletedCellId'));
+  pushId(ids, seen, get(payload, 'cellId'));
   pushId(ids, seen, get(get(payload, 'focus'), 'activeCellId'));
   pushId(ids, seen, get(get(get(payload, 'thread'), 'anchor'), 'cellId'));
 
@@ -160,6 +163,10 @@ function extractOutputIndex(payload: unknown, input: Record<string, unknown>): n
   const fromThread = get(get(get(payload, 'thread'), 'anchor'), 'outputIndex');
   if (typeof fromThread === 'number') {
     return fromThread;
+  }
+  const direct = get(payload, 'outputIndex');
+  if (typeof direct === 'number') {
+    return direct;
   }
   const fromInputAnchor = get(input.anchor, 'outputIndex');
   if (typeof fromInputAnchor === 'number') {
@@ -226,6 +233,10 @@ function successSummary(tool: string, payload: unknown, input: Record<string, un
     }
     case 'jupyter_get_cell_access':
       return 'checked cell access';
+    case 'jupyter_get_output_selection':
+      return `read the selected output from ${cellLabel(payload)}`;
+    case 'jupyter_export_notebook':
+      return 'exported the notebook as Markdown';
     case 'jupyter_insert_cell':
       return `inserted ${cellLabel(payload)}`;
     case 'jupyter_update_cell':
@@ -291,6 +302,8 @@ const FAILURE_VERB: Record<string, string> = {
   jupyter_create_notebook: 'create that notebook',
   jupyter_get_cells: 'read the cells',
   jupyter_get_cell_access: 'check cell access',
+  jupyter_get_output_selection: 'read the selected output',
+  jupyter_export_notebook: 'export the notebook as Markdown',
   jupyter_insert_cell: 'insert a cell',
   jupyter_update_cell: 'edit a cell',
   jupyter_delete_cell: 'delete a cell',

@@ -94,6 +94,25 @@ test.describe('jupyter_get_context / jupyter_list_workspace', () => {
     }
   });
 
+  test('exports the live notebook as bounded Markdown without image payloads', async ({ page }) => {
+    const { ok, payload } = await callTool(page, 'jupyter_export_notebook', {
+      includeOutputs: true
+    });
+    expect(ok).toBe(true);
+    expect(payload.notebookPath).toBe('customer-analysis.ipynb');
+    expect(payload.document).toContain('# Customer growth scratchpad');
+    expect(payload.document).toContain('```python');
+    expect(payload.document.length).toBeLessThanOrEqual(40 * 1024);
+    expect(payload.document).not.toMatch(/data:image\//);
+  });
+
+  test('output-selection handoff returns null when no valid output text is selected', async ({ page }) => {
+    await page.evaluate(() => window.getSelection()?.removeAllRanges());
+    const { ok, payload } = await callTool(page, 'jupyter_get_output_selection');
+    expect(ok).toBe(true);
+    expect(payload).toBeNull();
+  });
+
   test('CRITICAL: unsaved human edits are visible via getCells/getContext, not the file on disk', async ({
     page
   }) => {

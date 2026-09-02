@@ -179,7 +179,7 @@ export class WebMCPRegistry {
         kind: derived.kind,
         cellIds: derived.cellIds
       });
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -191,7 +191,7 @@ export class WebMCPRegistry {
     }
     try {
       this._activity.endInvocation(id);
-    } catch (error) {
+    } catch {
       // Presence must never break a tool call.
     }
   }

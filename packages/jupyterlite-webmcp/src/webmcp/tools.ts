@@ -270,8 +270,18 @@ export function buildTools(
   review: ReviewStore,
   outputSelection?: OutputSelectionTracker
 ): IToolDefinition[] {
-  const counts = (panel: Parameters<ReviewStore['counts']>[0]) =>
-    review.counts(panel);
+  // Context and open-notebook results must not become a count side-channel
+  // for threads whose anchors are hidden from the agent. Human Review UI
+  // still uses `ReviewStore.counts` directly and sees every thread.
+  const counts = (panel: Parameters<ReviewStore['counts']>[0]) => {
+    const visible = review
+      .listThreads(panel, { status: 'all' })
+      .filter(thread => review.isThreadVisibleToAgent(panel, thread));
+    return {
+      openThreads: visible.filter(thread => thread.status === 'open').length,
+      totalThreads: visible.length
+    };
+  };
 
   const tools: IToolDefinition[] = [
     {
@@ -525,11 +535,13 @@ export function buildTools(
             'There is no active cell to scope the comments to.'
           );
         }
-        const all = review.listThreads(panel, { status, cellId });
+        const all = review
+          .listThreads(panel, { status, cellId })
+          .filter(thread => review.isThreadVisibleToAgent(panel, thread));
         const threads = all.slice(0, limit);
         return {
           notebookPath: panel.context.path,
-          counts: review.counts(panel),
+          counts: counts(panel),
           threads: threads.map(thread =>
             threadSummary(review, panel, thread)
           ),
@@ -555,6 +567,7 @@ export function buildTools(
           panel,
           requiredString(input, 'threadId')
         );
+        review.assertThreadAccessible(panel, thread);
         const status = review.anchorStatus(panel, thread);
         const context: Record<string, unknown> = {};
         let hiddenCellCount = 0;
@@ -602,6 +615,16 @@ export function buildTools(
         const rawAnchor = (input.anchor ?? {}) as Input;
         const kind = requiredEnum(rawAnchor, 'kind', ANCHOR_KINDS) as AnchorKind;
         const cellId = requiredString(rawAnchor, 'cellId');
+        // Check before inspecting source or an output to construct an
+        // anchor. This reuses the central cell resolver, so a `none` cell
+        // looks exactly like an unknown id rather than leaking via anchor
+        // validation detail.
+        await getCells(env, {
+          notebookPath: panel.context.path,
+          cellIds: [cellId],
+          includeSource: false,
+          includeOutputs: false
+        });
         let anchor: IAnchor = { kind, cellId };
 
         if (kind === 'source-range') {
@@ -653,7 +676,7 @@ export function buildTools(
         return {
           notebookPath: panel.context.path,
           thread,
-          counts: review.counts(panel)
+          counts: counts(panel)
         };
       }
     },
@@ -717,7 +740,9 @@ export function buildTools(
         const thread = review.setStatus(
           panel,
           requiredString(input, 'threadId'),
-          'open'
+          'open',
+          undefined,
+          AGENT_AUTHOR
         );
         return { notebookPath: panel.context.path, thread };
       }
@@ -740,6 +765,7 @@ export function buildTools(
           panel,
           requiredString(input, 'threadId')
         );
+        review.assertThreadAccessible(panel, thread);
         const status = review.anchorStatus(panel, thread);
         if (status.cellIndex === null) {
           throw toolError(

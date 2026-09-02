@@ -1,7 +1,12 @@
 import { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
 import { ISignal, Signal } from '@lumino/signaling';
 
-import { assertCellAccessible, cellAccess, IMetadataCell } from '../access/guard';
+import {
+  AccessIntent,
+  assertCellAccessible,
+  cellAccess,
+  IMetadataCell
+} from '../access/guard';
 import { findCellIndexById } from '../jupyter/cells';
 import { toolError } from '../jupyter/errors';
 import { fingerprintOutput } from '../jupyter/outputs';
@@ -180,6 +185,46 @@ export class ReviewStore {
     return thread;
   }
 
+  /**
+   * Whether a thread's live anchor is visible to a connected agent. A thread
+   * whose cell was deleted remains visible as ordinary review history; a
+   * thread anchored to a live `none` cell must disappear with that cell.
+   */
+  isThreadVisibleToAgent(panel: NotebookPanel, thread: IThread): boolean {
+    const index = findCellIndexById(panel.context.model, thread.anchor.cellId);
+    if (index === -1) {
+      return true;
+    }
+    const cell = panel.context.model.cells.get(index) as unknown as IMetadataCell;
+    return cellAccess(cell) !== 'none';
+  }
+
+  /**
+   * Applies the same central access rule to an existing review thread as to
+   * every other agent-facing cell path. In particular, a `none` cell gives
+   * `CELL_NOT_FOUND`, never a comment-specific signal that could reveal a
+   * hidden anchor or its discussion. Reading a visible thread uses the
+   * `'read'` intent; mutating an agent-visible thread (replying, resolving,
+   * or reopening it) passes the stricter `'write'` intent.
+   */
+  assertThreadAccessible(
+    panel: NotebookPanel,
+    thread: IThread,
+    intent: AccessIntent = 'read'
+  ): void {
+    const index = findCellIndexById(panel.context.model, thread.anchor.cellId);
+    if (index === -1) {
+      return;
+    }
+    const cell = panel.context.model.cells.get(index) as unknown as IMetadataCell;
+    assertCellAccessible(
+      thread.anchor.cellId,
+      panel.context.path,
+      cellAccess(cell),
+      intent
+    );
+  }
+
   /** Create a thread anchored to a cell, a source range or an output. */
   createThread(
     panel: NotebookPanel,
@@ -187,8 +232,8 @@ export class ReviewStore {
     body: string,
     author: IAuthor
   ): IThread {
-    this._validateAnchor(panel, anchor);
     this._checkCommentAccess(panel, anchor.cellId, author);
+    this._validateAnchor(panel, anchor);
     const thread = createThread(anchor, this._boundBody(body), author);
     this.write(panel, upsertThread(this.read(panel), thread));
     return thread;
@@ -243,7 +288,9 @@ export class ReviewStore {
     author: IAuthor
   ): IThread {
     const thread = this.requireThread(panel, threadId);
-    this._checkCommentAccess(panel, thread.anchor.cellId, author);
+    if (author.kind === 'agent') {
+      this.assertThreadAccessible(panel, thread, 'write');
+    }
     const updated = withMessage(thread, this._boundBody(body), author);
     this.write(panel, upsertThread(this.read(panel), updated));
     return updated;
@@ -258,6 +305,9 @@ export class ReviewStore {
     author?: IAuthor
   ): IThread {
     let thread = this.requireThread(panel, threadId);
+    if (author?.kind === 'agent') {
+      this.assertThreadAccessible(panel, thread, 'write');
+    }
     if (resolutionMessage && author) {
       thread = withMessage(thread, this._boundBody(resolutionMessage), author);
     }
@@ -358,7 +408,7 @@ export class ReviewStore {
       return; // Already reported as CELL_NOT_FOUND by the anchor/thread lookup above.
     }
     const cell = panel.context.model.cells.get(index) as unknown as IMetadataCell;
-    assertCellAccessible(cellId, panel.context.path, cellAccess(cell), 'read');
+    assertCellAccessible(cellId, panel.context.path, cellAccess(cell), 'write');
   }
 
   private _validateAnchor(panel: NotebookPanel, anchor: IAnchor): void {
