@@ -204,6 +204,8 @@ final backstop on the serialized `content` text of every tool result,
 independent of whichever per-field limits above already applied; if the
 payload still doesn't fit, it is replaced with a small `{truncated: true,
 reason, maxBytes, partial}` envelope rather than being cut off mid-JSON.
-Note that `structuredContent` on a successful result is **not** put through
-`boundJson` — it carries the full, unbounded payload; only the `content[0].text`
-copy is bounded.
+`structuredContent` is a convenience copy of the same payload for a client
+that can consume structured data directly. It is attached only when the payload
+fitted inside the bound; when it did not, the text content already carries the
+truncation notice, and attaching the original would reintroduce exactly the size
+the bound exists to prevent.

@@ -1,6 +1,22 @@
 import { okResult, errorResult, boundJson } from '../../src/webmcp/results';
 import type { IStructuredError } from '../../src/jupyter/errors';
 
+describe('okResult with an oversized payload', () => {
+  it('omits structuredContent rather than reintroducing the unbounded payload', () => {
+    const huge = { rows: new Array(20000).fill('x'.repeat(64)) };
+    const result = okResult(huge);
+    expect(result.structuredContent).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.truncated).toBe(true);
+  });
+
+  it('keeps structuredContent when the payload fits', () => {
+    const small = { ok: true };
+    const result = okResult(small);
+    expect(result.structuredContent).toEqual(small);
+  });
+});
+
 describe('okResult', () => {
   it('produces a single text content block and structuredContent equal to the payload', () => {
     const payload = { foo: 'bar', n: 1 };

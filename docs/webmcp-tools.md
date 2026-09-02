@@ -13,16 +13,17 @@ Every tool invocation returns the same shape (`src/webmcp/results.ts`):
 ```ts
 {
   content: [{ type: 'text', text: string }],  // JSON, bounded to ~50 KiB
-  structuredContent?: unknown,                 // the full, unbounded payload
+  structuredContent?: unknown,                 // the same payload, when it fits
   isError?: boolean                            // present and true on failure
 }
 ```
 
-On success, `structuredContent` is the handler's full return value and
-`content[0].text` is that same value JSON-serialized and bounded to
-`LIMITS.MAX_TOTAL_RESULT_BYTES` (50 KiB); if it doesn't fit, `content[0].text`
-becomes a small `{truncated: true, reason, maxBytes, partial}` envelope
-instead (`structuredContent` itself is never truncated by this backstop).
+On success, `content[0].text` is the handler's return value JSON-serialized and
+bounded to `LIMITS.MAX_TOTAL_RESULT_BYTES` (50 KiB), and `structuredContent` is
+that same value as structured data. If the payload does not fit,
+`content[0].text` becomes a small `{truncated: true, reason, maxBytes, partial}`
+envelope and `structuredContent` is omitted entirely — the bound would mean
+nothing if the unbounded payload were still attached beside it.
 
 On failure, `isError` is `true`, `structuredContent` is the structured error
 below, and `content[0].text` is that same error JSON-serialized.

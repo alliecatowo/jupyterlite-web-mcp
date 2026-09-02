@@ -111,10 +111,18 @@ export function boundJson(value: unknown, maxBytes: number = LIMITS.MAX_TOTAL_RE
  * block plus the unbounded `payload` as `structuredContent`.
  */
 export function okResult(payload: unknown): IToolResult {
-  return {
-    content: [{ type: 'text', text: boundJson(payload).text }],
-    structuredContent: payload
+  const bounded = boundJson(payload);
+  const result: IToolResult = {
+    content: [{ type: 'text', text: bounded.text }]
   };
+  // `structuredContent` is a convenience copy of the same payload. When the
+  // payload is too large to serialize whole, the text content already carries
+  // the truncation notice, so attaching the unbounded original here would
+  // reintroduce exactly the size the bound exists to prevent.
+  if (!bounded.truncated) {
+    result.structuredContent = payload;
+  }
+  return result;
 }
 
 /**
