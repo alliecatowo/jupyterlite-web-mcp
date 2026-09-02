@@ -434,7 +434,7 @@ export function buildTools(
       name: 'jupyter_run_cells',
       title: 'Run notebook cells',
       description:
-        'Execute cells that already exist in the notebook, using the browser-local kernel the user shares. The user sees the busy state, the execution counts and the outputs. There is no way to run an arbitrary source string: to compute something new, insert a visible cell first and then run it.',
+        'Execute cells that already exist in the notebook, using the browser-local kernel the user shares. Select them with cellIds, or with an explicit contiguous startIndex/endIndex range; if no selector is given, the active cell runs. The user sees the busy state, the execution counts and the outputs. There is no way to run an arbitrary source string: to compute something new, insert a visible cell first and then run it.',
       inputSchema: SCHEMAS.jupyter_run_cells,
       annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async (input, options) =>
@@ -443,6 +443,8 @@ export function buildTools(
           {
             notebookPath: optionalString(input, 'notebookPath'),
             cellIds: optionalStringArray(input, 'cellIds'),
+            startIndex: boundedInteger(input, 'startIndex', { min: 0 }),
+            endIndex: boundedInteger(input, 'endIndex', { min: 0 }),
             stopOnError: optionalBoolean(input, 'stopOnError') !== false
           },
           options.signal

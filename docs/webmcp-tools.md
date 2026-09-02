@@ -449,7 +449,9 @@ metadata behaves exactly as it did before this feature existed.
   | Field | Type | Default |
   | --- | --- | --- |
   | `notebookPath` | string or null | current notebook |
-  | `cellIds` | string[] | the active cell |
+  | `cellIds` | string[] | none — use these explicit cells in order; mutually exclusive with `startIndex`/`endIndex` |
+  | `startIndex` | integer >= 0 | none — inclusive first index of a contiguous range; must be paired with `endIndex` |
+  | `endIndex` | integer >= 0 | none — exclusive end index of a contiguous range; must be paired with `startIndex` |
   | `stopOnError` | boolean | `true` |
 - **Output:**
   ```ts
@@ -471,15 +473,26 @@ metadata behaves exactly as it did before this feature existed.
 - **Bounds:** `outputSummary` bounded to `MAX_SUMMARY_CHARS` (600
   characters); `traceback`/`evalue` pass through the same output serializer
   as `jupyter_get_cells` (ANSI-stripped, bounded to `MAX_TEXT_OUTPUT_BYTES`).
-- **Errors:** `INVALID_ARGUMENT` if no `cellIds` were given and there is no
-  active cell; `KERNEL_UNAVAILABLE` if any requested cell is a code cell and
-  no kernel is attached; `CELL_NOT_FOUND` if a requested cell has no
-  notebook widget (should not normally occur), or is `"none"`-access
-  (including the active cell, when no `cellIds` were given);
-  `CELL_ACCESS_DENIED` if a requested cell is `"read"`-access. Per-cell execution failures
-  are **not** thrown; they are reported inline as `status: 'error'` with
-  `ename`/`evalue`/`traceback` on that cell's result, and `stopOnError`
-  (default `true`) stops the remaining queued cells without throwing.
+- **Selection:** provide either `cellIds` or both `startIndex` and `endIndex`,
+  never both. A range uses zero-based indexes with an inclusive start and an
+  exclusive end, and may contain at most `MAX_CELL_IDS_PER_CALL` (100) cells.
+  With no selector, the active cell is run. The range is resolved in notebook
+  order at invocation time and every result preserves that order. All cells
+  in an explicit range are access-checked before the first one runs, so a
+  hidden (`"none"`) or read-only (`"read"`) cell fails the call without
+  partially executing an earlier target.
+- **Errors:** `INVALID_ARGUMENT` if only one range endpoint is provided, both
+  selector forms are provided, a range endpoint is negative or non-integer,
+  `endIndex` is before `startIndex`, or the range exceeds the per-call cell
+  limit; if no selector is given and there is no active cell;
+  `KERNEL_UNAVAILABLE` if any requested cell is a code cell and no kernel is
+  attached; `CELL_NOT_FOUND` if a requested cell has no notebook widget
+  (should not normally occur), or is `"none"`-access (including the active
+  cell, when no selector was given); `CELL_ACCESS_DENIED` if a requested cell
+  is `"read"`-access. Per-cell execution failures are **not** thrown; they
+  are reported inline as `status: "error"` with `ename`/`evalue`/`traceback`
+  on that cell's result, and `stopOnError` (default `true`) stops the
+  remaining queued cells without throwing.
 - **Concurrency / AbortSignal:** honors `AbortSignal` as described above —
   an abort interrupts only execution this invocation started, via a kernel
   interrupt, and never touches work the human launched manually. Cells run

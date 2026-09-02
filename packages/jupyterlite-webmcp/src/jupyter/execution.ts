@@ -73,6 +73,10 @@ export async function runCells(
   params: {
     notebookPath?: string | null;
     cellIds?: string[] | null;
+    /** First cell index in an optional contiguous range (inclusive). */
+    startIndex?: number | null;
+    /** Last cell index in an optional contiguous range (exclusive). */
+    endIndex?: number | null;
     stopOnError?: boolean;
   },
   signal?: AbortSignal
@@ -82,29 +86,101 @@ export async function runCells(
   const stopOnError = params.stopOnError !== false;
 
   const indices: number[] = [];
-  if (params.cellIds) {
-    if (params.cellIds.length === 0) {
+  const cellIds = params.cellIds;
+  const hasCellIds = cellIds !== undefined && cellIds !== null;
+  const hasStartIndex =
+    params.startIndex !== undefined && params.startIndex !== null;
+  const hasEndIndex = params.endIndex !== undefined && params.endIndex !== null;
+
+  // A selector is deliberately unambiguous: callers can provide explicit
+  // stable ids, one complete contiguous range, or neither (the active cell).
+  // Do not silently give one selector precedence over another; a concurrent
+  // edit could otherwise make a caller run a different set of cells than it
+  // intended.
+  if (hasCellIds && (hasStartIndex || hasEndIndex)) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      'Provide either "cellIds" or both "startIndex" and "endIndex", not both.'
+    );
+  }
+
+  if (hasStartIndex !== hasEndIndex) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      '"startIndex" and "endIndex" must be provided together for a range.'
+    );
+  }
+
+  if (hasCellIds) {
+    if (cellIds.length === 0) {
       throw toolError(
         'INVALID_ARGUMENT',
         '"cellIds" must not be an empty array; omit it to run the active cell.'
       );
     }
-    if (params.cellIds.length > LIMITS.MAX_CELL_IDS_PER_CALL) {
+    if (cellIds.length > LIMITS.MAX_CELL_IDS_PER_CALL) {
       throw toolError(
         'INVALID_ARGUMENT',
         `"cellIds" must not have more than ${LIMITS.MAX_CELL_IDS_PER_CALL} entries.`,
-        { count: params.cellIds.length }
+        { count: cellIds.length }
       );
     }
-    for (let i = 0; i < params.cellIds.length; i++) {
-      indices.push(requireCellIndex(panel, params.cellIds[i], 'write'));
+    for (let i = 0; i < cellIds.length; i++) {
+      indices.push(requireCellIndex(panel, cellIds[i], 'write'));
+    }
+  } else if (hasStartIndex && hasEndIndex) {
+    const start = params.startIndex as number;
+    const end = params.endIndex as number;
+    if (!Number.isInteger(start) || start < 0) {
+      throw toolError(
+        'INVALID_ARGUMENT',
+        `"startIndex" must be an integer >= 0, got ${start}.`,
+        { startIndex: start }
+      );
+    }
+    if (!Number.isInteger(end) || end < 0) {
+      throw toolError(
+        'INVALID_ARGUMENT',
+        `"endIndex" must be an integer >= 0, got ${end}.`,
+        { endIndex: end }
+      );
+    }
+    if (end < start) {
+      throw toolError(
+        'INVALID_ARGUMENT',
+        `"endIndex" (${end}) must not be less than "startIndex" (${start}).`,
+        { startIndex: start, endIndex: end }
+      );
+    }
+    if (end - start > LIMITS.MAX_CELL_IDS_PER_CALL) {
+      throw toolError(
+        'INVALID_ARGUMENT',
+        `A cell range must not contain more than ${LIMITS.MAX_CELL_IDS_PER_CALL} cells.`,
+        { startIndex: start, endIndex: end, count: end - start }
+      );
+    }
+
+    // A range is an explicit request, so unlike a read range it does not
+    // filter inaccessible cells. Preflight every target before touching the
+    // kernel: a denied cell must not leave an earlier cell in the same batch
+    // partially executed.
+    const boundedEnd = Math.min(end, model.cells.length);
+    for (let index = start; index < boundedEnd; index++) {
+      const cell = model.cells.get(index) as unknown as IMetadataCell;
+      assertCellAccessible(
+        cell.id,
+        panel.context.path,
+        cellAccess(cell),
+        'write'
+      );
+      indices.push(index);
     }
   } else {
     const active = panel.content.activeCellIndex;
     if (active < 0 || active >= model.cells.length) {
       throw toolError(
         'INVALID_ARGUMENT',
-        'No cellIds were given and there is no active cell to run.'
+        'No cell selector was given and there is no active cell to run.'
       );
     }
     // The active cell is not addressed by id, but running it is exactly as

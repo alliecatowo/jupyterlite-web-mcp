@@ -51,4 +51,23 @@ describe('SCHEMAS', () => {
       }
     }
   });
+
+  it('advertises the run-cell contiguous range selector', () => {
+    const properties = SCHEMAS.jupyter_run_cells.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+
+    expect(properties.startIndex).toMatchObject({
+      type: 'integer',
+      minimum: 0
+    });
+    expect(properties.endIndex).toMatchObject({
+      type: 'integer',
+      minimum: 0
+    });
+    expect(properties.startIndex.description).toContain('endIndex');
+    expect(properties.endIndex.description).toContain('startIndex');
+    expect(properties.cellIds.description).toMatch(/mutually exclusive/i);
+  });
 });

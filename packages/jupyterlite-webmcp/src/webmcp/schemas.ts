@@ -217,6 +217,18 @@ export const SCHEMAS: Record<string, Record<string, unknown>> = {
         description:
           'Cells to run, in order. Defaults to the active cell. Only cells that already exist in the notebook can be run.'
       },
+      startIndex: {
+        type: 'integer',
+        minimum: 0,
+        description:
+          'Inclusive first index of a contiguous range. Must be provided together with endIndex and is mutually exclusive with cellIds.'
+      },
+      endIndex: {
+        type: 'integer',
+        minimum: 0,
+        description:
+          `Exclusive end index of a contiguous range. Must be provided together with startIndex; ranges are limited to ${LIMITS.MAX_CELL_IDS_PER_CALL} cells.`
+      },
       stopOnError: { type: 'boolean', default: true }
     },
     additionalProperties: false
