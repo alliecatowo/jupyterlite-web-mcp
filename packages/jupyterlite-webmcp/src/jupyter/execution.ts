@@ -1,6 +1,7 @@
 import { CodeCell, ICodeCellModel, MarkdownCell } from '@jupyterlab/cells';
 import { NotebookPanel } from '@jupyterlab/notebook';
 
+import { assertCellAccessible, cellAccess, IMetadataCell, recordCellHistory } from '../access/guard';
 import { toolError } from './errors';
 import { INotebookInfo, kernelInfo, notebookInfo, resolveNotebook } from './notebook';
 import { serializeOutputs, summarizeOutputs } from './outputs';
@@ -82,7 +83,7 @@ export async function runCells(
   const indices: number[] = [];
   if (params.cellIds && params.cellIds.length > 0) {
     for (let i = 0; i < params.cellIds.length; i++) {
-      indices.push(requireCellIndex(panel, params.cellIds[i]));
+      indices.push(requireCellIndex(panel, params.cellIds[i], 'write'));
     }
   } else {
     const active = panel.content.activeCellIndex;
@@ -92,6 +93,16 @@ export async function runCells(
         'No cellIds were given and there is no active cell to run.'
       );
     }
+    // The active cell is not addressed by id, but running it is exactly as
+    // restricted as running any other cell by id: run the same centralized
+    // check `requireCellIndex` applies.
+    const activeCell = model.cells.get(active) as unknown as IMetadataCell;
+    assertCellAccessible(
+      activeCell.id,
+      panel.context.path,
+      cellAccess(activeCell),
+      'write'
+    );
     indices.push(active);
   }
 
@@ -259,6 +270,14 @@ export async function runCells(
         result.traceback = failure.traceback;
       }
       results.push(result);
+      if (status !== 'abort') {
+        recordCellHistory(
+          codeModel as unknown as IMetadataCell,
+          'agent',
+          'ran',
+          'jupyter_run_cells'
+        );
+      }
 
       if (status === 'error') {
         overall = 'error';

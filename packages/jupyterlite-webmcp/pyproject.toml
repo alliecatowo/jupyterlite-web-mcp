@@ -10,7 +10,7 @@ license = { file = "LICENSE" }
 requires-python = ">=3.9"
 authors = [{ name = "Allison Coleman" }]
 description = "Expose the live JupyterLite workspace to a compatible browser agent through WebMCP."
-keywords = ["jupyter", "jupyterlab", "jupyterlite", "webmcp"]
+keywords = ["jupyter", "jupyterlab", "jupyterlite", "webmcp", "mcp", "notebook"]
 classifiers = [
   "Framework :: Jupyter",
   "Framework :: Jupyter :: JupyterLab",
@@ -18,12 +18,20 @@ classifiers = [
   "Framework :: Jupyter :: JupyterLab :: Extensions",
   "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt",
   "License :: OSI Approved :: MIT License",
-  "Programming Language :: Python :: 3"
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/alliecatowo/jupyterlite-web-mcp"
+Repository = "https://github.com/alliecatowo/jupyterlite-web-mcp"
+Issues = "https://github.com/alliecatowo/jupyterlite-web-mcp/issues"
+Documentation = "https://github.com/alliecatowo/jupyterlite-web-mcp#readme"
 
 [tool.hatch.build.targets.sdist]
 artifacts = ["jupyterlite_webmcp/labextension"]

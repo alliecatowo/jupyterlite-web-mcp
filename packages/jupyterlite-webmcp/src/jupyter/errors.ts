@@ -18,6 +18,7 @@ export type ErrorCode =
   | 'WEBMCP_UNAVAILABLE'
   | 'COMMENT_NOT_FOUND'
   | 'COMMENT_ANCHOR_STALE'
+  | 'CELL_ACCESS_DENIED'
   | 'INTERNAL_ERROR';
 
 /**

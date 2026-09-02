@@ -49,7 +49,7 @@ no stack trace is ever included.
 | --- | --- |
 | `NO_ACTIVE_NOTEBOOK` | No `notebookPath` was given and there is no notebook currently open (or, for `jupyter_list_comments` with `scope: "current-cell"`, no active cell). |
 | `NOTEBOOK_NOT_FOUND` | The given path does not resolve to an open or existing notebook (or, for `jupyter_list_workspace`, an existing directory). |
-| `CELL_NOT_FOUND` | No cell with the given id exists in the resolved notebook. |
+| `CELL_NOT_FOUND` | No cell with the given id exists in the resolved notebook — or it does, but the notebook owner set its agent access to `"none"` (see "Per-cell agent access control and provenance" below); the two cases are deliberately indistinguishable. |
 | `STALE_CELL` | `expectedSourceHash` did not match the cell's current source hash; the write was refused. |
 | `INVALID_PATH` | A path argument was malformed, absolute, escaped the workspace root, or used a backslash. |
 | `PATH_EXISTS` | `jupyter_create_notebook` would have overwritten an existing file. |
@@ -61,6 +61,7 @@ no stack trace is ever included.
 | `WEBMCP_UNAVAILABLE` | Reserved for the case where WebMCP is not available; the extension only registers tools once it is, so it is not normally observed by a tool caller. |
 | `COMMENT_NOT_FOUND` | No review thread with the given `threadId` exists in the resolved notebook. |
 | `COMMENT_ANCHOR_STALE` | A comment anchor could not be validated: the selected text is no longer present in the cell, the output index doesn't exist, or (for source-range creation via `anchor.text`) the given text was not found in the cell source. |
+| `CELL_ACCESS_DENIED` | The notebook owner restricted a `"read"` cell and the call needed write access (editing, deleting, or running it, or commenting on it). Carries `cellId` and the effective `access` in its details. Never thrown for a `"none"` cell — that yields `CELL_NOT_FOUND` instead, so the restriction can't be probed for. |
 | `INTERNAL_ERROR` | Any unexpected failure, normalized with a truncated message and no stack trace. |
 
 ### Why there is no `KERNEL_BUSY`
@@ -93,6 +94,59 @@ started, because the kernel is shared. Cells not yet started when an abort
 fires are reported with `status: "abort"` and are not run. Every other tool
 runs to completion or throws normally; there is nothing else in the
 extension for an abort to usefully interrupt.
+
+### Per-cell agent access control and provenance
+
+Every notebook cell may carry a `jupyterlite_webmcp` metadata object
+(`src/access/model.ts`):
+
+```jsonc
+{
+  "access": "none" | "read" | "write",   // absent means "write"
+  "history": [
+    { "at": "2026-01-01T00:00:00.000Z", "actor": "human" | "agent", "action": "inserted" | "edited" | "ran" | "deleted", "tool": "jupyter_update_cell" }
+  ]
+}
+```
+
+**Access** is set entirely by the human, from the cell context menu
+(`jupyterlite-webmcp:cycle-cell-access`, which cycles
+`write -> read -> none -> write`) — no WebMCP tool can change it. `write`
+(the default) lets the agent read, edit, delete and run the cell; `read`
+lets it read the cell's source and outputs but refuses any write or
+execution; `none` hides the cell from the agent entirely — not its source,
+outputs, or even its existence as an addressable id. Every id-addressed
+cell operation (`jupyter_get_cells` with explicit `cellIds`,
+`jupyter_update_cell`, `jupyter_delete_cell`, `jupyter_run_cells`,
+`jupyter_focus_cell`, and the cell a review comment is anchored to) runs the
+cell's access through one function, `assertCellAccessible`
+(`src/access/guard.ts`): a `"none"` cell always yields `CELL_NOT_FOUND`
+(indistinguishable from a bad id, so the restriction cannot be probed for),
+and a `"read"` cell yields `CELL_ACCESS_DENIED` only when the call needed
+write access. A non-explicit read (a `jupyter_get_cells` range, or the cell
+content `jupyter_get_comment` surfaces) instead silently omits a `"none"`
+cell and reports how many were omitted in `hiddenCellCount` — never a
+silent gap the agent has no way to notice.
+
+**Provenance** is a loose, best-effort attribution trail, not version
+control: `history` is bounded to the most recent
+`MAX_CELL_HISTORY_ENTRIES` (20) entries, and consecutive entries with the
+same `actor` and `action` within `HISTORY_COALESCE_WINDOW_MS` (60 seconds)
+collapse into one, so a burst of typing or a chain of tool calls doesn't
+blow up the history. Agent-driven changes are recorded by the tool paths
+themselves (`src/jupyter/cells.ts`, `src/jupyter/execution.ts`); a human
+edit is attributed by a debounced model listener
+(`src/access/provenance.ts`) that only fires for genuine source changes and
+defers to whatever the tool path already recorded when a WebMCP tool call
+is in flight (`withAgentAttribution`/`isAgentAttributed` in
+`src/access/guard.ts`). `jupyter_get_cells` surfaces a compact
+`lastEditedBy`/`lastEditedAt` per cell; `jupyter_get_cell_access` surfaces
+each cell's full history.
+
+Both features work with no agent connected at all — the context-menu
+command, the cell markers, and the provenance listener never touch
+`document.modelContext` — and a notebook with no `jupyterlite_webmcp` cell
+metadata behaves exactly as it did before this feature existed.
 
 ---
 
@@ -238,21 +292,66 @@ extension for an abort to usefully interrupt.
   | `includeOutputs` | boolean | `false` |
 - **Output:**
   ```ts
-  { notebook: INotebookInfo; cells: ICellSnapshot[]; truncated: boolean; omittedCount: number }
+  { notebook: INotebookInfo; cells: ICellSnapshot[]; truncated: boolean; omittedCount: number; hiddenCellCount: number }
   ```
   `ICellSnapshot`: `{ id, index, type, source?, sourceTruncated?, sourceHash,
-  executionCount?, outputs?, outputsTruncated?, metadata? }`. `metadata` is
-  only included when the cell's JSON-encoded metadata is non-empty and at
-  most 512 characters.
+  executionCount?, outputs?, outputsTruncated?, metadata?, lastEditedBy?,
+  lastEditedAt? }`. `metadata` is only included when the cell's JSON-encoded
+  metadata is non-empty and at most 512 characters. `lastEditedBy`
+  (`"human"` or `"agent"`) and `lastEditedAt` (ISO timestamp) come from the
+  cell's provenance history (see "Per-cell agent access control and
+  provenance" below) and are omitted when the cell has no recorded history.
 - **Bounds:** at most `MAX_CELLS_RETURNED` (100) cells per call regardless
   of how many were requested; `source` bounded to `MAX_CELL_SOURCE_BYTES`
   (25 KiB); outputs (when requested) bounded per `serializeOutputs` (see
   below), at most `MAX_OUTPUTS_PER_CELL` (10) per cell.
-- **Errors:** `CELL_NOT_FOUND` if any id in `cellIds` doesn't exist;
-  `NO_ACTIVE_NOTEBOOK`/`NOTEBOOK_NOT_FOUND` from notebook resolution.
+- **Errors:** `CELL_NOT_FOUND` if any id in `cellIds` doesn't exist, or is a
+  cell the notebook owner hid from the agent (`access: "none"`) — the two
+  are indistinguishable on purpose (see "Per-cell agent access control and
+  provenance" below); `NO_ACTIVE_NOTEBOOK`/`NOTEBOOK_NOT_FOUND` from
+  notebook resolution.
 - **Concurrency:** always reads the live model; `sourceHash` is exactly
   what a subsequent `jupyter_update_cell`/`jupyter_delete_cell` must supply
   as `expectedSourceHash`.
+- **Cell visibility:** when reading a range (no explicit `cellIds`), a cell
+  the notebook owner hid from the agent is silently omitted from `cells` —
+  never a partial or misleading entry — and counted in `hiddenCellCount`,
+  which is always present (even when zero) so an agent that sees fewer
+  cells than expected can tell "that's all there is" apart from "some cells
+  were withheld".
+
+### `jupyter_get_cell_access`
+
+- **Title:** Read cell agent access
+- **Description:** "Report what a connected agent may currently do with
+  each cell (write, read, or none) plus its full provenance history, and
+  how many cells in range are hidden entirely. The notebook owner controls
+  this per cell from the cell context menu; there is no tool to change it.
+  Use this to explain to the user why you are not touching a cell."
+- **Read/write:** read-only (`readOnlyHint: true`, `untrustedContentHint: true`)
+- **Inputs:**
+  | Field | Type | Default |
+  | --- | --- | --- |
+  | `notebookPath` | string or null | current notebook |
+  | `cellIds` | string[] | none — takes priority over the index range when given |
+  | `startIndex` | integer >= 0 | 0 |
+  | `endIndex` | integer >= 0 | `startIndex + 20` (`DEFAULT_CELLS_RETURNED`) |
+- **Output:**
+  ```ts
+  { notebook: INotebookInfo; cells: ICellAccessSummary[]; truncated: boolean; omittedCount: number; hiddenCellCount: number }
+  ```
+  `ICellAccessSummary`: `{ cellId, index, access, history }`, where
+  `history` is the cell's full bounded provenance trail (at most
+  `MAX_CELL_HISTORY_ENTRIES`, 20, entries: `{ at, actor, action, tool? }`).
+- **Bounds:** at most `MAX_CELLS_RETURNED` (100) cells per call; at most 20
+  history entries per cell.
+- **Errors:** `CELL_NOT_FOUND` if any id in `cellIds` doesn't exist or is
+  hidden from the agent; `NO_ACTIVE_NOTEBOOK`/`NOTEBOOK_NOT_FOUND` from
+  notebook resolution.
+- **There is no tool to set a cell's access.** That is the human's control
+  over the shared document, exercised from the cell context menu
+  (`jupyterlite-webmcp:cycle-cell-access`); no WebMCP tool calls
+  `setCellAccess`.
 
 ### `jupyter_insert_cell`
 
@@ -300,7 +399,9 @@ extension for an abort to usefully interrupt.
 - **Output:** `{ notebook: INotebookInfo; cell: ICellSnapshot }`.
 - **Bounds:** standard cell-snapshot bounds on the returned cell.
 - **Errors:** `INVALID_ARGUMENT` if `source` isn't a string or
-  `expectedSourceHash` is missing; `CELL_NOT_FOUND`; **`STALE_CELL`** —
+  `expectedSourceHash` is missing; `CELL_NOT_FOUND` (also thrown for a
+  `"none"`-access cell); `CELL_ACCESS_DENIED` for a `"read"`-access cell;
+  **`STALE_CELL`** —
   ```ts
   { error: 'STALE_CELL', message: 'Cell changed since it was read.',
     cellId, expectedSourceHash, currentSourceHash, currentSourcePreview }
@@ -325,8 +426,10 @@ extension for an abort to usefully interrupt.
   ```
 - **Bounds:** none.
 - **Errors:** `INVALID_ARGUMENT` if `expectedSourceHash` is missing;
-  `CELL_NOT_FOUND`; `STALE_CELL` (same shape as `jupyter_update_cell`,
-  message "Cell changed since it was read; it was not deleted.").
+  `CELL_NOT_FOUND` (also thrown for a `"none"`-access cell);
+  `CELL_ACCESS_DENIED` for a `"read"`-access cell; `STALE_CELL` (same shape
+  as `jupyter_update_cell`, message "Cell changed since it was read; it was
+  not deleted.").
 - **Concurrency:** same read-hash-write protocol as `jupyter_update_cell`.
 
 ---
@@ -371,7 +474,9 @@ extension for an abort to usefully interrupt.
 - **Errors:** `INVALID_ARGUMENT` if no `cellIds` were given and there is no
   active cell; `KERNEL_UNAVAILABLE` if any requested cell is a code cell and
   no kernel is attached; `CELL_NOT_FOUND` if a requested cell has no
-  notebook widget (should not normally occur). Per-cell execution failures
+  notebook widget (should not normally occur), or is `"none"`-access
+  (including the active cell, when no `cellIds` were given);
+  `CELL_ACCESS_DENIED` if a requested cell is `"read"`-access. Per-cell execution failures
   are **not** thrown; they are reported inline as `status: 'error'` with
   `ename`/`evalue`/`traceback` on that cell's result, and `stopOnError`
   (default `true`) stops the remaining queued cells without throwing.
@@ -400,7 +505,8 @@ extension for an abort to usefully interrupt.
   `jupyter_get_context` for the `IFocusContext` shape).
 - **Bounds:** none.
 - **Errors:** `CELL_NOT_FOUND` if `cellId` doesn't exist in the resolved
-  notebook.
+  notebook, or is `"none"`-access. A `"read"`-access cell can be focused —
+  focusing never changes cell content, so it's never `CELL_ACCESS_DENIED`.
 - **Concurrency:** activates the notebook panel, scrolls the target cell
   into view (notebooks are windowed, so a far-off-screen cell may need to be
   scrolled to before it has a live editor), then focuses the editor and
@@ -505,11 +611,15 @@ panel uses.
     notebookPath: string;
     thread: IThread;              // full thread: id, status, timestamps, anchor, messages[]
     anchorStatus: IAnchorStatus;  // kind, cellId, cellExists, cellIndex, state, range?, text?, outputIndex?, outputChanged?
-    context: { cell?: ICellSnapshot };  // present only if the anchored cell still exists
+    context: { cell?: ICellSnapshot };  // present only if the anchored cell still exists and is visible
+    hiddenCellCount: number;            // 1 if the anchored cell exists but is "none"-access, else 0
   }
   ```
   For an `output` anchor, `context.cell` includes outputs; for other kinds
-  it includes source only.
+  it includes source only. When the anchored cell is `"none"`-access,
+  `context.cell` is omitted (never its source or outputs) and
+  `hiddenCellCount` is `1` instead — the same "never a silent gap" rule as
+  `jupyter_get_cells`.
 - **Bounds:** the embedded `cell` follows the same bounds as
   `jupyter_get_cells`.
 - **Errors:** `COMMENT_NOT_FOUND` if `threadId` doesn't exist in the
@@ -546,7 +656,10 @@ panel uses.
   `docs/review-comments.md`).
 - **Errors:** `INVALID_ARGUMENT` if `anchor.kind`/`anchor.cellId`/`message`
   are missing, or if a `source-range` anchor supplies neither `anchor.text`
-  nor `anchor.selection`; `CELL_NOT_FOUND` if `cellId` doesn't exist;
+  nor `anchor.selection`; `CELL_NOT_FOUND` if `cellId` doesn't exist or is
+  `"none"`-access; `CELL_ACCESS_DENIED` if the cell is `"read"`-access
+  (this check applies only to agent-authored comments; a human commenting
+  from the Review panel is never blocked by their own restriction);
   `COMMENT_ANCHOR_STALE` if `anchor.text` isn't found in the cell's current
   source, if a `source-range` anchor's resulting selected text can't be
   validated against the live cell, or if an `output` anchor's `outputIndex`
@@ -566,8 +679,9 @@ panel uses.
 - **Inputs:** `{ notebookPath?: string | null; threadId: string; message: string }` (both required)
 - **Output:** `{ notebookPath: string; thread: IThread }`
 - **Bounds:** `message` bounded to `MAX_COMMENT_BODY_BYTES` (8 KiB).
-- **Errors:** `COMMENT_NOT_FOUND`; `INVALID_ARGUMENT` if `message` is
-  empty/blank.
+- **Errors:** `COMMENT_NOT_FOUND` (also thrown if the thread's anchor cell
+  is now `"none"`-access); `CELL_ACCESS_DENIED` if it is now
+  `"read"`-access; `INVALID_ARGUMENT` if `message` is empty/blank.
 - **Concurrency:** appends to the thread's message list; does not touch its
   anchor or status.
 

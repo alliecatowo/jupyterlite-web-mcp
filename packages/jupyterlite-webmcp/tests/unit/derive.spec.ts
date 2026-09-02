@@ -10,6 +10,7 @@ const ALL_TOOL_NAMES = [
   'jupyter_open_notebook',
   'jupyter_create_notebook',
   'jupyter_get_cells',
+  'jupyter_get_cell_access',
   'jupyter_insert_cell',
   'jupyter_update_cell',
   'jupyter_delete_cell',
@@ -38,8 +39,8 @@ function facts(partial: Partial<IInvocationFacts>): IInvocationFacts {
 }
 
 describe('activityKindFor', () => {
-  it('covers all 19 tool names', () => {
-    expect(ALL_TOOL_NAMES).toHaveLength(19);
+  it('covers all 20 tool names', () => {
+    expect(ALL_TOOL_NAMES).toHaveLength(20);
   });
 
   const expected: Record<string, string> = {
@@ -48,6 +49,7 @@ describe('activityKindFor', () => {
     jupyter_list_comments: 'read',
     jupyter_get_comment: 'read',
     jupyter_get_cells: 'read',
+    jupyter_get_cell_access: 'read',
     jupyter_insert_cell: 'write',
     jupyter_update_cell: 'write',
     jupyter_delete_cell: 'write',
@@ -312,6 +314,7 @@ describe('deriveActivity: failure phrasing', () => {
       'WEBMCP_UNAVAILABLE',
       'COMMENT_NOT_FOUND',
       'COMMENT_ANCHOR_STALE',
+      'CELL_ACCESS_DENIED',
       'INTERNAL_ERROR',
       'SOME_UNKNOWN_FUTURE_CODE'
     ];

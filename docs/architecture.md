@@ -109,7 +109,7 @@ reader/writer of exactly the same model, exposed outward through
 | `src/jupyter/revisions.ts` | `stableHash`, `hashCellSource`, and `computeNotebookRevision` — the deterministic, non-cryptographic hashing this project's concurrency guarantees are built on. |
 | `src/jupyter/errors.ts` | The closed `ErrorCode` union, the `ToolError` exception type, and `normalizeError`, which reduces any thrown value to a plain `{error, message, ...}` object. |
 | `src/webmcp/schemas.ts` | The JSON Schema for every tool's input, keyed by tool name. |
-| `src/webmcp/tools.ts` | Builds all 19 `IToolDefinition`s: argument parsing/validation, then a call into `src/jupyter/*` or `src/review/*`, then a plain JSON payload. |
+| `src/webmcp/tools.ts` | Builds all 20 `IToolDefinition`s: argument parsing/validation, then a call into `src/jupyter/*` or `src/review/*`, then a plain JSON payload. |
 | `src/webmcp/results.ts` | `boundJson`, `okResult`, `errorResult` — bounds a JSON payload's serialized size and builds the `{content, structuredContent, isError}` envelope. |
 | `src/webmcp/register.ts` | `WebMCPRegistry`: feature-detects `document.modelContext`, registers every tool exactly once, wraps each tool's `execute` to normalize errors and record diagnostics, and exposes live registration state for the status bar item. |
 | `src/webmcp/types.ts` | `IToolDefinition`, `IWebMCPState`, `IInvocationRecord` — the plain-data shapes the registry and status UI share. |
@@ -120,6 +120,11 @@ reader/writer of exactly the same model, exposed outward through
 | `src/review/panel.tsx` | The right-sidebar React `ReviewPanel`: lists threads for the current notebook with filters (Open/Resolved/All/Current cell), reply/resolve/reopen controls, and click-to-navigate. |
 | `src/review/markers.ts` | Purely cosmetic: toggles a CSS class and `data-webmcp-threads`/`data-webmcp-open-threads` attributes on cell DOM nodes that have comment threads, debounced, so the notebook shows where the comments are without opening the panel. |
 | `src/ui/status.ts` | `WebMCPStatus`: an optional status-bar item showing availability and tool count, with a click-to-open diagnostics popover (registered tools, recent invocations). |
+| `src/access/model.ts` | Pure data model for per-cell agent access control and provenance: `CellAccess`/`IHistoryEntry` types, `normalizeCellMetadata` (defensive deserialization, mirroring `review/model.ts`), and `appendHistory`'s bounding/coalescing rule. |
+| `src/access/guard.ts` | `assertCellAccessible`: the single centralized access-control checkpoint every id-addressed cell path runs a cell's access through; `cellAccess`/`setCellAccess`/`recordCellHistory` (read/write the `jupyterlite_webmcp` cell metadata key, undo-exempt); `withAgentAttribution`/`isAgentAttributed` (the scope marker the human-edit listener checks). |
+| `src/access/provenance.ts` | `ProvenanceTracker`: a debounced model listener that attributes a cell's source edits to the human, deferring to whatever an agent tool call already recorded when one is in flight. |
+| `src/access/commands.ts` | `jupyterlite-webmcp:cycle-cell-access`, the only way a cell's access ever changes, plus its cell context-menu entry — a human control with no WebMCP dependency. |
+| `src/access/markers.ts` | Purely cosmetic: toggles a CSS class and a native tooltip (access state, plus provenance when known) on cell DOM nodes whose agent access is restricted. |
 
 ## The two plugins
 
@@ -215,6 +220,8 @@ these DOM attributes back as a source of truth.
 | `MAX_ANCHOR_CONTEXT` | 80 | Characters of prefix/suffix context captured for source-range re-anchoring. |
 | `MAX_PREVIEW_CHARS` | 400 | Length of the source preview included in `STALE_CELL` errors and comment-thread summaries. |
 | `MAX_SUMMARY_CHARS` | 600 | Length of the one-line output summary returned by `jupyter_run_cells`. |
+| `MAX_CELL_HISTORY_ENTRIES` | 20 | Cap on provenance entries kept per cell. |
+| `HISTORY_COALESCE_WINDOW_MS` | 60,000 (60s) | Consecutive same-actor/same-action provenance entries within this window collapse into one. |
 
 `boundJson` (`src/webmcp/results.ts`) applies `MAX_TOTAL_RESULT_BYTES` as a
 final backstop on the serialized `content` text of every tool result,

@@ -1,6 +1,16 @@
 import { ICodeCellModel, MarkdownCell } from '@jupyterlab/cells';
 import { INotebookModel, NotebookPanel } from '@jupyterlab/notebook';
 
+import {
+  AccessIntent,
+  assertCellAccessible,
+  cellAccess,
+  IMetadataCell,
+  readCellMetadata,
+  recordCellHistory,
+  withAgentAttribution
+} from '../access/guard';
+import { CellAccess, IHistoryEntry } from '../access/model';
 import { LIMITS } from '../limits';
 import { toolError } from './errors';
 import { revealCell } from './focus';
@@ -34,6 +44,22 @@ export interface ICellSnapshot {
   outputsTruncated?: boolean;
   /** Small cell metadata, omitted when large. */
   metadata?: Record<string, unknown>;
+  /** Who last changed this cell, when its provenance history has an entry. */
+  lastEditedBy?: IHistoryEntry['actor'];
+  /** When they last changed it, when its provenance history has an entry. */
+  lastEditedAt?: string;
+}
+
+/** Bounded summary of one cell's agent access level and provenance. */
+export interface ICellAccessSummary {
+  /** Stable nbformat cell id. */
+  cellId: string;
+  /** Zero-based position in the notebook. */
+  index: number;
+  /** What a connected agent may currently do with this cell. */
+  access: CellAccess;
+  /** Bounded, newest-last provenance trail (at most 20 entries). */
+  history: IHistoryEntry[];
 }
 
 /** Find a cell by its stable id, or `-1`. */
@@ -49,10 +75,20 @@ export function findCellIndexById(
   return -1;
 }
 
-/** Find a cell by id or throw a structured `CELL_NOT_FOUND`. */
+/**
+ * Find a cell by id, applying the per-cell agent access check, or throw a
+ * structured `CELL_NOT_FOUND`/`CELL_ACCESS_DENIED`.
+ *
+ * This is the one place every id-addressed tool path in this file (and in
+ * `src/jupyter/execution.ts`) resolves a cell index, so the access decision
+ * itself lives in a single function: {@link assertCellAccessible}
+ * (`src/access/guard.ts`). `intent` defaults to `'write'`, the stricter
+ * check, so a call site has to opt into `'read'` deliberately.
+ */
 export function requireCellIndex(
   panel: NotebookPanel,
-  cellId: string
+  cellId: string,
+  intent: AccessIntent = 'write'
 ): number {
   const index = findCellIndexById(panel.context.model, cellId);
   if (index === -1) {
@@ -62,6 +98,8 @@ export function requireCellIndex(
       { cellId, notebookPath: panel.context.path }
     );
   }
+  const cell = panel.context.model.cells.get(index) as unknown as IMetadataCell;
+  assertCellAccessible(cellId, panel.context.path, cellAccess(cell), intent);
   return index;
 }
 
@@ -121,6 +159,13 @@ export function snapshotCell(
     }
   }
 
+  const provenance = readCellMetadata(cell as unknown as IMetadataCell);
+  const lastEntry = provenance.history?.[provenance.history.length - 1];
+  if (lastEntry) {
+    snapshot.lastEditedBy = lastEntry.actor;
+    snapshot.lastEditedAt = lastEntry.at;
+  }
+
   return snapshot;
 }
 
@@ -140,6 +185,14 @@ export async function getCells(
   cells: ICellSnapshot[];
   truncated: boolean;
   omittedCount: number;
+  /**
+   * How many cells in the requested range the notebook owner hid from the
+   * agent (`access: "none"`). Always reported, even when zero, so an agent
+   * that sees a shorter list than it expected can tell the difference
+   * between "that's all there is" and "some cells were withheld" instead of
+   * silently reasoning over an incomplete notebook.
+   */
+  hiddenCellCount: number;
 }> {
   const panel = await resolveNotebook(env, params.notebookPath);
   const model = panel.context.model;
@@ -149,9 +202,13 @@ export async function getCells(
   };
 
   let indices: number[] = [];
+  let hiddenCellCount = 0;
   if (params.cellIds && params.cellIds.length > 0) {
+    // Explicit ids are resolved with a `'read'` intent: a `read`-access cell
+    // is returned, but a `none` cell is indistinguishable from a bad id
+    // (CELL_NOT_FOUND) — see `assertCellAccessible`.
     for (let i = 0; i < params.cellIds.length; i++) {
-      indices.push(requireCellIndex(panel, params.cellIds[i]));
+      indices.push(requireCellIndex(panel, params.cellIds[i], 'read'));
     }
   } else {
     const start = Math.max(0, params.startIndex ?? 0);
@@ -160,6 +217,11 @@ export async function getCells(
       model.cells.length
     );
     for (let i = start; i < end; i++) {
+      const cell = model.cells.get(i) as unknown as IMetadataCell;
+      if (cellAccess(cell) === 'none') {
+        hiddenCellCount++;
+        continue;
+      }
       indices.push(i);
     }
   }
@@ -175,7 +237,82 @@ export async function getCells(
     notebook: notebookInfo(panel),
     cells,
     truncated: omittedCount > 0,
-    omittedCount
+    omittedCount,
+    hiddenCellCount
+  };
+}
+
+/**
+ * Report the agent access level (and full provenance history) of the cells
+ * an agent can see, plus how many it cannot, so it can explain to the user
+ * why it isn't touching something. Read-only, and never leaks a hidden
+ * cell's existence: like {@link getCells}, resolving an explicit id that
+ * turns out to be `'none'` fails with `CELL_NOT_FOUND`, not a report that
+ * reveals it.
+ */
+export async function getCellAccess(
+  env: IJupyterEnv,
+  params: {
+    notebookPath?: string | null;
+    cellIds?: string[] | null;
+    startIndex?: number | null;
+    endIndex?: number | null;
+  } = {}
+): Promise<{
+  notebook: INotebookInfo;
+  cells: ICellAccessSummary[];
+  truncated: boolean;
+  omittedCount: number;
+  hiddenCellCount: number;
+}> {
+  const panel = await resolveNotebook(env, params.notebookPath);
+  const model = panel.context.model;
+
+  let indices: number[] = [];
+  let hiddenCellCount = 0;
+  if (params.cellIds && params.cellIds.length > 0) {
+    for (let i = 0; i < params.cellIds.length; i++) {
+      indices.push(requireCellIndex(panel, params.cellIds[i], 'read'));
+    }
+  } else {
+    const start = Math.max(0, params.startIndex ?? 0);
+    const end = Math.min(
+      params.endIndex ?? start + LIMITS.DEFAULT_CELLS_RETURNED,
+      model.cells.length
+    );
+    for (let i = start; i < end; i++) {
+      const cell = model.cells.get(i) as unknown as IMetadataCell;
+      if (cellAccess(cell) === 'none') {
+        hiddenCellCount++;
+        continue;
+      }
+      indices.push(i);
+    }
+  }
+
+  let omittedCount = 0;
+  if (indices.length > LIMITS.MAX_CELLS_RETURNED) {
+    omittedCount = indices.length - LIMITS.MAX_CELLS_RETURNED;
+    indices = indices.slice(0, LIMITS.MAX_CELLS_RETURNED);
+  }
+
+  const cells: ICellAccessSummary[] = indices.map(index => {
+    const cell = model.cells.get(index) as unknown as IMetadataCell;
+    const metadata = readCellMetadata(cell);
+    return {
+      cellId: cell.id,
+      index,
+      access: cellAccess(cell),
+      history: metadata.history ?? []
+    };
+  });
+
+  return {
+    notebook: notebookInfo(panel),
+    cells,
+    truncated: omittedCount > 0,
+    omittedCount,
+    hiddenCellCount
   };
 }
 
@@ -215,7 +352,7 @@ export async function insertCell(
   let insertIndex = model.cells.length;
   if (model.cells.length > 0) {
     const referenceIndex = params.referenceCellId
-      ? requireCellIndex(panel, params.referenceCellId)
+      ? requireCellIndex(panel, params.referenceCellId, 'read')
       : notebook.activeCellIndex;
     const safeReference =
       referenceIndex >= 0 && referenceIndex < model.cells.length
@@ -229,6 +366,12 @@ export async function insertCell(
     source: params.source ?? '',
     metadata: cellType === 'code' ? { trusted: true } : {}
   });
+  recordCellHistory(
+    model.cells.get(insertIndex) as unknown as IMetadataCell,
+    'agent',
+    'inserted',
+    'jupyter_insert_cell'
+  );
 
   if (params.activate !== false) {
     const widget = await revealCell(panel, insertIndex);
@@ -285,7 +428,16 @@ export async function updateCell(
     });
   }
 
-  cell.sharedModel.setSource(params.source);
+  // Wrapped so the human-edit provenance listener (`src/access/provenance.ts`)
+  // recognizes this source change as already accounted for below, instead of
+  // separately recording it as a human edit.
+  withAgentAttribution(() => cell.sharedModel.setSource(params.source));
+  recordCellHistory(
+    cell as unknown as IMetadataCell,
+    'agent',
+    'edited',
+    'jupyter_update_cell'
+  );
   return {
     notebook: notebookInfo(panel),
     cell: snapshotCell(model, index, { includeSource: true })

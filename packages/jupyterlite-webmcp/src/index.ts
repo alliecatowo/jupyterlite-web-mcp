@@ -11,6 +11,9 @@ import { IStatusBar } from '@jupyterlab/statusbar';
 import { ActivityLog } from './activity/model';
 import { ActivityMarkers } from './activity/markers';
 import { ActivityPanel } from './activity/panel';
+import { registerAccessCommands, AccessCommandIDs } from './access/commands';
+import { AccessMarkers } from './access/markers';
+import { ProvenanceTracker } from './access/provenance';
 import { IJupyterEnv } from './jupyter/workspace';
 import { registerReviewCommands, ReviewCommandIDs } from './review/commands';
 import { ReviewMarkers } from './review/markers';
@@ -61,6 +64,32 @@ const reviewPlugin: JupyterFrontEndPlugin<ReviewStore> = {
     app.shell.disposed.connect(() => markers.dispose());
 
     return store;
+  }
+};
+
+/**
+ * Per-cell agent access control and provenance.
+ *
+ * Ordinary notebook functionality: the human decides, per cell, what a
+ * connected agent may do with it (write/read/none), and every cell keeps a
+ * bounded, coalesced trail of who last changed it. Both work exactly the
+ * same with no agent connected: the command, the markers, and the human-edit
+ * provenance listener never touch `document.modelContext`.
+ */
+const accessPlugin: JupyterFrontEndPlugin<void> = {
+  id: 'jupyterlite-webmcp:access',
+  description:
+    'Per-cell agent access control (write/read/none) and cell provenance history.',
+  autoStart: true,
+  requires: [INotebookTracker],
+  activate: (app: JupyterFrontEnd, tracker: INotebookTracker): void => {
+    registerAccessCommands({ app, tracker });
+
+    const markers = new AccessMarkers(tracker);
+    app.shell.disposed.connect(() => markers.dispose());
+
+    const provenance = new ProvenanceTracker(tracker);
+    app.shell.disposed.connect(() => provenance.dispose());
   }
 };
 
@@ -139,6 +168,6 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
   }
 };
 
-export { ReviewCommandIDs, IReviewStore, IActivityLog };
+export { ReviewCommandIDs, AccessCommandIDs, IReviewStore, IActivityLog };
 
-export default [reviewPlugin, activityPlugin, webmcpPlugin];
+export default [reviewPlugin, accessPlugin, activityPlugin, webmcpPlugin];

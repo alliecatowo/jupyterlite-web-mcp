@@ -1,4 +1,11 @@
-import { deleteCell, getCells, insertCell, updateCell } from '../jupyter/cells';
+import { cellAccess, IMetadataCell } from '../access/guard';
+import {
+  deleteCell,
+  getCellAccess,
+  getCells,
+  insertCell,
+  updateCell
+} from '../jupyter/cells';
 import { toolError } from '../jupyter/errors';
 import { kernelAction, runCells } from '../jupyter/execution';
 import { focusCell, getContext, readFocus, revealCell } from '../jupyter/focus';
@@ -239,6 +246,22 @@ export function buildTools(
     },
 
     {
+      name: 'jupyter_get_cell_access',
+      title: 'Read cell agent access',
+      description:
+        'Report what a connected agent may currently do with each cell (write, read, or none) plus its full provenance history, and how many cells in range are hidden entirely. The notebook owner controls this per cell from the cell context menu; there is no tool to change it. Use this to explain to the user why you are not touching a cell.',
+      inputSchema: SCHEMAS.jupyter_get_cell_access,
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
+      handler: async input =>
+        getCellAccess(env, {
+          notebookPath: optionalString(input, 'notebookPath'),
+          cellIds: optionalStringArray(input, 'cellIds'),
+          startIndex: optionalNumber(input, 'startIndex'),
+          endIndex: optionalNumber(input, 'endIndex')
+        })
+    },
+
+    {
       name: 'jupyter_insert_cell',
       title: 'Insert a cell',
       description:
@@ -414,20 +437,32 @@ export function buildTools(
         );
         const status = review.anchorStatus(panel, thread);
         const context: Record<string, unknown> = {};
+        let hiddenCellCount = 0;
         if (status.cellIndex !== null) {
-          const cells = await getCells(env, {
-            notebookPath: panel.context.path,
-            cellIds: [thread.anchor.cellId],
-            includeSource: true,
-            includeOutputs: thread.anchor.kind === 'output'
-          });
-          context.cell = cells.cells[0];
+          const cellModel = panel.context.model.cells.get(
+            status.cellIndex
+          ) as unknown as IMetadataCell;
+          if (cellAccess(cellModel) === 'none') {
+            // Same rule as `jupyter_get_cells`: a cell the notebook owner
+            // hid from the agent is omitted, never silently — the omission
+            // is reported instead of leaking its source/outputs here.
+            hiddenCellCount = 1;
+          } else {
+            const cells = await getCells(env, {
+              notebookPath: panel.context.path,
+              cellIds: [thread.anchor.cellId],
+              includeSource: true,
+              includeOutputs: thread.anchor.kind === 'output'
+            });
+            context.cell = cells.cells[0];
+          }
         }
         return {
           notebookPath: panel.context.path,
           thread,
           anchorStatus: status,
-          context
+          context,
+          hiddenCellCount
         };
       }
     },

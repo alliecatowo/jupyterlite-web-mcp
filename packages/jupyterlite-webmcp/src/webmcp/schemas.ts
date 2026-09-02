@@ -129,6 +129,30 @@ export const SCHEMAS: Record<string, Record<string, unknown>> = {
     additionalProperties: false
   },
 
+  jupyter_get_cell_access: {
+    type: 'object',
+    properties: {
+      notebookPath: NOTEBOOK_PATH,
+      cellIds: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Specific cells to report on. Takes priority over the index range.'
+      },
+      startIndex: {
+        type: 'integer',
+        minimum: 0,
+        default: 0,
+        description: 'First cell index to report on.'
+      },
+      endIndex: {
+        type: 'integer',
+        minimum: 0,
+        description: `Exclusive end index. Defaults to startIndex + ${LIMITS.DEFAULT_CELLS_RETURNED}.`
+      }
+    },
+    additionalProperties: false
+  },
+
   jupyter_insert_cell: {
     type: 'object',
     properties: {

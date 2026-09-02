@@ -2,8 +2,8 @@ import { Cell } from '@jupyterlab/cells';
 import { CodeEditor } from '@jupyterlab/codeeditor';
 import { NotebookPanel } from '@jupyterlab/notebook';
 
+import { resolveCellIndex } from '../access/guard';
 import { LIMITS } from '../limits';
-import { toolError } from './errors';
 import {
   IKernelInfo,
   INotebookInfo,
@@ -212,21 +212,10 @@ export async function focusCell(
   const panel = await resolveNotebook(env, params.notebookPath, {
     activate: true
   });
-  const model = panel.context.model;
-  let index = -1;
-  for (let i = 0; i < model.cells.length; i++) {
-    if (model.cells.get(i).id === params.cellId) {
-      index = i;
-      break;
-    }
-  }
-  if (index === -1) {
-    throw toolError(
-      'CELL_NOT_FOUND',
-      `No cell with id "${params.cellId}" in "${panel.context.path}".`,
-      { cellId: params.cellId, notebookPath: panel.context.path }
-    );
-  }
+  // `'read'`: a cell the notebook owner restricted to read-only can still be
+  // pointed at — only a `'none'` cell is refused, exactly like a bad id
+  // (CELL_NOT_FOUND), since the agent isn't supposed to know it exists.
+  const index = resolveCellIndex(panel, params.cellId, 'read');
 
   const cell = await revealCell(panel, index);
   const editor = cell?.editor ?? null;

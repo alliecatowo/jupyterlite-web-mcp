@@ -150,6 +150,23 @@
 }
 
 /*
+ * Per-cell agent access markers (`src/access/markers.ts`): a subtle,
+ * persistent `box-shadow: inset` on the input wrapper, in the same style as
+ * `.jp-webmcp-hasComments` above, so restricted cells are visible at a
+ * glance without ever shifting layout. A cell with the default `write`
+ * access gets no marker at all, matching a notebook that predates this
+ * feature.
+ */
+.jp-Cell.jp-webmcp-access-read > .jp-Cell-inputWrapper {
+  box-shadow: inset 2px 0 0 0 var(--jp-warn-color1);
+}
+
+.jp-Cell.jp-webmcp-access-none > .jp-Cell-inputWrapper {
+  box-shadow: inset 2px 0 0 0 var(--jp-error-color1);
+  opacity: 0.85;
+}
+
+/*
  * Brief highlight applied to a `.jp-OutputArea-child` when navigating to an
  * output-anchored review thread (SPEC §36: "scrolls output into view for
  * output comments"). Added on navigation and removed automatically a couple

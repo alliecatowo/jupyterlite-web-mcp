@@ -17,6 +17,24 @@ For the full product story, human/agent examples, and tool table, see the
 review/comments feature see
 [`../../docs/review-comments.md`](../../docs/review-comments.md).
 
+Live demo: <https://jupyterlite-web-mcp.vercel.app/lab/index.html>
+
+## Install
+
+Not yet published to PyPI. Works in JupyterLab 4.6, Notebook 7, and
+JupyterLite — install from a clone or directly from git:
+
+```bash
+pip install ./packages/jupyterlite-webmcp
+# or
+pip install "git+https://github.com/alliecatowo/jupyterlite-web-mcp.git#subdirectory=packages/jupyterlite-webmcp"
+```
+
+It is a prebuilt extension (the wheel ships compiled JS/CSS), so installing
+it does not require Node.js or a build step. See
+[`../../docs/install.md`](../../docs/install.md) for the JupyterLite
+`requirements.txt` variant and how to verify the install.
+
 ## Plugins
 
 This package contributes two plugins, both `autoStart: true`:

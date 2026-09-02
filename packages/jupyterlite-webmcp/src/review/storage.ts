@@ -1,6 +1,7 @@
 import { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
 import { ISignal, Signal } from '@lumino/signaling';
 
+import { assertCellAccessible, cellAccess, IMetadataCell } from '../access/guard';
 import { findCellIndexById } from '../jupyter/cells';
 import { toolError } from '../jupyter/errors';
 import { fingerprintOutput } from '../jupyter/outputs';
@@ -187,6 +188,7 @@ export class ReviewStore {
     author: IAuthor
   ): IThread {
     this._validateAnchor(panel, anchor);
+    this._checkCommentAccess(panel, anchor.cellId, author);
     const thread = createThread(anchor, this._boundBody(body), author);
     this.write(panel, upsertThread(this.read(panel), thread));
     return thread;
@@ -241,6 +243,7 @@ export class ReviewStore {
     author: IAuthor
   ): IThread {
     const thread = this.requireThread(panel, threadId);
+    this._checkCommentAccess(panel, thread.anchor.cellId, author);
     const updated = withMessage(thread, this._boundBody(body), author);
     this.write(panel, upsertThread(this.read(panel), updated));
     return updated;
@@ -331,6 +334,31 @@ export class ReviewStore {
     }
 
     return status;
+  }
+
+  /**
+   * Applies the per-cell agent access check (`src/access/guard.ts`) to a
+   * comment thread's anchor cell, but only when `author` is the agent: a
+   * human commenting through the Review panel on their own restricted cell
+   * is never blocked by a restriction they set for the agent, so this must
+   * never be called for a `HUMAN_AUTHOR` message. A `'none'` cell fails with
+   * the same `CELL_NOT_FOUND` an unknown id would (never `CELL_ACCESS_DENIED`),
+   * consistent with every other id-addressed agent path.
+   */
+  private _checkCommentAccess(
+    panel: NotebookPanel,
+    cellId: string,
+    author: IAuthor
+  ): void {
+    if (author.kind !== 'agent') {
+      return;
+    }
+    const index = findCellIndexById(panel.context.model, cellId);
+    if (index === -1) {
+      return; // Already reported as CELL_NOT_FOUND by the anchor/thread lookup above.
+    }
+    const cell = panel.context.model.cells.get(index) as unknown as IMetadataCell;
+    assertCellAccessible(cellId, panel.context.path, cellAccess(cell), 'read');
   }
 
   private _validateAnchor(panel: NotebookPanel, anchor: IAnchor): void {

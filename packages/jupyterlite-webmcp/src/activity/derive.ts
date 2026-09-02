@@ -28,6 +28,7 @@ export interface IInvocationFacts {
 const READ_TOOLS = new Set([
   'jupyter_get_context',
   'jupyter_get_cells',
+  'jupyter_get_cell_access',
   'jupyter_list_workspace',
   'jupyter_list_comments',
   'jupyter_get_comment'
@@ -223,6 +224,8 @@ function successSummary(tool: string, payload: unknown, input: Record<string, un
       const count = Array.isArray(cells) ? cells.length : 0;
       return count === 1 ? `read ${cellLabel(payload)}` : `read ${count} cells`;
     }
+    case 'jupyter_get_cell_access':
+      return 'checked cell access';
     case 'jupyter_insert_cell':
       return `inserted ${cellLabel(payload)}`;
     case 'jupyter_update_cell':
@@ -287,6 +290,7 @@ const FAILURE_VERB: Record<string, string> = {
   jupyter_open_notebook: 'open that notebook',
   jupyter_create_notebook: 'create that notebook',
   jupyter_get_cells: 'read the cells',
+  jupyter_get_cell_access: 'check cell access',
   jupyter_insert_cell: 'insert a cell',
   jupyter_update_cell: 'edit a cell',
   jupyter_delete_cell: 'delete a cell',
@@ -319,6 +323,7 @@ const FAILURE_REASON: Record<string, string> = {
   WEBMCP_UNAVAILABLE: 'the browser does not support this',
   COMMENT_NOT_FOUND: 'that comment no longer exists',
   COMMENT_ANCHOR_STALE: 'that comment no longer matches the notebook',
+  CELL_ACCESS_DENIED: 'the notebook owner restricted that cell',
   INTERNAL_ERROR: 'something went wrong'
 };
 
