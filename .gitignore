@@ -28,3 +28,6 @@ ui-tests/playwright-report/
 # Editors / OS
 .ipynb_checkpoints/
 .DS_Store
+
+# Local shim-injected copy of the built site (ui-tests/make-shim-site.sh)
+dist-shim/

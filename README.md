@@ -198,6 +198,17 @@ cd packages/jupyterlite-webmcp && npm run typecheck
 cd ui-tests && npm install && npx playwright test  # browser tests
 ```
 
+To drive the tools by hand in a real browser — useful because no browser ships
+`document.modelContext` yet — serve a shim-injected copy of the built site:
+
+```bash
+./ui-tests/make-shim-site.sh          # serves http://127.0.0.1:8766
+```
+
+Then, in that page's console, `window.__webmcp.call('jupyter_get_context', {})`
+invokes a tool exactly the way an agent would. The shim lives in `ui-tests/`,
+is never part of the extension, and is never injected into the deployed site.
+
 `.github/workflows/test.yml` runs the same three steps, plus a build of the
 extension and the JupyterLite site, on every push and pull request.
 
