@@ -4,14 +4,36 @@
  */
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import { InputDialog } from '@jupyterlab/apputils';
+import { Cell } from '@jupyterlab/cells';
 import { CodeEditor } from '@jupyterlab/codeeditor';
 import { NotebookPanel, INotebookTracker } from '@jupyterlab/notebook';
 import { LabIcon, ReactWidget, UseSignal } from '@jupyterlab/ui-components';
 import * as React from 'react';
 
 import { revealCell } from '../jupyter/focus';
+import { makeSourceAnchor, positionAt } from './anchors';
 import { HUMAN_AUTHOR, IThread } from './model';
 import { ReviewStore } from './storage';
+
+/**
+ * Scrolls the output at `outputIndex` within a revealed cell into view and
+ * briefly highlights it (SPEC §36: "scrolls output into view for output
+ * comments"). Presentation only: nothing in the extension depends on this
+ * having run.
+ */
+export function scrollOutputIntoView(cell: Cell | null, outputIndex: number | undefined): void {
+  if (!cell || outputIndex === undefined || outputIndex < 0) {
+    return;
+  }
+  const nodes = cell.node.querySelectorAll('.jp-OutputArea-child');
+  const node = nodes[outputIndex] as HTMLElement | undefined;
+  if (!node) {
+    return;
+  }
+  node.scrollIntoView({ block: 'nearest' });
+  node.classList.add('jp-webmcp-outputHighlight');
+  setTimeout(() => node.classList.remove('jp-webmcp-outputHighlight'), 2000);
+}
 
 const reviewIcon = new LabIcon({
   name: 'jupyterlite-webmcp:review',
@@ -135,6 +157,8 @@ export class ReviewPanel extends ReactWidget {
         if (anchorStatus.range && cell && cell.editor) {
           cell.editor.focus();
           cell.editor.setSelection(anchorStatus.range as CodeEditor.IRange);
+        } else if (thread.anchor.kind === 'output') {
+          scrollOutputIntoView(cell, anchorStatus.outputIndex);
         }
       } catch (err) {
         console.warn('[jupyterlite-webmcp]', err);
@@ -183,6 +207,17 @@ export class ReviewPanel extends ReactWidget {
           >
             Reply
           </button>
+          {anchorStatus.state === 'orphaned' || anchorStatus.state === 'cell-missing' ? (
+            <button
+              className="jp-webmcp-btn"
+              onClick={event => {
+                event.stopPropagation();
+                this._reanchor(panel, thread.id);
+              }}
+            >
+              Re-anchor
+            </button>
+          ) : null}
           {thread.status === 'open' ? (
             <button
               className="jp-webmcp-btn"
@@ -219,6 +254,39 @@ export class ReviewPanel extends ReactWidget {
         return;
       }
       this._store.reply(panel, threadId, result.value, HUMAN_AUTHOR);
+    } catch (err) {
+      console.warn('[jupyterlite-webmcp]', err);
+    }
+  }
+
+  /**
+   * Re-anchors an orphaned (or cell-missing) thread to the human's current
+   * editor selection in the active cell (SPEC §41: "Allow manual
+   * re-anchoring if reasonable."). If there is no non-empty selection right
+   * now, this is a silent no-op — never a native `alert`.
+   */
+  private _reanchor(panel: NotebookPanel, threadId: string): void {
+    try {
+      const cell = panel.content.activeCell;
+      const editor = cell ? cell.editor : null;
+      if (!cell || !editor) {
+        return;
+      }
+      const selection = editor.getSelection();
+      if (!selection) {
+        return;
+      }
+      const startOffset = editor.getOffsetAt(selection.start);
+      const endOffset = editor.getOffsetAt(selection.end);
+      if (startOffset === endOffset) {
+        return;
+      }
+      const source = cell.model.sharedModel.getSource();
+      const lo = Math.min(startOffset, endOffset);
+      const hi = Math.max(startOffset, endOffset);
+      const range = { start: positionAt(source, lo), end: positionAt(source, hi) };
+      const anchor = makeSourceAnchor(cell.model.id, source, range);
+      this._store.reanchor(panel, threadId, anchor);
     } catch (err) {
       console.warn('[jupyterlite-webmcp]', err);
     }

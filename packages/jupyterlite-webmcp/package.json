@@ -44,6 +44,8 @@
     "clean:labextension": "rimraf jupyterlite_webmcp/labextension jupyterlite_webmcp/_version.py",
     "clean:all": "npm run clean:lib && npm run clean:labextension",
     "install:extension": "npm run build",
+    "lint": "eslint src tests --fix && prettier --write \"tests/**/*.ts\"",
+    "lint:check": "eslint src tests && prettier --check \"tests/**/*.ts\"",
     "test": "jest",
     "test:cov": "jest --coverage",
     "typecheck": "tsc --noEmit",
@@ -79,13 +81,19 @@
     "@lumino/widgets": "2.8.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@jupyter/builder": "^1.2.2",
     "@types/jest": "^29.5.12",
     "@types/react": "^18.2.0",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
     "jest": "^29.7.0",
+    "prettier": "^3.9.6",
     "rimraf": "^5.0.1",
     "ts-jest": "^29.1.2",
     "typescript": "~5.9.3",
+    "typescript-eslint": "^8.69.0",
     "webmcp-types": "^0.1.5"
   },
   "jupyterlab": {

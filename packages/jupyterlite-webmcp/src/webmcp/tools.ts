@@ -1,7 +1,7 @@
 import { deleteCell, getCells, insertCell, updateCell } from '../jupyter/cells';
 import { toolError } from '../jupyter/errors';
 import { kernelAction, runCells } from '../jupyter/execution';
-import { focusCell, getContext, revealCell } from '../jupyter/focus';
+import { focusCell, getContext, readFocus, revealCell } from '../jupyter/focus';
 import {
   createNotebook,
   kernelInfo,
@@ -9,10 +9,10 @@ import {
   resolveNotebook,
   saveNotebook
 } from '../jupyter/notebook';
-import { fingerprintOutput } from '../jupyter/outputs';
 import { IJupyterEnv, listWorkspace } from '../jupyter/workspace';
 import { LIMITS } from '../limits';
 import { makeSourceAnchor, positionAt } from '../review/anchors';
+import { scrollOutputIntoView } from '../review/panel';
 import {
   AGENT_AUTHOR,
   AnchorKind,
@@ -193,6 +193,7 @@ export function buildTools(
         return {
           notebook: notebookInfo(panel),
           kernel: kernelInfo(panel),
+          focus: readFocus(panel),
           review: counts(panel)
         };
       }
@@ -483,12 +484,8 @@ export function buildTools(
           }
           anchor = makeSourceAnchor(cellId, source, range);
         } else if (kind === 'output') {
-          anchor.outputIndex = optionalNumber(rawAnchor, 'outputIndex') ?? 0;
-          anchor.outputFingerprint = outputFingerprintFor(
-            panel,
-            cellId,
-            anchor.outputIndex
-          );
+          const outputIndex = optionalNumber(rawAnchor, 'outputIndex') ?? 0;
+          anchor = review.buildOutputAnchor(panel, cellId, outputIndex);
         }
 
         const thread = review.createThread(
@@ -603,6 +600,8 @@ export function buildTools(
               typeof cell.editor.setSelection
             >[0]
           );
+        } else if (thread.anchor.kind === 'output') {
+          scrollOutputIntoView(cell, status.outputIndex);
         }
         return {
           notebookPath: panel.context.path,
@@ -615,24 +614,6 @@ export function buildTools(
   ];
 
   return tools;
-}
-
-function outputFingerprintFor(
-  panel: Parameters<ReviewStore['anchorStatus']>[0],
-  cellId: string,
-  outputIndex: number
-): string | undefined {
-  const cells = panel.context.model.cells;
-  for (let i = 0; i < cells.length; i++) {
-    if (cells.get(i).id === cellId) {
-      const json = cells.get(i).sharedModel.toJSON() as { outputs?: unknown[] };
-      const outputs = json.outputs ?? [];
-      if (outputIndex < outputs.length) {
-        return fingerprintOutput(outputs[outputIndex]);
-      }
-    }
-  }
-  return undefined;
 }
 
 /** Exported for the unit tests: the tool names this extension registers. */

@@ -136,3 +136,15 @@
 .jp-Cell.jp-webmcp-hasComments > .jp-Cell-inputWrapper {
   box-shadow: inset 2px 0 0 0 var(--jp-brand-color1);
 }
+
+/*
+ * Brief highlight applied to a `.jp-OutputArea-child` when navigating to an
+ * output-anchored review thread (SPEC §36: "scrolls output into view for
+ * output comments"). Added on navigation and removed automatically a couple
+ * of seconds later; presentation only.
+ */
+.jp-webmcp-outputHighlight {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: 2px;
+  transition: outline-color 0.2s ease-in-out;
+}

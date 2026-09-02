@@ -1,8 +1,15 @@
-import { ToolError, toolError, normalizeError, isAbortError } from '../../src/jupyter/errors';
+import {
+  ToolError,
+  toolError,
+  normalizeError,
+  isAbortError
+} from '../../src/jupyter/errors';
 
 describe('ToolError', () => {
   it('carries code, message, and details', () => {
-    const err = new ToolError('CELL_NOT_FOUND', 'no such cell', { cellId: 'abc' });
+    const err = new ToolError('CELL_NOT_FOUND', 'no such cell', {
+      cellId: 'abc'
+    });
     expect(err.code).toBe('CELL_NOT_FOUND');
     expect(err.message).toBe('no such cell');
     expect(err.details).toEqual({ cellId: 'abc' });
@@ -11,12 +18,21 @@ describe('ToolError', () => {
   });
 
   it('toJSON returns the expected shape', () => {
-    const err = new ToolError('CELL_NOT_FOUND', 'no such cell', { cellId: 'abc' });
-    expect(err.toJSON()).toEqual({ cellId: 'abc', error: 'CELL_NOT_FOUND', message: 'no such cell' });
+    const err = new ToolError('CELL_NOT_FOUND', 'no such cell', {
+      cellId: 'abc'
+    });
+    expect(err.toJSON()).toEqual({
+      cellId: 'abc',
+      error: 'CELL_NOT_FOUND',
+      message: 'no such cell'
+    });
   });
 
   it('details cannot clobber error/message in toJSON', () => {
-    const err = new ToolError('STALE_CELL', 'stale', { error: 'NOPE', message: 'NOPE' });
+    const err = new ToolError('STALE_CELL', 'stale', {
+      error: 'NOPE',
+      message: 'NOPE'
+    });
     const json = err.toJSON();
     expect(json.error).toBe('STALE_CELL');
     expect(json.message).toBe('stale');
@@ -66,7 +82,9 @@ describe('normalizeError', () => {
   });
 
   it('maps a ToolError to its own toJSON()', () => {
-    const err = new ToolError('PATH_EXISTS', 'already there', { path: 'a.ipynb' });
+    const err = new ToolError('PATH_EXISTS', 'already there', {
+      path: 'a.ipynb'
+    });
     expect(normalizeError(err)).toEqual(err.toJSON());
   });
 

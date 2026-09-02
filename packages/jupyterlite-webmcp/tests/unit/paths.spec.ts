@@ -1,4 +1,9 @@
-import { validatePath, joinPath, basename, isNotebookPath } from '../../src/jupyter/paths';
+import {
+  validatePath,
+  joinPath,
+  basename,
+  isNotebookPath
+} from '../../src/jupyter/paths';
 import { ToolError } from '../../src/jupyter/errors';
 
 function expectInvalidPath(fn: () => unknown): void {

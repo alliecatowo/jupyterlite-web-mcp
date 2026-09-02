@@ -73,7 +73,7 @@ async function serviceManagerReady(env: IJupyterEnv): Promise<void> {
         window.setTimeout(resolve, KERNEL_SPEC_POLL_MS)
       );
     }
-  } catch (error) {
+  } catch {
     // A service that never becomes ready must not block a notebook from
     // opening; the notebook simply opens without a kernel, which is exactly
     // what happens in a JupyterLite deployment that ships no kernel at all.
@@ -131,7 +131,7 @@ export async function resolveNotebook(
     }
     try {
       await contentsManager(env).get(normalized, { content: false });
-    } catch (error) {
+    } catch {
       throw toolError(
         'NOTEBOOK_NOT_FOUND',
         `No file exists at "${normalized}".`,
@@ -219,7 +219,7 @@ export async function createNotebook(
   let exists = true;
   try {
     await contents.get(target, { content: false });
-  } catch (error) {
+  } catch {
     exists = false;
   }
   if (exists) {

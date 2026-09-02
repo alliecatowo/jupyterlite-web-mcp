@@ -80,7 +80,7 @@ export class WebMCPStatus extends Widget {
       }
       const body = this._buildPopupBody();
       this._popup = showPopup({ body, anchor: this, align: 'right' });
-    } catch (err) {
+    } catch {
       // Diagnostics are a nicety; never let this throw.
     }
   };

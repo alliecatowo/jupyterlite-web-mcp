@@ -43,14 +43,20 @@ describe('offsetAt / positionAt round trip', () => {
 
 describe('textInRange', () => {
   it('extracts the expected substring', () => {
-    const range: ISourceRange = { start: { line: 1, column: 0 }, end: { line: 1, column: 6 } };
+    const range: ISourceRange = {
+      start: { line: 1, column: 0 },
+      end: { line: 1, column: 6 }
+    };
     expect(textInRange(MULTILINE, range)).toBe('second');
   });
 });
 
 describe('makeSourceAnchor', () => {
   const source = 'before context here\nTARGET\nafter context here';
-  const range: ISourceRange = { start: { line: 1, column: 0 }, end: { line: 1, column: 6 } };
+  const range: ISourceRange = {
+    start: { line: 1, column: 0 },
+    end: { line: 1, column: 6 }
+  };
 
   it('captures selectedText, a non-empty hash, and prefix/suffix context', () => {
     const anchor = makeSourceAnchor('cell-1', source, range);
@@ -67,7 +73,10 @@ describe('makeSourceAnchor', () => {
 describe('resolveSourceAnchor', () => {
   it('returns exact when the source is unchanged', () => {
     const source = 'before context here\nTARGET\nafter context here';
-    const range: ISourceRange = { start: { line: 1, column: 0 }, end: { line: 1, column: 6 } };
+    const range: ISourceRange = {
+      start: { line: 1, column: 0 },
+      end: { line: 1, column: 6 }
+    };
     const anchor = makeSourceAnchor('cell-1', source, range);
     const resolved = resolveSourceAnchor(anchor, source);
     expect(resolved.state).toBe('exact');
@@ -77,7 +86,10 @@ describe('resolveSourceAnchor', () => {
 
   it('returns reanchored, pointing at the new location, when a line is inserted above', () => {
     const original = 'line1\ntarget text here\nline3';
-    const range: ISourceRange = { start: { line: 1, column: 0 }, end: { line: 1, column: 16 } };
+    const range: ISourceRange = {
+      start: { line: 1, column: 0 },
+      end: { line: 1, column: 16 }
+    };
     const anchor = makeSourceAnchor('cell-1', original, range);
 
     const updated = 'inserted\nline1\ntarget text here\nline3';
@@ -93,7 +105,10 @@ describe('resolveSourceAnchor', () => {
 
   it('returns orphaned when the anchored text was deleted from the cell', () => {
     const original = 'line1\ntarget text here\nline3';
-    const range: ISourceRange = { start: { line: 1, column: 0 }, end: { line: 1, column: 16 } };
+    const range: ISourceRange = {
+      start: { line: 1, column: 0 },
+      end: { line: 1, column: 16 }
+    };
     const anchor = makeSourceAnchor('cell-1', original, range);
 
     const updated = 'line1\nline3';
@@ -105,7 +120,10 @@ describe('resolveSourceAnchor', () => {
     const anchor: IAnchor = {
       kind: 'source-range',
       cellId: 'cell-1',
-      sourceRange: { start: { line: 0, column: 0 }, end: { line: 0, column: 6 } },
+      sourceRange: {
+        start: { line: 0, column: 0 },
+        end: { line: 0, column: 6 }
+      },
       selectedText: 'TARGET',
       prefix: '',
       suffix: ''
@@ -121,14 +139,20 @@ describe('resolveSourceAnchor', () => {
     const anchor: IAnchor = {
       kind: 'source-range',
       cellId: 'cell-1',
-      sourceRange: { start: { line: 0, column: 0 }, end: { line: 0, column: 6 } },
+      sourceRange: {
+        start: { line: 0, column: 0 },
+        end: { line: 0, column: 6 }
+      },
       selectedText: 'TARGET',
       prefix: 'yyy ',
       suffix: ''
     };
     const resolved = resolveSourceAnchor(anchor, source);
     expect(resolved.state).toBe('reanchored');
-    const secondOccurrenceOffset = source.indexOf('TARGET', source.indexOf('TARGET') + 1);
+    const secondOccurrenceOffset = source.indexOf(
+      'TARGET',
+      source.indexOf('TARGET') + 1
+    );
     expect(resolved.range).toEqual({
       start: positionAtHelper(source, secondOccurrenceOffset),
       end: positionAtHelper(source, secondOccurrenceOffset + 'TARGET'.length)

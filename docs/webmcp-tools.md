@@ -55,13 +55,30 @@ no stack trace is ever included.
 | `INVALID_CELL_TYPE` | An unsupported cell type was requested for `jupyter_insert_cell` (only `code`/`markdown`/`raw` are valid). |
 | `INVALID_ARGUMENT` | A required argument was missing or the wrong type/shape (also used for an unsupported kernel action or insert `position`). |
 | `KERNEL_UNAVAILABLE` | The notebook has no kernel attached (needed by `jupyter_run_cells` or `jupyter_kernel_action`). |
-| `KERNEL_BUSY` | Reserved for kernel-busy conditions; part of the closed `ErrorCode` union. |
 | `EXECUTION_ERROR` | Reserved for execution failures reported through the structured error channel; per-cell execution errors from `jupyter_run_cells` are instead reported inline in that tool's own result (`status: "error"`, `ename`/`evalue`/`traceback`), not as a thrown `ErrorCode`. |
 | `ABORTED` | The tool invocation's `AbortSignal` fired before or during the call. |
 | `WEBMCP_UNAVAILABLE` | Reserved for the case where WebMCP is not available; the extension only registers tools once it is, so it is not normally observed by a tool caller. |
 | `COMMENT_NOT_FOUND` | No review thread with the given `threadId` exists in the resolved notebook. |
 | `COMMENT_ANCHOR_STALE` | A comment anchor could not be validated: the selected text is no longer present in the cell, the output index doesn't exist, or (for source-range creation via `anchor.text`) the given text was not found in the cell source. |
 | `INTERNAL_ERROR` | Any unexpected failure, normalized with a truncated message and no stack trace. |
+
+### Why there is no `KERNEL_BUSY`
+
+The closed `ErrorCode` union deliberately does not include `KERNEL_BUSY`.
+`jupyter_run_cells` never checks the kernel's status before submitting a
+request: the kernel is shared with the human, execution is inherently
+queued through Jupyter's own messaging protocol, and a single tool call
+that runs several cells submits them one after another on purpose (cell 2
+must be able to queue behind cell 1 while cell 1's "idle" status message is
+still in flight). There is no moment at which "busy because of someone
+else's work" can be distinguished from "busy because we just queued the
+next cell of this very call" without a race — checking kernel status and
+then submitting is not atomic, and a check-then-throw would either fire
+spuriously on a tool's own multi-cell run or miss genuinely-contended
+kernels depending on message timing. Because this architecture queues on
+the shared kernel by design rather than ever needing to reject a request as
+"busy," the code never has an honest signal to attach to `KERNEL_BUSY`, so
+the code was removed rather than left declared but permanently dead.
 
 ### AbortSignal behavior
 
@@ -158,7 +175,12 @@ extension for an abort to usefully interrupt.
   | `activate` | boolean | `true` |
 - **Output:**
   ```ts
-  { notebook: INotebookInfo; kernel: IKernelInfo; review: { openThreads, totalThreads } }
+  {
+    notebook: INotebookInfo;
+    kernel: IKernelInfo;
+    focus: IFocusContext;   // the resulting focus, incl. the cell activated by `cellId`
+    review: { openThreads, totalThreads };
+  }
   ```
 - **Bounds:** none beyond the notebook/kernel/review summary shapes above.
 - **Errors:** `NOTEBOOK_NOT_FOUND` if no file exists at `path` or it is not

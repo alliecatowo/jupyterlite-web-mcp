@@ -32,6 +32,10 @@ jobs:
         run: npm install
         working-directory: packages/jupyterlite-webmcp
 
+      - name: Lint
+        run: npm run lint:check
+        working-directory: packages/jupyterlite-webmcp
+
       - name: Type check
         run: npm run typecheck
         working-directory: packages/jupyterlite-webmcp

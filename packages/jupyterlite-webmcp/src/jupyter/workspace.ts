@@ -123,7 +123,7 @@ export async function listWorkspace(
     let listing: Contents.IModel;
     try {
       listing = await contents.get(directory, { content: true });
-    } catch (error) {
+    } catch {
       if (directory === root) {
         throw toolError(
           'NOTEBOOK_NOT_FOUND',

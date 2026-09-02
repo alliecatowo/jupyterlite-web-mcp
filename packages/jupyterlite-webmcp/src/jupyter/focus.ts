@@ -81,14 +81,14 @@ export async function revealCell(
   notebook.deselectAll();
   try {
     await notebook.scrollToItem(index, 'center');
-  } catch (error) {
+  } catch {
     // Windowing may be disabled, in which case the cell is already laid out.
   }
   const cell = notebook.widgets[index] ?? null;
   if (cell) {
     try {
       await cell.ready;
-    } catch (error) {
+    } catch {
       // A disposed cell simply has no editor; callers handle `null`.
     }
   }

@@ -1,4 +1,8 @@
-import { stableHash, hashCellSource, computeNotebookRevision } from '../../src/jupyter/revisions';
+import {
+  stableHash,
+  hashCellSource,
+  computeNotebookRevision
+} from '../../src/jupyter/revisions';
 
 describe('stableHash', () => {
   it('is deterministic for the same input', () => {
@@ -25,11 +29,15 @@ describe('stableHash', () => {
 
 describe('hashCellSource', () => {
   it('distinguishes cell type', () => {
-    expect(hashCellSource('code', 'x')).not.toBe(hashCellSource('markdown', 'x'));
+    expect(hashCellSource('code', 'x')).not.toBe(
+      hashCellSource('markdown', 'x')
+    );
   });
 
   it('is deterministic', () => {
-    expect(hashCellSource('code', 'print(1)')).toBe(hashCellSource('code', 'print(1)'));
+    expect(hashCellSource('code', 'print(1)')).toBe(
+      hashCellSource('code', 'print(1)')
+    );
   });
 });
 
@@ -38,24 +46,34 @@ describe('computeNotebookRevision', () => {
   const cellB = { id: 'c2', cellType: 'markdown', source: '# hi' };
 
   it('starts with rev_', () => {
-    expect(computeNotebookRevision([cellA, cellB])).toMatch(/^rev_[0-9a-f]{16}$/);
+    expect(computeNotebookRevision([cellA, cellB])).toMatch(
+      /^rev_[0-9a-f]{16}$/
+    );
   });
 
   it('is deterministic', () => {
-    expect(computeNotebookRevision([cellA, cellB])).toBe(computeNotebookRevision([cellA, cellB]));
+    expect(computeNotebookRevision([cellA, cellB])).toBe(
+      computeNotebookRevision([cellA, cellB])
+    );
   });
 
   it('changes when a cell source changes', () => {
     const changed = { ...cellA, source: 'print(2)' };
-    expect(computeNotebookRevision([cellA, cellB])).not.toBe(computeNotebookRevision([changed, cellB]));
+    expect(computeNotebookRevision([cellA, cellB])).not.toBe(
+      computeNotebookRevision([changed, cellB])
+    );
   });
 
   it('changes when cell order changes', () => {
-    expect(computeNotebookRevision([cellA, cellB])).not.toBe(computeNotebookRevision([cellB, cellA]));
+    expect(computeNotebookRevision([cellA, cellB])).not.toBe(
+      computeNotebookRevision([cellB, cellA])
+    );
   });
 
   it('changes when a cell id changes', () => {
     const renamed = { ...cellA, id: 'c1-renamed' };
-    expect(computeNotebookRevision([cellA, cellB])).not.toBe(computeNotebookRevision([renamed, cellB]));
+    expect(computeNotebookRevision([cellA, cellB])).not.toBe(
+      computeNotebookRevision([renamed, cellB])
+    );
   });
 });

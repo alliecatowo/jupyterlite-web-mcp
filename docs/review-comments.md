@@ -66,9 +66,17 @@ Every thread is anchored (`IAnchor`) to exactly one of:
   characters each, `LIMITS.MAX_ANCHOR_CONTEXT`) used to disambiguate
   re-anchoring later. Useful for "is *this* denominator right?"
   comments on an exact expression.
-- **`output`** — one output of a cell, by output index plus a content
-  fingerprint (`fingerprintOutput`, `src/jupyter/outputs.ts`). Useful for
-  "why is this row such an outlier?" comments on a table or chart.
+- **`output`** — one output of a cell, by output index, a content
+  fingerprint (`fingerprintOutput`, `src/jupyter/outputs.ts`) and a
+  `mimeType` (SPEC §42) derived from that same output — `text/html` (if
+  present), else the first `image/*` key, else `text/plain`, else
+  `application/vnd.jupyter.error` for an error output. Both the human path
+  (`src/review/commands.ts`) and the agent path (`src/webmcp/tools.ts`)
+  build this anchor through the single shared `ReviewStore.buildOutputAnchor()`
+  helper (`src/review/storage.ts`), so the two can never disagree on it.
+  Older threads saved before `mimeType` existed keep working —
+  `normalizeReview` treats it as optional. Useful for "why is this row such
+  an outlier?" comments on a table or chart.
 
 ## Source-range re-anchoring
 
@@ -101,9 +109,21 @@ This resolved state (`exact` / `reanchored` / `orphaned` / `cell-missing`)
 is surfaced in every read: as `anchor.state` in `jupyter_list_comments`, as
 `anchorStatus.state` in `jupyter_get_comment` and `jupyter_focus_comment`,
 and in the Review panel UI. **An orphaned anchor is displayed as orphaned,
-never silently reattached to the wrong text.** Manual re-anchoring (editing
-the thread to point somewhere new) is a reasonable future action for a
-human or agent, but the extension never does it automatically.
+never silently reattached to the wrong text.**
+
+### Manual re-anchoring
+
+A thread whose `anchorStatus.state` is `orphaned` or `cell-missing` gets a
+**Re-anchor** button next to Reply in the Review panel
+(`src/review/panel.tsx`). Clicking it takes the human's *current* editor
+selection — the active cell plus whatever text is highlighted in it — and
+rewrites the thread's anchor to a fresh `source-range` anchor
+(`makeSourceAnchor`, `src/review/anchors.ts`) pointing at that selection,
+via `ReviewStore.reanchor()` (`src/review/storage.ts`). The thread's `id`,
+`status` and message history are preserved; only the anchor and
+`updatedAt` change. If there is no non-empty selection when Re-anchor is
+clicked, nothing happens — no dialog, no native `alert`, just a silent
+no-op — the human simply selects text and clicks it again.
 
 ## Output anchoring and change detection
 
@@ -131,8 +151,13 @@ From `src/review/commands.ts` and the context menu it registers:
 - **Comment on Cell** (`jupyterlite-webmcp:add-cell-comment`) — always a
   whole-cell comment, regardless of any selection.
 - **Comment on Output** (`jupyterlite-webmcp:add-output-comment`) — comments
-  on the active code cell's first output; only enabled when that cell has
-  at least one output.
+  on whichever output of the active code cell was right-clicked, determined
+  via `app.contextMenuHitTest` against the `.jp-OutputArea-child` DOM node
+  under the pointer (`outputIndexFromNode`, `src/review/commands.ts`) rather
+  than always output 0; only enabled when that cell has at least one
+  output. If invoked from somewhere other than the context menu (e.g. the
+  command palette) and the cell has more than one output, nothing is
+  created rather than guessing which one was meant.
 - **Show Review Panel** (`jupyterlite-webmcp:open-review`) — reveals the
   right-sidebar panel.
 
@@ -142,9 +167,13 @@ dialog, then creates the thread via `ReviewStore.createThread` with
 
 From the **Review panel** itself (`src/review/panel.tsx`), a human can
 filter by Open / Resolved / All / Current cell, reply to any thread,
-resolve or reopen it, and click a thread to navigate to it (which reveals
+resolve or reopen it, and click a thread to navigate to it: this reveals
 the anchored cell and, for a resolved `source-range` anchor, selects the
-exact text).
+exact text; for an `output` anchor, the specific `.jp-OutputArea-child` at
+that index is scrolled into view and briefly highlighted
+(`scrollOutputIntoView`, `jp-webmcp-outputHighlight` in
+`style/base.css`) — the same behavior `jupyter_focus_comment` produces for
+an agent-driven navigation.
 
 Cells with any thread also get a small, purely cosmetic marker
 (`src/review/markers.ts`): a CSS class plus `data-webmcp-threads`/

@@ -24,6 +24,47 @@ import {
   withStatus
 } from './model';
 
+/**
+ * Determines the mime type that best represents a single raw nbformat
+ * output, for use as a review comment anchor's `anchor.mimeType`
+ * (SPEC §42). For `execute_result`/`display_data`, prefers the richest key
+ * present in the output's `data` bundle: `text/html`, then any `image/*`
+ * key, then `text/plain`, then (if none of those are present) whatever key
+ * happens to come first. A `stream` output is always `text/plain`; an
+ * `error` output is always `application/vnd.jupyter.error`. Returns
+ * `undefined` for a malformed or unrecognized output.
+ */
+function mimeTypeForOutput(output: unknown): string | undefined {
+  const o = (output ?? {}) as Record<string, unknown>;
+  const outputType = o.output_type;
+
+  if (outputType === 'stream') {
+    return 'text/plain';
+  }
+  if (outputType === 'error') {
+    return 'application/vnd.jupyter.error';
+  }
+  if (outputType === 'execute_result' || outputType === 'display_data') {
+    const data = (o.data && typeof o.data === 'object' ? o.data : {}) as Record<string, unknown>;
+    const keys = Object.keys(data);
+    if (keys.length === 0) {
+      return undefined;
+    }
+    if ('text/html' in data) {
+      return 'text/html';
+    }
+    const image = keys.find(k => k.startsWith('image/'));
+    if (image) {
+      return image;
+    }
+    if ('text/plain' in data) {
+      return 'text/plain';
+    }
+    return keys[0];
+  }
+  return undefined;
+}
+
 /** Minimal shape of the shared notebook metadata API we rely on. */
 interface ISharedMetadata {
   getMetadata(): Record<string, unknown>;
@@ -91,7 +132,7 @@ export class ReviewStore {
         .sharedModel as unknown as ISharedMetadata;
       const metadata = shared.getMetadata() ?? {};
       return normalizeReview(metadata[REVIEW_METADATA_KEY]);
-    } catch (error) {
+    } catch {
       return emptyReview();
     }
   }
@@ -149,6 +190,47 @@ export class ReviewStore {
     const thread = createThread(anchor, this._boundBody(body), author);
     this.write(panel, upsertThread(this.read(panel), thread));
     return thread;
+  }
+
+  /**
+   * Builds an `'output'` anchor for one output of a cell: the single shared
+   * helper used by both the human context-menu path
+   * (`src/review/commands.ts`) and the agent tool path
+   * (`src/webmcp/tools.ts`), so the two never disagree on how
+   * `anchor.mimeType` (SPEC §42) or `anchor.outputFingerprint` are derived.
+   * `outputIndex` is not validated here — validate the resulting anchor
+   * (e.g. via {@link createThread} or {@link reanchor}) before trusting it.
+   */
+  buildOutputAnchor(panel: NotebookPanel, cellId: string, outputIndex: number): IAnchor {
+    const anchor: IAnchor = { kind: 'output', cellId, outputIndex };
+    const output = this._rawOutput(panel, cellId, outputIndex);
+    if (output !== undefined) {
+      anchor.outputFingerprint = fingerprintOutput(output);
+      const mimeType = mimeTypeForOutput(output);
+      if (mimeType) {
+        anchor.mimeType = mimeType;
+      }
+    }
+    return anchor;
+  }
+
+  /**
+   * Manually re-anchor an orphaned (or cell-missing) thread to a new
+   * location, chosen by the human or agent rather than guessed
+   * automatically (SPEC §41: "Allow manual re-anchoring if reasonable.").
+   * The new anchor is validated exactly like a freshly created thread's
+   * anchor; the thread's `id`, `status` and message history are preserved.
+   */
+  reanchor(panel: NotebookPanel, threadId: string, anchor: IAnchor): IThread {
+    this._validateAnchor(panel, anchor);
+    const thread = this.requireThread(panel, threadId);
+    const updated: IThread = {
+      ...thread,
+      anchor: { ...anchor },
+      updatedAt: new Date().toISOString()
+    };
+    this.write(panel, upsertThread(this.read(panel), updated));
+    return updated;
   }
 
   /** Append a message to an existing thread. */
@@ -295,6 +377,19 @@ export class ReviewStore {
         );
       }
     }
+  }
+
+  /** Raw nbformat output at `outputIndex` in cell `cellId`, or `undefined`. */
+  private _rawOutput(panel: NotebookPanel, cellId: string, outputIndex: number): unknown {
+    const index = findCellIndexById(panel.context.model, cellId);
+    if (index === -1) {
+      return undefined;
+    }
+    const json = panel.context.model.cells.get(index).sharedModel.toJSON() as {
+      outputs?: unknown[];
+    };
+    const outputs = json.outputs ?? [];
+    return outputs[outputIndex];
   }
 
   private _boundBody(body: string): string {

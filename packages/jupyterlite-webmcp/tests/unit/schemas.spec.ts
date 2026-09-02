@@ -24,7 +24,9 @@ const EXPECTED_TOOL_NAMES = [
 
 describe('SCHEMAS', () => {
   it('exposes exactly the expected set of tool names', () => {
-    expect(Object.keys(SCHEMAS).sort()).toEqual(EXPECTED_TOOL_NAMES.slice().sort());
+    expect(Object.keys(SCHEMAS).sort()).toEqual(
+      EXPECTED_TOOL_NAMES.slice().sort()
+    );
   });
 
   it.each(Object.keys(SCHEMAS))('%s is a well-formed object schema', name => {
@@ -40,7 +42,9 @@ describe('SCHEMAS', () => {
       expect(Array.isArray(schema.required)).toBe(true);
       const properties = schema.properties as Record<string, unknown>;
       for (const requiredKey of schema.required as string[]) {
-        expect(Object.prototype.hasOwnProperty.call(properties, requiredKey)).toBe(true);
+        expect(
+          Object.prototype.hasOwnProperty.call(properties, requiredKey)
+        ).toBe(true);
       }
     }
   });

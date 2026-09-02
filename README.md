@@ -194,6 +194,7 @@ preloaded.
 
 ```bash
 cd packages/jupyterlite-webmcp && npm test        # unit tests (jest)
+cd packages/jupyterlite-webmcp && npm run lint:check
 cd packages/jupyterlite-webmcp && npm run typecheck
 cd ui-tests && npm install && npx playwright test  # browser tests
 ```

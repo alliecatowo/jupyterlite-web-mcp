@@ -59,7 +59,8 @@ describe('boundText', () => {
 
 describe('htmlToText', () => {
   it('converts a small table to readable text with no tags', () => {
-    const html = '<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>';
+    const html =
+      '<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>';
     const text = htmlToText(html);
     expect(text).not.toMatch(/<[^>]+>/);
     expect(text).toContain('a');
@@ -69,7 +70,8 @@ describe('htmlToText', () => {
   });
 
   it('strips a <script> block entirely, including its contents', () => {
-    const html = '<div>before<script>alert("should not appear")</script>after</div>';
+    const html =
+      '<div>before<script>alert("should not appear")</script>after</div>';
     const text = htmlToText(html);
     expect(text).not.toContain('alert');
     expect(text).not.toContain('should not appear');
@@ -88,7 +90,11 @@ describe('htmlToText', () => {
 
 describe('serializeOutput', () => {
   it('serializes a stream output whose text is a string array', () => {
-    const output = { output_type: 'stream', name: 'stdout', text: ['line1\n', 'line2\n'] };
+    const output = {
+      output_type: 'stream',
+      name: 'stdout',
+      text: ['line1\n', 'line2\n']
+    };
     const result = serializeOutput(output);
     expect(result.outputType).toBe('stream');
     expect(result.name).toBe('stdout');
@@ -135,7 +141,13 @@ describe('serializeOutput', () => {
     };
     const result = serializeOutput(output);
     expect(result.outputType).toBe('display_data');
-    expect(result.media).toEqual([{ mimeType: 'image/png', bytes: Math.floor((bigBase64.length * 3) / 4), included: false }]);
+    expect(result.media).toEqual([
+      {
+        mimeType: 'image/png',
+        bytes: Math.floor((bigBase64.length * 3) / 4),
+        included: false
+      }
+    ]);
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain(bigBase64);
     expect(serialized.length).toBeLessThan(bigBase64.length);
@@ -171,7 +183,12 @@ describe('summarizeOutputs', () => {
   it('prioritizes the error output in a mixed list', () => {
     const outputs = [
       { output_type: 'stream', name: 'stdout', text: 'some output\n' },
-      { output_type: 'error', ename: 'ValueError', evalue: 'bad value', traceback: [] }
+      {
+        output_type: 'error',
+        ename: 'ValueError',
+        evalue: 'bad value',
+        traceback: []
+      }
     ];
     expect(summarizeOutputs(outputs)).toBe('error: ValueError: bad value');
   });
@@ -179,20 +196,44 @@ describe('summarizeOutputs', () => {
 
 describe('fingerprintOutput', () => {
   it('is stable across differing key order', () => {
-    const a = { output_type: 'execute_result', execution_count: 1, data: { 'text/plain': 'x' } };
-    const b = { data: { 'text/plain': 'x' }, execution_count: 1, output_type: 'execute_result' };
+    const a = {
+      output_type: 'execute_result',
+      execution_count: 1,
+      data: { 'text/plain': 'x' }
+    };
+    const b = {
+      data: { 'text/plain': 'x' },
+      execution_count: 1,
+      output_type: 'execute_result'
+    };
     expect(fingerprintOutput(a)).toBe(fingerprintOutput(b));
   });
 
   it('is unchanged when only execution_count differs', () => {
-    const a = { output_type: 'execute_result', execution_count: 1, data: { 'text/plain': 'x' } };
-    const b = { output_type: 'execute_result', execution_count: 2, data: { 'text/plain': 'x' } };
+    const a = {
+      output_type: 'execute_result',
+      execution_count: 1,
+      data: { 'text/plain': 'x' }
+    };
+    const b = {
+      output_type: 'execute_result',
+      execution_count: 2,
+      data: { 'text/plain': 'x' }
+    };
     expect(fingerprintOutput(a)).toBe(fingerprintOutput(b));
   });
 
   it('changes when the actual data changes', () => {
-    const a = { output_type: 'execute_result', execution_count: 1, data: { 'text/plain': 'x' } };
-    const b = { output_type: 'execute_result', execution_count: 1, data: { 'text/plain': 'y' } };
+    const a = {
+      output_type: 'execute_result',
+      execution_count: 1,
+      data: { 'text/plain': 'x' }
+    };
+    const b = {
+      output_type: 'execute_result',
+      execution_count: 1,
+      data: { 'text/plain': 'y' }
+    };
     expect(fingerprintOutput(a)).not.toBe(fingerprintOutput(b));
   });
 });

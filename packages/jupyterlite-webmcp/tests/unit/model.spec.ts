@@ -26,7 +26,9 @@ describe('normalizeReview', () => {
 
   it('drops a thread with no id', () => {
     const raw = {
-      threads: [{ anchor: { cellId: 'c1' }, messages: [{ id: 'm1', body: 'hi' }] }]
+      threads: [
+        { anchor: { cellId: 'c1' }, messages: [{ id: 'm1', body: 'hi' }] }
+      ]
     };
     expect(normalizeReview(raw).threads).toHaveLength(0);
   });
@@ -51,7 +53,9 @@ describe('normalizeReview', () => {
         {
           id: 't1',
           anchor: { cellId: 'c1' },
-          messages: [{ id: 'm1', body: 'hi', author: { kind: 'human', name: 'Al' } }]
+          messages: [
+            { id: 'm1', body: 'hi', author: { kind: 'human', name: 'Al' } }
+          ]
         }
       ]
     };
@@ -69,9 +73,15 @@ describe('normalizeReview', () => {
       anchor: { cellId: 'c1' },
       messages: [{ id: 'm1', body: 'hi' }]
     });
-    expect(normalizeReview({ threads: [makeThread('bogus')] }).threads[0].status).toBe('open');
-    expect(normalizeReview({ threads: [makeThread(undefined)] }).threads[0].status).toBe('open');
-    expect(normalizeReview({ threads: [makeThread('resolved')] }).threads[0].status).toBe('resolved');
+    expect(
+      normalizeReview({ threads: [makeThread('bogus')] }).threads[0].status
+    ).toBe('open');
+    expect(
+      normalizeReview({ threads: [makeThread(undefined)] }).threads[0].status
+    ).toBe('open');
+    expect(
+      normalizeReview({ threads: [makeThread('resolved')] }).threads[0].status
+    ).toBe('resolved');
   });
 
   it('coerces an unknown author.kind to human, and keeps agent', () => {
@@ -80,12 +90,20 @@ describe('normalizeReview', () => {
       anchor: { cellId: 'c1' },
       messages: [{ id: 'm1', body: 'hi', author: { kind: authorKind } }]
     });
-    expect(normalizeReview({ threads: [makeThread('bogus')] }).threads[0].messages[0].author.kind).toBe('human');
-    expect(normalizeReview({ threads: [makeThread('agent')] }).threads[0].messages[0].author.kind).toBe('agent');
+    expect(
+      normalizeReview({ threads: [makeThread('bogus')] }).threads[0].messages[0]
+        .author.kind
+    ).toBe('human');
+    expect(
+      normalizeReview({ threads: [makeThread('agent')] }).threads[0].messages[0]
+        .author.kind
+    ).toBe('agent');
   });
 
   it('never throws on deeply weird input', () => {
-    const weird = { threads: [{ id: 1, anchor: { cellId: null }, messages: [{ body: {} }] }] };
+    const weird = {
+      threads: [{ id: 1, anchor: { cellId: null }, messages: [{ body: {} }] }]
+    };
     expect(() => normalizeReview(weird)).not.toThrow();
     expect(normalizeReview(weird)).toEqual(emptyReview());
   });
@@ -152,7 +170,10 @@ describe('upsertThread', () => {
 describe('countOpen', () => {
   it('counts only open threads', () => {
     const t1 = createThread({ kind: 'cell', cellId: 'c1' }, 'a', HUMAN_AUTHOR);
-    const t2 = withStatus(createThread({ kind: 'cell', cellId: 'c2' }, 'b', HUMAN_AUTHOR), 'resolved');
+    const t2 = withStatus(
+      createThread({ kind: 'cell', cellId: 'c2' }, 'b', HUMAN_AUTHOR),
+      'resolved'
+    );
     const data = { version: 1, threads: [t1, t2] };
     expect(countOpen(data)).toBe(1);
   });
