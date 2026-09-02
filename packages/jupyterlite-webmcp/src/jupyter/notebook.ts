@@ -37,20 +37,46 @@ export interface IResolveOptions {
   open?: boolean;
 }
 
+/** How long to wait for a kernel spec to be contributed before giving up. */
+const KERNEL_SPEC_TIMEOUT_MS = 10000;
+
+/** How often to re-check the kernel spec registry while waiting. */
+const KERNEL_SPEC_POLL_MS = 50;
+
 /**
- * Wait until the service manager, and in particular the kernel spec registry,
- * is ready.
+ * Wait until the service manager is ready and at least one kernel spec has
+ * actually been registered.
  *
- * In JupyterLite the kernels are registered by frontend extensions during
- * start-up, so a tool invoked very early would otherwise see no kernels at all.
+ * In JupyterLite the kernels are contributed by frontend extensions during
+ * start-up, so a tool invoked very early would otherwise see no kernels at all
+ * and open a notebook that has no kernel to attach.
  */
 async function serviceManagerReady(env: IJupyterEnv): Promise<void> {
   try {
     await env.app.serviceManager.ready;
-    await env.app.serviceManager.kernelspecs.ready;
+    const manager = env.app.serviceManager.kernelspecs;
+    await manager.ready;
+
+    // In JupyterLite the kernels are contributed by frontend plugins, so
+    // `ready` resolves before any of them has registered: measured against the
+    // deployed site, the registry is still empty when `ready` settles and the
+    // Python kernel appears about half a second later. Waiting for `ready`
+    // alone is therefore not enough, and opening a notebook at that moment
+    // gets no kernel and pops a "Select Kernel" dialog at the user.
+    const deadline = Date.now() + KERNEL_SPEC_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const specs = manager.specs?.kernelspecs;
+      if (specs && Object.keys(specs).length > 0) {
+        return;
+      }
+      await new Promise(resolve =>
+        window.setTimeout(resolve, KERNEL_SPEC_POLL_MS)
+      );
+    }
   } catch (error) {
     // A service that never becomes ready must not block a notebook from
-    // opening; the notebook simply opens without a kernel.
+    // opening; the notebook simply opens without a kernel, which is exactly
+    // what happens in a JupyterLite deployment that ships no kernel at all.
   }
 }
 

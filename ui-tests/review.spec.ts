@@ -1,5 +1,13 @@
 import { Page, expect, test } from '@playwright/test';
-import { callTool, openLab, openNotebook, setCellSourceAsHuman, waitForTools } from './utils';
+import {
+  callTool,
+  openLab,
+  openNotebook,
+  selectSourceRange,
+  setCellSourceAsHuman,
+  waitForKernelIdle,
+  waitForTools
+} from './utils';
 
 test.describe.serial('review comments', () => {
   let page: Page;
@@ -192,5 +200,142 @@ test.describe.serial('review comments', () => {
     const { ok, payload } = await callTool(page, 'jupyter_get_comment', { threadId: 'no-such-thread' });
     expect(ok).toBe(false);
     expect(payload.error).toBe('COMMENT_NOT_FOUND');
+  });
+
+  test('CRITICAL: the output-change indicator ignores execution_count but flags a real output change, without losing history', async () => {
+    test.setTimeout(300_000);
+    await openNotebook(page, 'scratch.ipynb');
+    await waitForKernelIdle(page);
+
+    const inserted = await callTool(page, 'jupyter_insert_cell', {
+      cellType: 'code',
+      source: 'print("fingerprint-a")'
+    });
+    const cellId = inserted.payload.cell.id;
+    const sourceHash = inserted.payload.cell.sourceHash;
+
+    const firstRun = await callTool(page, 'jupyter_run_cells', { cellIds: [cellId] });
+    expect(firstRun.payload.results[0].status).toBe('ok');
+    const firstExecutionCount = firstRun.payload.results[0].executionCount;
+
+    const created = await callTool(page, 'jupyter_create_comment', {
+      anchor: { kind: 'output', cellId, outputIndex: 0 },
+      message: 'What does this print?'
+    });
+    expect(created.ok).toBe(true);
+    const threadId = created.payload.thread.id;
+
+    // Re-run the SAME cell unchanged. execution_count bumps, but the output
+    // fingerprint deliberately ignores it, so a harmless rerun must not trip
+    // the "output changed" flag.
+    const rerun = await callTool(page, 'jupyter_run_cells', { cellIds: [cellId] });
+    expect(rerun.payload.results[0].status).toBe('ok');
+    expect(rerun.payload.results[0].executionCount).not.toBe(firstExecutionCount);
+
+    const afterHarmlessRerun = await callTool(page, 'jupyter_get_comment', { threadId });
+    expect(afterHarmlessRerun.ok).toBe(true);
+    expect(afterHarmlessRerun.payload.anchorStatus.outputChanged).toBe(false);
+
+    // Now change the source so it produces DIFFERENT output, re-run, and the
+    // indicator must flip - while the thread and its messages survive intact.
+    const updated = await callTool(page, 'jupyter_update_cell', {
+      cellId,
+      source: 'print("fingerprint-b")',
+      expectedSourceHash: sourceHash
+    });
+    expect(updated.ok).toBe(true);
+
+    const rerun2 = await callTool(page, 'jupyter_run_cells', { cellIds: [cellId] });
+    expect(rerun2.payload.results[0].status).toBe('ok');
+
+    const afterRealChange = await callTool(page, 'jupyter_get_comment', { threadId });
+    expect(afterRealChange.ok).toBe(true);
+    expect(afterRealChange.payload.anchorStatus.outputChanged).toBe(true);
+    expect(afterRealChange.payload.thread.id).toBe(threadId);
+    expect(afterRealChange.payload.thread.messages.length).toBeGreaterThan(0);
+
+    await openNotebook(page, 'customer-analysis.ipynb');
+  });
+
+  test('a human creates a source-range comment through the real UI', async () => {
+    await openNotebook(page, 'scratch.ipynb');
+    const inserted = await callTool(page, 'jupyter_insert_cell', {
+      cellType: 'code',
+      source: 'total = 1 + 2\nprint(total)'
+    });
+    const cellId = inserted.payload.cell.id;
+
+    const selected = await selectSourceRange(page, cellId, 'total = 1 + 2');
+    expect(selected).toBe(true);
+
+    // add-comment opens a modal `.jp-Dialog`: do not await the command
+    // execution itself, only the dialog that results from it.
+    void page.evaluate(() =>
+      (window as any).jupyterapp.commands.execute('jupyterlite-webmcp:add-comment')
+    );
+    await page.waitForSelector('.jp-Dialog');
+    await page.locator('.jp-Dialog input').fill('Please rename this variable.');
+    await page.locator('.jp-Dialog .jp-mod-accept').click();
+    await page.waitForSelector('.jp-Dialog', { state: 'detached' });
+
+    const list = await callTool(page, 'jupyter_list_comments', { status: 'all' });
+    const summary = list.payload.threads.find(
+      (t: any) => t.anchor?.cellId === cellId && t.anchor?.kind === 'source-range'
+    );
+    expect(summary).toBeTruthy();
+    expect(summary.anchor.selectedText).toBe('total = 1 + 2');
+
+    const full = await callTool(page, 'jupyter_get_comment', { threadId: summary.threadId });
+    expect(full.ok).toBe(true);
+    expect(full.payload.thread.anchor.kind).toBe('source-range');
+    expect(full.payload.thread.messages[0].author.kind).toBe('human');
+    expect(full.payload.thread.messages[0].body).toBe('Please rename this variable.');
+
+    await openNotebook(page, 'customer-analysis.ipynb');
+  });
+
+  test('a human replies through the real Review panel UI', async () => {
+    await openNotebook(page, 'scratch.ipynb');
+    const uniqueMessage = `agent thread ${Date.now()}`;
+    const inserted = await callTool(page, 'jupyter_insert_cell', {
+      cellType: 'code',
+      source: 'reply_target = True'
+    });
+    const cellId = inserted.payload.cell.id;
+    const created = await callTool(page, 'jupyter_create_comment', {
+      anchor: { kind: 'cell', cellId },
+      message: uniqueMessage
+    });
+    expect(created.ok).toBe(true);
+    const threadId = created.payload.thread.id;
+    const beforeMessages = created.payload.thread.messages;
+
+    await page.evaluate(() =>
+      (window as any).jupyterapp.commands.execute('jupyterlite-webmcp:open-review')
+    );
+    const panel = page.locator('.jp-webmcp-ReviewPanel');
+    await expect(panel).toBeVisible();
+    const threadCard = panel.locator('.jp-webmcp-thread', { hasText: uniqueMessage });
+    await expect(threadCard).toBeVisible();
+
+    await threadCard.locator('button', { hasText: 'Reply' }).click();
+    await page.waitForSelector('.jp-Dialog');
+    await page.locator('.jp-Dialog input').fill('Human reply from the panel.');
+    await page.locator('.jp-Dialog .jp-mod-accept').click();
+    await page.waitForSelector('.jp-Dialog', { state: 'detached' });
+
+    const after = await callTool(page, 'jupyter_get_comment', { threadId });
+    expect(after.ok).toBe(true);
+    const messages = after.payload.thread.messages;
+    expect(messages.length).toBe(beforeMessages.length + 1);
+    for (let i = 0; i < beforeMessages.length; i++) {
+      expect(messages[i].id).toBe(beforeMessages[i].id);
+      expect(messages[i].body).toBe(beforeMessages[i].body);
+    }
+    const lastMessage = messages[messages.length - 1];
+    expect(lastMessage.author.kind).toBe('human');
+    expect(lastMessage.body).toBe('Human reply from the panel.');
+
+    await openNotebook(page, 'customer-analysis.ipynb');
   });
 });
