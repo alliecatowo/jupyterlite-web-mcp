@@ -1,0 +1,138 @@
+.jp-webmcp-ReviewPanel {
+  padding: 8px;
+  overflow: auto;
+  font-size: var(--jp-ui-font-size1);
+  color: var(--jp-ui-font-color1);
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.jp-webmcp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.jp-webmcp-header span:last-child {
+  font-weight: normal;
+  color: var(--jp-ui-font-color2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.jp-webmcp-filters {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.jp-webmcp-empty {
+  color: var(--jp-ui-font-color2);
+  padding: 8px 0;
+}
+
+.jp-webmcp-threads {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jp-webmcp-thread {
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.jp-webmcp-thread:hover {
+  background: var(--jp-layout-color2);
+}
+
+.jp-webmcp-thread-header {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.jp-webmcp-anchorText {
+  font-family: var(--jp-code-font-family);
+  font-size: var(--jp-ui-font-size0, 11px);
+  background: var(--jp-layout-color2);
+  padding: 4px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  margin: 4px 0;
+}
+
+.jp-webmcp-message {
+  margin: 6px 0;
+}
+
+.jp-webmcp-author {
+  font-size: var(--jp-ui-font-size0, 11px);
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-webmcp-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jp-webmcp-orphan,
+.jp-webmcp-changed {
+  font-size: var(--jp-ui-font-size0, 11px);
+  color: var(--jp-warn-color1);
+  margin-left: 4px;
+}
+
+.jp-webmcp-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.jp-webmcp-btn {
+  font-size: var(--jp-ui-font-size0, 11px);
+  border: 1px solid var(--jp-border-color1);
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  border-radius: 3px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.jp-webmcp-btn.jp-mod-selected {
+  background: var(--jp-brand-color1);
+  color: var(--jp-ui-inverse-font-color1, #fff);
+  border-color: var(--jp-brand-color1);
+}
+
+.jp-webmcp-StatusItem {
+  cursor: pointer;
+  font-size: var(--jp-ui-font-size1);
+  padding: 0 6px;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-webmcp-StatusPopup {
+  padding: 8px;
+  font-size: var(--jp-ui-font-size0, 11px);
+  max-width: 360px;
+}
+
+.jp-webmcp-StatusPopup ul {
+  font-family: var(--jp-code-font-family);
+  margin: 4px 0 8px 0;
+  padding-left: 16px;
+  list-style: none;
+}
+
+.jp-Cell.jp-webmcp-hasComments > .jp-Cell-inputWrapper {
+  box-shadow: inset 2px 0 0 0 var(--jp-brand-color1);
+}

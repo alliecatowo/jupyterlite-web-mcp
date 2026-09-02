@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling>=1.5.0", "jupyterlab>=4.0.0,<5", "hatch-nodejs-version>=0.3.2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jupyterlite_webmcp"
+version = "0.1.0"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [{ name = "Allison Coleman" }]
+description = "Expose the live JupyterLite workspace to a compatible browser agent through WebMCP."
+keywords = ["jupyter", "jupyterlab", "jupyterlite", "webmcp"]
+classifiers = [
+  "Framework :: Jupyter",
+  "Framework :: Jupyter :: JupyterLab",
+  "Framework :: Jupyter :: JupyterLab :: 4",
+  "Framework :: Jupyter :: JupyterLab :: Extensions",
+  "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3"
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/allisoncoleman/jupyterlite-web-mcp"
+
+[tool.hatch.build.targets.sdist]
+artifacts = ["jupyterlite_webmcp/labextension"]
+exclude = [".github", "node_modules"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"jupyterlite_webmcp/labextension" = "share/jupyter/labextensions/jupyterlite-webmcp"
+"install.json" = "share/jupyter/labextensions/jupyterlite-webmcp/install.json"
+
+[tool.hatch.build.hooks.jupyter-builder]
+dependencies = ["hatch-jupyter-builder>=0.5"]
+build-function = "hatch_jupyter_builder.npm_builder"
+ensured-targets = [
+  "jupyterlite_webmcp/labextension/static/style.js",
+  "jupyterlite_webmcp/labextension/package.json"
+]
+skip-if-exists = ["jupyterlite_webmcp/labextension/static/style.js"]
+
+[tool.hatch.build.hooks.jupyter-builder.build-kwargs]
+build_cmd = "build:prod"
+npm = ["npm"]
+
+[tool.hatch.build.hooks.jupyter-builder.editable-build-kwargs]
+build_cmd = "install:extension"
+npm = ["npm"]
+source_dir = "src"
+build_dir = "jupyterlite_webmcp/labextension"

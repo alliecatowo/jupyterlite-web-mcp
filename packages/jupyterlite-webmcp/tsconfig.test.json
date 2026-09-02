@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "incremental": false,
+    "noUnusedLocals": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "types": ["node", "jest", "webmcp-types"]
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}

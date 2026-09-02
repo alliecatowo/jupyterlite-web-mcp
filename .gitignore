@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+_output/
+*.doit.db
+
+# Node
+node_modules/
+lib/
+*.tsbuildinfo
+.yarn/
+.eslintcache
+.stylelintcache
+
+# JupyterLab extension build output
+packages/jupyterlite-webmcp/jupyterlite_webmcp/labextension/
+packages/jupyterlite-webmcp/jupyterlite_webmcp/_version.py
+
+# Tests
+coverage/
+ui-tests/test-results/
+ui-tests/playwright-report/
+
+# Editors / OS
+.ipynb_checkpoints/
+.DS_Store

@@ -1,0 +1,14 @@
+{
+  "name": "jupyterlite-webmcp-ui-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright browser tests for the jupyterlite-webmcp extension.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
