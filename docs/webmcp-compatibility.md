@@ -85,6 +85,38 @@ const envelope = JSON.parse(raw);
 const payload = JSON.parse(envelope.content[0].text);
 ```
 
+## Why the view-only tools are not marked read-only
+
+The specification defines `readOnlyHint` as "the tool does not modify any
+state and only reads data", and says the point of it is to "help agents make
+decisions about when it is safe to call the tool".
+
+Three tools sit awkwardly against the first half of that sentence and squarely
+against the second: `jupyter_focus_cell`, `jupyter_focus_comment` and
+`jupyter_open_notebook`. None of them changes a single byte of notebook data.
+All three are marked `readOnlyHint: false` anyway.
+
+The reason is the *safe to call* half. Focusing a cell scrolls the human's
+viewport and moves their selection; opening a notebook changes which document
+they are looking at and can start a kernel. Those are consequences for the
+person sitting in front of the notebook even though nothing was written. An
+agent that reads `readOnlyHint: true` may reasonably decide it can call a tool
+freely — repeatedly, in parallel, as a retry — and a notebook that jumps
+around under the user while that happens is a worse experience than one extra
+confirmation.
+
+So the annotation is answering "is this free of consequences for the user?"
+rather than "does this write to the document?". Both readings are defensible;
+this one fails safe.
+
+The cost of that choice is real and worth stating: an agent harness that gates
+every non-read-only tool behind a user confirmation will prompt each time the
+agent tries to point at something, which is exactly the interaction this
+extension exists to make fluent. If that turns out to be how the common
+harnesses behave, `jupyter_focus_cell` and `jupyter_focus_comment` are the two
+worth revisiting — they are genuinely idempotent and genuinely discard-able,
+and the argument for flipping them to `true` gets much stronger.
+
 ## About the result envelope
 
 The specification types a tool's return value as `any` and says only that the
