@@ -293,7 +293,7 @@ extension for an abort to usefully interrupt.
 - **Description:** "Delete a visible notebook cell. Requires the
   sourceHash from a previous read; a cell the user has edited since then is
   not deleted."
-- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: false`)
+- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs (all required except `notebookPath`):** `notebookPath`,
   `cellId`, `expectedSourceHash`.
 - **Output:**
@@ -365,7 +365,7 @@ extension for an abort to usefully interrupt.
   cursor or select an exact range of its source using the notebook
   editor's own selection. Use it to point the user at the code you are
   talking about. Changes only what is on screen."
-- **Read/write:** view-state only (`readOnlyHint: false`, `untrustedContentHint: false`)
+- **Read/write:** view-state only (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:**
   | Field | Type | Notes |
   | --- | --- | --- |
@@ -500,7 +500,7 @@ panel uses.
   exact range of a cell's source, or to one of a cell's outputs. This is
   the same kind of comment the user creates from the Review panel, so use
   it to leave observations without editing their notebook."
-- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: false`)
+- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs (`anchor` and `message` required):**
   ```ts
   {
@@ -539,7 +539,7 @@ panel uses.
 - **Title:** Reply to a review thread
 - **Description:** "Append a message to an existing review thread. The
   user sees it in the Review panel next to their own messages."
-- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: false`)
+- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:** `{ notebookPath?: string | null; threadId: string; message: string }` (both required)
 - **Output:** `{ notebookPath: string; thread: IThread }`
 - **Bounds:** `message` bounded to `MAX_COMMENT_BODY_BYTES` (8 KiB).
@@ -553,7 +553,7 @@ panel uses.
 - **Title:** Resolve a review thread
 - **Description:** "Mark a review thread resolved, optionally adding a
   closing message. The history is preserved and the user can reopen it."
-- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: false`)
+- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:** `{ notebookPath?: string | null; threadId: string; resolutionMessage?: string | null }` (`threadId` required)
 - **Output:** `{ notebookPath: string; thread: IThread }`
 - **Bounds:** `resolutionMessage`, if given, bounded like any comment body.
@@ -566,7 +566,7 @@ panel uses.
 
 - **Title:** Reopen a review thread
 - **Description:** "Reopen a resolved review thread, preserving its history."
-- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: false`)
+- **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:** `{ notebookPath?: string | null; threadId: string }` (`threadId` required)
 - **Output:** `{ notebookPath: string; thread: IThread }`
 - **Bounds:** none.
@@ -580,7 +580,7 @@ panel uses.
 - **Description:** "Scroll to what a review thread is attached to and
   select it, so the user can see exactly which code or output is under
   discussion. Changes only what is on screen."
-- **Read/write:** view-state only (`readOnlyHint: false`, `untrustedContentHint: false`)
+- **Read/write:** view-state only (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:** `{ notebookPath?: string | null; threadId: string }` (`threadId` required)
 - **Output:**
   ```ts

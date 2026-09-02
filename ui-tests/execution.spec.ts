@@ -51,7 +51,9 @@ test.describe.serial('kernel execution', () => {
     const { payload } = await callTool(page, 'jupyter_run_cells', { cellIds: [cellId] });
     const result = payload.results[0];
     expect(result.status).toBe('error');
-    expect(result.ename).toBe('ValueError');
+    // The Pyodide kernel reports the exception type as "<class 'ValueError'>"
+    // rather than the bare name, so match on the type name itself.
+    expect(result.ename).toContain('ValueError');
     expect(result.evalue).toContain('boom');
     expect(typeof result.traceback).toBe('string');
     expect(result.traceback.length).toBeGreaterThan(0);

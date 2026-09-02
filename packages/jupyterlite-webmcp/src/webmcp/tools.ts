@@ -278,7 +278,7 @@ export function buildTools(
       description:
         'Delete a visible notebook cell. Requires the sourceHash from a previous read; a cell the user has edited since then is not deleted.',
       inputSchema: SCHEMAS.jupyter_delete_cell,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input =>
         deleteCell(env, {
           notebookPath: optionalString(input, 'notebookPath'),
@@ -312,7 +312,7 @@ export function buildTools(
       description:
         'Scroll to a cell, select it, and optionally place the cursor or select an exact range of its source using the notebook editor’s own selection. Use it to point the user at the code you are talking about. Changes only what is on screen.',
       inputSchema: SCHEMAS.jupyter_focus_cell,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input =>
         focusCell(env, {
           notebookPath: optionalString(input, 'notebookPath'),
@@ -437,7 +437,7 @@ export function buildTools(
       description:
         'Create a review thread anchored to a whole cell, to an exact range of a cell’s source, or to one of a cell’s outputs. This is the same kind of comment the user creates from the Review panel, so use it to leave observations without editing their notebook.',
       inputSchema: SCHEMAS.jupyter_create_comment,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input => {
         const panel = await resolveNotebook(
           env,
@@ -511,7 +511,7 @@ export function buildTools(
       description:
         'Append a message to an existing review thread. The user sees it in the Review panel next to their own messages.',
       inputSchema: SCHEMAS.jupyter_reply_comment,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input => {
         const panel = await resolveNotebook(
           env,
@@ -533,7 +533,7 @@ export function buildTools(
       description:
         'Mark a review thread resolved, optionally adding a closing message. The history is preserved and the user can reopen it.',
       inputSchema: SCHEMAS.jupyter_resolve_comment,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input => {
         const panel = await resolveNotebook(
           env,
@@ -555,7 +555,7 @@ export function buildTools(
       title: 'Reopen a review thread',
       description: 'Reopen a resolved review thread, preserving its history.',
       inputSchema: SCHEMAS.jupyter_reopen_comment,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input => {
         const panel = await resolveNotebook(
           env,
@@ -576,7 +576,7 @@ export function buildTools(
       description:
         'Scroll to what a review thread is attached to and select it, so the user can see exactly which code or output is under discussion. Changes only what is on screen.',
       inputSchema: SCHEMAS.jupyter_focus_comment,
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input => {
         const panel = await resolveNotebook(
           env,

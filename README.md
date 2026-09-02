@@ -2,7 +2,7 @@
 
 > **Your notebook is already in the browser. Now your agent can be too.**
 
-**Live deployment: <https://alliecatowo.github.io/jupyterlite-web-mcp/lab/index.html>**
+**Live deployment: <https://allisoncoleman.github.io/jupyterlite-web-mcp/lab/index.html>**
 No sign-in, no server, no configuration — the notebooks, the files and the
 Python kernel all run in your browser tab.
 
@@ -186,7 +186,7 @@ so the extension is picked up automatically.
 
 A public build of this repository is published by
 `.github/workflows/deploy.yml` to GitHub Pages on every push to `main`, at
-<https://alliecatowo.github.io/jupyterlite-web-mcp/lab/index.html>. It is a
+<https://allisoncoleman.github.io/jupyterlite-web-mcp/lab/index.html>. It is a
 plain static site: no authentication, no iframe, and the sample content is
 preloaded.
 

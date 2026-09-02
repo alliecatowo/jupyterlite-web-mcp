@@ -23,12 +23,13 @@ function summarize(state: IWebMCPState): { text: string; title: string } {
   if (!state.available) {
     return {
       text: 'WebMCP unavailable',
-      title: 'This browser does not expose document.modelContext.'
+      title: 'WebMCP is not available in this browser (no document.modelContext).'
     };
   }
   return {
     text: 'WebMCP · ' + state.toolCount + ' tools',
-    title: state.toolCount + ' tool(s) registered with this browser.'
+    title:
+      'WebMCP · ' + state.toolCount + ' tool(s) registered — click for details.'
   };
 }
 
@@ -64,6 +65,11 @@ export class WebMCPStatus extends Widget {
     const { text, title } = summarize(state);
     this.node.textContent = text;
     this.title.caption = title;
+    // `this.title` is a Lumino `Title`, not a DOM node: it drives tab labels
+    // and captions elsewhere in the shell, but nothing renders it as a
+    // hovered tooltip on this status-bar item. Set the native `title`
+    // attribute too so hovering the item actually shows something.
+    this.node.title = title;
   };
 
   private _onClick = (): void => {

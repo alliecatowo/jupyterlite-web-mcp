@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { callTool, getCellSource, openLab, openNotebook, setCellSourceAsHuman, waitForTools } from './utils';
+import { activeNotebook, callTool, getCellSource, openLab, openNotebook, setCellSourceAsHuman, waitForTools } from './utils';
 
 test.describe('cell CRUD tools', () => {
   test.beforeEach(async ({ page }) => {
@@ -23,7 +23,7 @@ test.describe('cell CRUD tools', () => {
     expect(typeof payload.cell.index).toBe('number');
     expect(payload.notebook.cellCount).toBe(beforeCount + 1);
 
-    await expect(page.locator('.jp-Notebook')).toContainText('inserted by test');
+    await expect(activeNotebook(page)).toContainText('inserted by test');
   });
 
   test('jupyter_update_cell replaces source and returns a new sourceHash', async ({ page }) => {
@@ -41,7 +41,7 @@ test.describe('cell CRUD tools', () => {
 
     const liveSource = await getCellSource(page, 'working-filter');
     expect(liveSource).toBe(newSource);
-    await expect(page.locator('.jp-Notebook')).toContainText('updated by test');
+    await expect(activeNotebook(page)).toContainText('updated by test');
   });
 
   test('CRITICAL: stale sourceHash is refused and never clobbers a human edit', async ({ page }) => {
@@ -167,12 +167,16 @@ test.describe('cell CRUD tools', () => {
   });
 
   test('jupyter_create_notebook refuses to overwrite, and jupyter_save_notebook saves', async ({ page }) => {
+    // Pass an explicit kernel so JupyterLab does not pop a blocking "Select
+    // Kernel" dialog for the new notebook (it has no kernelspec metadata yet
+    // and there is another running session it could offer to share). A
+    // dialog like that would trap focus and no WebMCP tool can dismiss it.
     const name = `test-notebook-${Date.now()}`;
-    const created = await callTool(page, 'jupyter_create_notebook', { name });
+    const created = await callTool(page, 'jupyter_create_notebook', { name, kernel: 'python' });
     expect(created.ok).toBe(true);
     expect(created.payload.path).toBe(`${name}.ipynb`);
 
-    const duplicate = await callTool(page, 'jupyter_create_notebook', { name });
+    const duplicate = await callTool(page, 'jupyter_create_notebook', { name, kernel: 'python' });
     expect(duplicate.ok).toBe(false);
     expect(duplicate.payload.error).toBe('PATH_EXISTS');
 

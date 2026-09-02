@@ -38,11 +38,40 @@ export async function callTool(page: Page, name: string, args?: Record<string, u
   );
 }
 
-/** Open a notebook via the `jupyter_open_notebook` tool and wait for it to render. */
+/**
+ * Open a notebook via the `jupyter_open_notebook` tool and wait for it to be
+ * the notebook the tools act on.
+ *
+ * Waiting on a bare `.jp-Notebook` selector is wrong once more than one
+ * notebook is open: several match, and the first one in the DOM may be the
+ * background tab, which never becomes visible. Ask the extension instead.
+ */
 export async function openNotebook(page: Page, path: string): Promise<any> {
   const result = await callTool(page, 'jupyter_open_notebook', { path });
-  await page.waitForSelector('.jp-Notebook', { state: 'visible' });
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    const context = await callTool(page, 'jupyter_get_context');
+    if (context?.payload?.notebook?.path === path) {
+      break;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        `"${path}" did not become the current notebook; last context: ${JSON.stringify(
+          context?.payload?.notebook
+        )}`
+      );
+    }
+    await page.waitForTimeout(250);
+  }
+  await activeNotebook(page).waitFor({ state: 'visible', timeout: 60_000 });
   return result;
+}
+
+/** The notebook widget the user is actually looking at. */
+export function activeNotebook(page: Page) {
+  return page
+    .locator('.jp-NotebookPanel:not(.lm-mod-hidden) .jp-Notebook')
+    .first();
 }
 
 /** Poll `jupyter_get_context` until the kernel reports `idle`. Pyodide boot can be slow. */
