@@ -12,6 +12,14 @@ cd "$root"
 
 python="${PYTHON:-python3}"
 
+# jupyter-builder is installed alongside the selected interpreter, not
+# necessarily alongside the shell's default Python. Honour PYTHON completely:
+# without this, `PYTHON=.venv/bin/python ./scripts/build-site.sh` builds TypeScript
+# successfully but fails when the builder executable cannot be found on PATH.
+python_bin="$(dirname "$(command -v "$python")")"
+PATH="$python_bin:$PATH"
+export PATH
+
 # Install into "$python"'s environment. A uv-created virtualenv has no pip
 # module of its own, so fall back to `uv pip` when that is what we are in.
 install() {
