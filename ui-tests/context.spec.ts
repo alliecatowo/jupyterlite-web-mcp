@@ -108,9 +108,18 @@ test.describe('jupyter_get_context / jupyter_list_workspace', () => {
 
   test('output-selection handoff returns null when no valid output text is selected', async ({ page }) => {
     await page.evaluate(() => window.getSelection()?.removeAllRanges());
-    const { ok, payload } = await callTool(page, 'jupyter_get_output_selection');
+    // The tracker learns about the cleared selection via the browser's
+    // `selectionchange` event, which arrives asynchronously after the
+    // evaluate above resolves — a single immediate read can still observe
+    // the previous value. Poll until the cleared state propagates instead
+    // of asserting on one racy read.
+    await expect
+      .poll(async () => (await callTool(page, 'jupyter_get_output_selection')).payload, {
+        timeout: 5000
+      })
+      .toBeNull();
+    const { ok } = await callTool(page, 'jupyter_get_output_selection');
     expect(ok).toBe(true);
-    expect(payload).toBeNull();
   });
 
   test('CRITICAL: unsaved human edits are visible via getCells/getContext, not the file on disk', async ({

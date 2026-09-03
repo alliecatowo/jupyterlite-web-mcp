@@ -319,6 +319,7 @@ describe('deriveActivity: failure phrasing', () => {
       'COMMENT_NOT_FOUND',
       'COMMENT_ANCHOR_STALE',
       'CELL_ACCESS_DENIED',
+      'NOTEBOOK_ACCESS_DENIED',
       'INTERNAL_ERROR',
       'SOME_UNKNOWN_FUTURE_CODE'
     ];
@@ -365,6 +366,20 @@ describe('deriveActivity: success summaries', () => {
     expect(event.cellIds).toEqual(['cell-a']);
     expect(event.outputIndex).toBe(0);
     expect(event.summary).toBe('read the selected output from a cell');
+  });
+
+  it('names a notebook-level restriction rather than a generic failure', () => {
+    const event = deriveActivity(
+      facts({
+        tool: 'jupyter_update_cell',
+        ok: false,
+        errorCode: 'NOTEBOOK_ACCESS_DENIED',
+        payload: { error: 'NOTEBOOK_ACCESS_DENIED', message: 'x' }
+      })
+    );
+    expect(event.summary).toBe(
+      'could not edit a cell — the notebook owner restricted that notebook'
+    );
   });
 
   it('summarizes reading multiple cells', () => {

@@ -130,6 +130,7 @@ reader/writer of exactly the same model, exposed outward through
 | `src/access/provenance.ts` | `ProvenanceTracker`: a debounced model listener that attributes a cell's source edits to the human, deferring to whatever an agent tool call already recorded when one is in flight. |
 | `src/access/commands.ts` | `jupyterlite-webmcp:cycle-cell-access`, the only way a cell's access ever changes, plus its cell context-menu entry — a human control with no WebMCP dependency. Also `jupyterlite-webmcp:cycle-notebook-access` and its file-browser context-menu entry on notebooks: the only way a notebook's access ever changes (live model when open, straight to the file when closed). |
 | `src/access/markers.ts` | Purely cosmetic: toggles a CSS class and a native tooltip (access state, plus provenance when known) on cell DOM nodes whose agent access is restricted. |
+| `src/selection/visible.ts` | Filters the output-selection tracker's record through agent access control before the `jupyter_get_output_selection` tool sees it: a selection inside a `'none'` cell or notebook — or one the current notebook cannot verify — reads as `null`, so the tool can never leak a hidden cell's id, text, or output fingerprint. |
 
 ## The plugins
 

@@ -452,7 +452,8 @@ the decision note in `docs/agent-collaboration-roadmap.md`).
 - **Output:** `{ notebook: INotebookInfo; cell: ICellSnapshot }`.
 - **Bounds:** standard cell-snapshot bounds on the returned cell.
 - **Errors:** `INVALID_ARGUMENT` if `source` isn't a string or
-  `expectedSourceHash` is missing; `CELL_NOT_FOUND` (also thrown for a
+  `expectedSourceHash` is missing (a missing `source` is refused, never
+  silently treated as "empty the cell"); `CELL_NOT_FOUND` (also thrown for a
   `"none"`-access cell); `CELL_ACCESS_DENIED` for a `"read"`-access cell;
   **`STALE_CELL`** —
   ```ts
@@ -889,5 +890,11 @@ panel uses.
   whenever it crosses cells, includes notebook chrome, or can't be
   represented as bounded text.
 - **Errors:** none thrown.
+- **Cell visibility:** the record is filtered through agent access control
+  (`src/selection/visible.ts`) before it is returned: a selection inside a
+  cell — or a notebook — the owner hid (`access: "none"`) reads as `null`,
+  never its cell id, text, or output fingerprint, and a stale record the
+  current notebook cannot attribute to a visible cell is `null` too.
+  Selections in read-only cells stay visible; reads are permitted there.
 - **Concurrency:** read-only; reflects whatever the tracker currently holds
   at call time.

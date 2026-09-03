@@ -182,12 +182,15 @@ export async function listWorkspace(
     });
     for (let i = 0; i < sorted.length; i++) {
       const child = sorted[i];
-      if (entries.length >= limit) {
-        omittedCount += 1;
+      const entry = toEntry(child);
+      // Hidden check first: a notebook the owner hid must never be listed
+      // *or counted*, not even inside `omittedCount` once the limit is
+      // reached — otherwise the count itself leaks that something exists.
+      if (await isHiddenNotebook(contents, entry)) {
         continue;
       }
-      const entry = toEntry(child);
-      if (await isHiddenNotebook(contents, entry)) {
+      if (entries.length >= limit) {
+        omittedCount += 1;
         continue;
       }
       entries.push(entry);

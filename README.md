@@ -8,8 +8,8 @@ Python kernel all run in your browser tab.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Test](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml)
-![318 unit tests](https://img.shields.io/badge/unit%20tests-339%20passing-brightgreen)
-![42 browser tests](https://img.shields.io/badge/browser%20tests-46%20passing-brightgreen)
+![350 unit tests](https://img.shields.io/badge/unit%20tests-350%20passing-brightgreen)
+![46 browser tests](https://img.shields.io/badge/browser%20tests-46%20passing-brightgreen)
 ![JupyterLab 4.6](https://img.shields.io/badge/JupyterLab-4.6-orange)
 ![Works in JupyterLab · Notebook 7 · JupyterLite](https://img.shields.io/badge/runs%20in-JupyterLab%20%C2%B7%20Notebook%207%20%C2%B7%20JupyterLite-informational)
 ![WebMCP](https://img.shields.io/badge/WebMCP-document.modelContext-purple)
@@ -202,7 +202,7 @@ so the extension is picked up automatically.
 <summary><strong>Testing</strong></summary>
 
 ```bash
-cd packages/jupyterlite-webmcp && npm test        # 339 unit tests (jest)
+cd packages/jupyterlite-webmcp && npm test        # 350 unit tests (jest)
 cd packages/jupyterlite-webmcp && npm run lint:check
 cd packages/jupyterlite-webmcp && npm run typecheck
 cd ui-tests && npm install && npx playwright test  # 46 browser tests

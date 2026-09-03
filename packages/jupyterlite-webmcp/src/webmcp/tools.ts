@@ -12,6 +12,7 @@ import { EXPORT_FORMATS } from '../jupyter/export';
 import { kernelAction, runCells } from '../jupyter/execution';
 import { focusCell, getContext, readFocus, revealCell } from '../jupyter/focus';
 import { OutputSelectionTracker } from '../selection/capture';
+import { visibleOutputSelection } from '../selection/visible';
 import {
   createNotebook,
   kernelInfo,
@@ -416,13 +417,23 @@ export function buildTools(
         'Replace the source of a visible notebook cell in the live model. Requires the sourceHash returned by a previous read, so an unsaved human edit can never be overwritten by accident: if the cell changed, the write is refused with a STALE_CELL error containing the current hash and a preview. Does not run or save the cell.',
       inputSchema: SCHEMAS.jupyter_update_cell,
       annotations: { readOnlyHint: false, untrustedContentHint: true },
-      handler: async input =>
-        updateCell(env, {
+      handler: async input => {
+        // The schema marks `source` required, but the handler must not trust
+        // the runtime to enforce that: a missing source must be refused, not
+        // silently reinterpreted as "empty the cell".
+        if (typeof input.source !== 'string') {
+          throw toolError(
+            'INVALID_ARGUMENT',
+            '"source" is required and must be a string.'
+          );
+        }
+        return updateCell(env, {
           notebookPath: optionalString(input, 'notebookPath'),
           cellId: requiredString(input, 'cellId'),
-          source: (input.source as string) ?? '',
+          source: input.source,
           expectedSourceHash: requiredString(input, 'expectedSourceHash')
-        })
+        });
+      }
     },
 
     {
@@ -822,7 +833,7 @@ export function buildTools(
         'Read the text the user last selected inside a rendered cell output, if any is currently recorded. Returns null when nothing is selected, the selection crossed cells or notebook chrome, or it no longer matches the output it was taken from.',
       inputSchema: SCHEMAS.jupyter_get_output_selection,
       annotations: { readOnlyHint: true, untrustedContentHint: true },
-      handler: async () => outputSelection.current
+      handler: async () => visibleOutputSelection(env, outputSelection.current)
     });
   }
 

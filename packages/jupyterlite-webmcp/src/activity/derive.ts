@@ -337,6 +337,7 @@ const FAILURE_REASON: Record<string, string> = {
   COMMENT_NOT_FOUND: 'that comment no longer exists',
   COMMENT_ANCHOR_STALE: 'that comment no longer matches the notebook',
   CELL_ACCESS_DENIED: 'the notebook owner restricted that cell',
+  NOTEBOOK_ACCESS_DENIED: 'the notebook owner restricted that notebook',
   INTERNAL_ERROR: 'something went wrong'
 };
 
