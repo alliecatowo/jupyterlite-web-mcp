@@ -483,6 +483,26 @@ independent agent that never reads the source.
 - **Bounded results.** Every cap lives in `src/limits.ts`; see the limits
   table in `docs/architecture.md`.
 
+## What is deliberately not built
+
+Two things a reader might reasonably expect, stated plainly rather than
+implied:
+
+- **There is no propose/suggest mode.** Agent access is `write`, `read` or
+  `none`. A write call on a `read` cell is *refused* with
+  `CELL_ACCESS_DENIED` — it does not degrade into a pending suggestion. The
+  natural fourth level is a `propose` access where a write lands as a staged
+  edit the human accepts or rejects; the diff rendering it would need already
+  exists (that is the `±N changed` popover), but the staging semantics — what
+  `sourceHash` a proposal returns under the read-hash-write contract, how a
+  proposed insert or delete is represented, what every read tool reports about
+  a pending proposal — are real design work. Shipping half of them, on the
+  write path everything else depends on, would be worse than not shipping them.
+- **The agent is not in the Yjs awareness layer.** Behind
+  `jupyter-collaboration`, remote humans see the agent's edits arrive, but
+  without a labelled cursor. Additive and plausible; not claimed as done. See
+  [`docs/multiplayer.md`](docs/multiplayer.md).
+
 ## How this was built
 
 Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/)

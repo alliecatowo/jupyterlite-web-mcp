@@ -551,6 +551,14 @@ read-only violations reported as `CELL_ACCESS_DENIED` /
 anywhere in the page: that permissioning UX belongs to the WebMCP client
 (decision note in `docs/agent-collaboration-roadmap.md`).
 
+The same discipline sets the boundary of what shipped. Agent access is
+`write`/`read`/`none`, and a write call on a `read` cell is refused outright
+rather than degrading into a pending suggestion. A fourth `propose` level —
+where a write lands as a staged edit the human accepts or rejects — is the
+obvious next step, and the diff rendering it would need already exists; the
+staging semantics under the read-hash-write contract do not, and were not
+faked. That is stated in the README rather than left for a judge to discover.
+
 Ambition also shows in what was refused. Real-time collaboration on the hosted
 demo was investigated and deliberately not shipped, because the only
 Lite-compatible WebRTC document provider is unmaintained and static hosting

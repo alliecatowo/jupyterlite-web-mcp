@@ -46,6 +46,22 @@ Do this once before recording, and re-establish it between clips per §4.
 8. All cell access levels are `write` (no cell shows an "Agent access" badge).
 9. Window: 1920×1080, browser zoom 125%, bookmarks bar hidden.
 
+### Kernel preparation (off camera)
+
+The demo deliberately shows the agent running only the cell it changes. Before
+recording any clip that expects a computed output, prepare the shared Pyodide
+kernel **without saving the notebook**:
+
+- **Clip 3:** run `load-data`, `funnel-def`, and `working-filter` (in that
+  order). The conversion-rate cell then has `df`, `working`, and
+  `eligible_sessions` available when the agent reruns it.
+- **Clip 4:** run `load-data`, `working-filter`, `region-table`, and
+  `region-chart` (in that order). The agent's new comparison cell can then
+  use the visible, already-computed regional baseline.
+
+This preparation is not part of the recorded footage. Do it after the reset
+and before starting the relevant clip; wait for `Python (Pyodide) | Idle`.
+
 **Cells referenced below**, by their stable ids in
 `content/customer-analysis.ipynb`: `intro-md`, `load-data`, `funnel-def`,
 `filter-md`, `working-filter`, `conversion-rate`, `by-region-md`,
@@ -303,8 +319,8 @@ review threads are written into notebook metadata and *will* persist.
 | --- | --- |
 | 1 | Fast — plus close all JupyterLab tabs so the launcher shows |
 | 2 | Fast |
-| 3 | Fast |
-| 4 | Fast (Clip 3's fix must **not** be present; Clip 4 is shot independently) |
+| 3 | Fast, then run the Clip 3 kernel preparation above |
+| 4 | Fast (Clip 3's fix must **not** be present; Clip 4 is shot independently), then run the Clip 4 kernel preparation above |
 | 5 | Fast |
 | 6 | **Full** — Comments tab must start empty |
 | 7 | **Full** — no leftover comments, all cells back to `write` |
