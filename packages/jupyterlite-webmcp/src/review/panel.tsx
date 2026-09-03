@@ -49,6 +49,8 @@ export interface ICommentsSectionProps {
   filter: CommentsFilter;
   /** Called when the human picks a different filter. */
   onFilterChange: (filter: CommentsFilter) => void;
+  /** Opens the ordinary human comment composer for the active selection or cell. */
+  onAddComment: () => void;
 }
 
 function truncate(text: string, max: number): string {
@@ -254,10 +256,21 @@ function renderThreads(store: ReviewStore, panel: NotebookPanel, filter: Comment
  * the panel owns.
  */
 export function CommentsSection(props: ICommentsSectionProps): JSX.Element {
-  const { tracker, store, filter, onFilterChange } = props;
+  const { tracker, store, filter, onFilterChange, onAddComment } = props;
   const panel = tracker.currentWidget;
   return (
     <div className="jp-webmcp-Comments">
+      <button
+        className="jp-webmcp-btn jp-webmcp-addComment"
+        disabled={!panel || !panel.content.activeCell}
+        title="Add a comment to the selected code, or to the current cell."
+        onClick={onAddComment}
+      >
+        Add comment
+      </button>
+      <div className="jp-webmcp-commentHelp">
+        Select code to comment on that range, or leave nothing selected to comment on the current cell.
+      </div>
       <div className="jp-webmcp-filters">
         {renderFilterButton('open', 'Open', filter, onFilterChange)}
         {renderFilterButton('resolved', 'Resolved', filter, onFilterChange)}

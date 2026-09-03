@@ -87,6 +87,65 @@ remains.
 - Real-time collaboration is absent from the hosted demo by decision, not by
   oversight; the reasoning is recorded in `docs/multiplayer.md`.
 
+## 2026-09-03 — open product gaps
+
+Recorded as gaps rather than treated as supported behavior. None of these is
+a regression; each is a capability that does not exist yet, or a fix that is
+not yet complete.
+
+### Reported by the notebook owner
+
+| # | Gap | Status |
+| --- | --- | --- |
+| G1 | The automatic default-kernel selection still falls through to the Select Kernel prompt in a fresh tab | **Not complete.** See the finding below — the current change cannot reach the failing path. |
+| G2 | No one-step "apply edit and run" tool. `jupyter_update_cell` then `jupyter_run_cells` is two round trips for what is one intention. | Open. Deliberate today (edit and execution are separately auditable), but the ergonomic cost is real. |
+| G3 | The agent-edit diff popover shows what changed but offers no rollback. | Open. `before`/`after` are already captured in `ActivityMarkers._recordDiff`, so the data for a revert exists; only the control is missing. |
+| G4 | `jupyter_get_context` reports notebook-cell focus but not the Jupyter shell's active UI selector/picker state, so an agent cannot see or act on a dialog, launcher, or kernel picker the human is looking at. | Open. This is a genuine widening of "live state": today the context model is notebook-scoped by construction. |
+
+### Findings from verifying G1
+
+- **`resolveKernelName` is reachable from exactly one call site**
+  (`src/jupyter/notebook.ts:299`, inside `createNotebook`). It therefore
+  affects `jupyter_create_notebook` only. Opening an existing notebook — by
+  double-click in the file browser, or through `jupyter_open_notebook` —
+  never calls it, so the change cannot fix a Select Kernel prompt on a fresh
+  tab. That is consistent with the reported symptom persisting.
+- **The seeded notebooks are not the cause.** All four notebooks in
+  `content/` carry a well-formed
+  `metadata.kernelspec` (`{"name": "python", "language": "python",
+  "display_name": "Python (Pyodide)"}`) and `language_info.name: python`.
+- Consequently the remaining fix is most likely a JupyterLite/docmanager
+  configuration concern rather than a tool-path concern, and should be
+  investigated there before more code is added to `resolveKernelName`.
+- **No test covers the new no-request branch.** `resolveKernelName` now has
+  real branching (registered default → a Python spec → the first spec) and
+  none of it is pinned by a unit test.
+
+### Findings from verifying the deploy
+
+- **The live deployment was built from an uncommitted working tree.** The
+  hosted bundle (`remoteEntry.8d730211c20cd89a.js`) matches the local
+  `dist/`, but that `dist/` was built from changes that existed on no commit:
+  `src/jupyter/notebook.ts`, `src/review/panel.tsx` and `src/ui/panel.tsx`
+  were all modified and unstaged. Those changes are committed as of this
+  entry, restoring the invariant that the deployed artifact corresponds to a
+  reachable SHA. **This must hold at submission time**, since the submission
+  packet cites a commit SHA as the thing judges will build.
+- The uncommitted work itself was sound: `tsc --noEmit` clean, ESLint and
+  Prettier clean, 351 unit tests passing.
+- **The new Comments-tab controls ship unstyled.** `jp-webmcp-addComment` and
+  `jp-webmcp-commentHelp` are referenced by `src/review/panel.tsx` but have no
+  rule in `style/base.css`.
+
+### Work reported against the live site, and where it actually lives
+
+A full-notebook batch run, two review threads resolved, and notebook edits
+were reported against the deployed site. Those act on the **browser-local
+IndexedDB workspace**, not on this repository: they are real, and they are
+invisible to anyone else opening the same URL. Nothing in `content/` changed,
+which is correct and expected. Any notebook state a judge should see has to be
+committed to `content/` and redeployed.
+
 ### Independent verification
 
 `CODEX_DRIVER.md` is the black-box protocol for re-running this audit from

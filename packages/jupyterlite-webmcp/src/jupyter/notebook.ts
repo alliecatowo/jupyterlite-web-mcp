@@ -317,19 +317,34 @@ export async function createNotebook(
 /**
  * Map a requested kernel name or language onto an installed kernel spec.
  *
- * Returns `undefined` when the request cannot be matched, which lets the
- * document manager fall back to the application default.
+ * Returns the requested kernel when it can be matched. With no request, use
+ * the registered default explicitly: relying on `openOrReveal`'s implicit
+ * fallback can leave a newly created JupyterLite notebook at the Select
+ * Kernel prompt even though a usable default has already been registered.
  */
 export async function resolveKernelName(
   env: IJupyterEnv,
   requested?: string | null
 ): Promise<string | undefined> {
-  if (!requested) {
-    return undefined;
-  }
   const manager = env.app.serviceManager.kernelspecs;
   await manager.ready;
   const specs = manager.specs?.kernelspecs ?? {};
+  if (!requested) {
+    const defaultName = manager.specs?.default;
+    if (defaultName && specs[defaultName]) {
+      return defaultName;
+    }
+    // JupyterLite's Pyodide extension can register usable specs without
+    // populating `KernelSpecManager.specs.default`. Prefer its Python spec,
+    // then fall back deterministically to the first registered spec, so a
+    // new notebook never falls through to the Select Kernel prompt merely
+    // because the optional default field is absent.
+    const names = Object.keys(specs);
+    const python = names.find(
+      name => name.toLowerCase() === 'python' || specs[name]?.language?.toLowerCase() === 'python'
+    );
+    return python ?? names[0];
+  }
   const wanted = requested.toLowerCase();
   const names = Object.keys(specs);
   for (let i = 0; i < names.length; i++) {

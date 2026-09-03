@@ -59,6 +59,7 @@ export interface IWebMcpPanelOptions {
 export class WebMcpPanel extends ReactWidget {
   constructor(options: IWebMcpPanelOptions) {
     super();
+    this._app = options.app;
     this._tracker = options.tracker;
     this._store = options.store;
     this._log = options.log;
@@ -142,6 +143,9 @@ export class WebMcpPanel extends ReactWidget {
             store={this._store}
             filter={this._filter}
             onFilterChange={this._setFilter}
+            onAddComment={() => {
+              void this._app.commands.execute('jupyterlite-webmcp:add-comment');
+            }}
           />
         );
     }
@@ -149,6 +153,7 @@ export class WebMcpPanel extends ReactWidget {
 
   private _tab: PanelTab = 'activity';
   private _filter: CommentsFilter = 'open';
+  private _app: JupyterFrontEnd;
   private _tracker: INotebookTracker;
   private _store: ReviewStore;
   private _log: ActivityLog;
