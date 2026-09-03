@@ -49,7 +49,7 @@ remains.
 | Tool surface **on the live deployment** | 22 — verified by fetching `https://jupyterlite-web-mcp.vercel.app/extensions/jupyterlite-webmcp/static/*.js` and extracting the registered names |
 | Deployed build == local build | Pass — deployed `remoteEntry.6c88d727001a6a07.js` has the same content-hashed filename as the local `dist/` built from `ded13c3` |
 | Cross-origin isolation | Pass — live response carries `cross-origin-opener-policy: same-origin` and `cross-origin-embedder-policy: credentialless` |
-| Status-bar contract | `Agent connected` / `Agent not connected` / `Agent error` / `Agent · <live phrase>` — verified present in the deployed bundle |
+| Status-bar contract | `WebMCP ready` / `WebMCP unavailable` / `WebMCP error` / `Agent · <live phrase>` — verified present in the deployed bundle |
 
 ### What is working well
 

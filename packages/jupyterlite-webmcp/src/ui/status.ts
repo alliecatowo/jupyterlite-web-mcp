@@ -147,10 +147,30 @@ export class WebMCPStatus extends Widget {
     const container = document.createElement('div');
     container.className = 'jp-webmcp-StatusPopup';
 
+    // Plain language first. What a reader wants to know is "can something
+    // act on my notebook, and has it?" — not a schema dump. The tool names
+    // stay, because an external verifier needs them, but they go last.
     const availability = document.createElement('div');
     availability.className = 'jp-webmcp-StatusPopup-availability';
-    availability.textContent = state.available ? 'Available: yes' : 'Available: no';
+    availability.textContent = state.registrationError
+      ? 'This page could not publish its notebook tools.'
+      : state.available
+        ? 'This page has published ' +
+          state.toolNames.length +
+          ' notebook tools. A compatible browser agent can use them.'
+        : 'This browser does not support WebMCP, so this page has published no tools. ' +
+          'Nothing can act on this notebook but you.';
     container.appendChild(availability);
+
+    if (state.available && !state.registrationError) {
+      const note = document.createElement('div');
+      note.className = 'jp-webmcp-StatusPopup-note';
+      note.textContent =
+        'This page cannot wake, summon or notify an agent, and it does not know ' +
+        'whether one is watching. You decide what any agent may touch, per cell ' +
+        'and per notebook, from the Agent panel.';
+      container.appendChild(note);
+    }
 
     if (state.registrationError) {
       const error = document.createElement('div');
@@ -158,21 +178,6 @@ export class WebMCPStatus extends Widget {
       error.textContent = 'Error: ' + state.registrationError;
       container.appendChild(error);
     }
-
-    const toolsHeading = document.createElement('div');
-    toolsHeading.className = 'jp-webmcp-StatusPopup-heading';
-    toolsHeading.textContent = 'Tools (' + state.toolNames.length + '):';
-    container.appendChild(toolsHeading);
-
-    const toolsList = document.createElement('ul');
-    toolsList.className = 'jp-webmcp-StatusPopup-tools';
-    for (const name of state.toolNames) {
-      const item = document.createElement('li');
-      item.textContent = name;
-      item.title = name;
-      toolsList.appendChild(item);
-    }
-    container.appendChild(toolsList);
 
     const recentHeading = document.createElement('div');
     recentHeading.className = 'jp-webmcp-StatusPopup-heading';
@@ -207,6 +212,23 @@ export class WebMCPStatus extends Widget {
         recentList.appendChild(item);
       }
       container.appendChild(recentList);
+    }
+
+    if (state.toolNames.length > 0) {
+      const toolsHeading = document.createElement('div');
+      toolsHeading.className = 'jp-webmcp-StatusPopup-heading';
+      toolsHeading.textContent = 'Tools (' + state.toolNames.length + '):';
+      container.appendChild(toolsHeading);
+
+      const toolsList = document.createElement('ul');
+      toolsList.className = 'jp-webmcp-StatusPopup-tools';
+      for (const name of state.toolNames) {
+        const item = document.createElement('li');
+        item.textContent = name;
+        item.title = name;
+        toolsList.appendChild(item);
+      }
+      container.appendChild(toolsList);
     }
 
     const widget = new Widget({ node: container });

@@ -105,24 +105,39 @@ describe('summarize', () => {
       state({ registrationError: 'boom' }),
       null
     );
-    expect(text).toBe('Agent error');
+    expect(text).toBe('WebMCP error');
     expect(title).toContain('boom');
   });
 
-  it('reports the agent as not connected, without a tool count', () => {
+  it('reports WebMCP as unavailable, without a tool count', () => {
     const { text, title } = summarize(
       state({ available: false, toolCount: 0 }),
       null
     );
-    expect(text).toBe('Agent not connected');
+    expect(text).toBe('WebMCP unavailable');
     expect(title).toContain('document.modelContext');
     expect(text).not.toMatch(/\d/);
   });
 
-  it('reports a quiet idle string when connected with no live phrase', () => {
+  it('reports a quiet idle string when available with no live phrase', () => {
     const { text } = summarize(state({}), null);
-    expect(text).toBe('Agent connected');
+    expect(text).toBe('WebMCP ready');
     expect(text).not.toMatch(/\d+ tools?/);
+  });
+
+  // The page cannot observe an agent's presence, only its actions. So no
+  // idle or unavailable string may claim one is there; only the live
+  // string, which is derived from a tool call that actually happened, is
+  // allowed to say "Agent".
+  it('never claims an agent is present unless one demonstrably acted', () => {
+    for (const s of [
+      state({}),
+      state({ available: false, toolCount: 0 }),
+      state({ registrationError: 'boom' })
+    ]) {
+      expect(summarize(s, null).text).not.toMatch(/[Aa]gent/);
+    }
+    expect(summarize(state({}), 'running cell 6').text).toMatch(/^Agent · /);
   });
 
   it('reports the live phrase when one is derived', () => {

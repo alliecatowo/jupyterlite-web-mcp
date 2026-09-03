@@ -170,10 +170,13 @@ cell reads `Reading…` → `Applying…` → `Running…` → `Done`, or `Faile
 it for the structured error code and the duration in milliseconds). Any cell
 the agent edited grows a **`±7 changed`** button that opens a real
 before/after line diff. Any output the agent produced is labelled
-`Run by Browser agent · 14:03:21`. The status bar doesn't just say
-`Agent connected`; it says `Agent · running cell 6` — and it distinguishes a
-call that is genuinely in flight from one that merely just finished, only
-claiming the former when it is true. Every cell keeps a bounded history of
+`Run by Browser agent · 14:03:21`. And the status bar refuses to overclaim: a
+page can only observe whether its tools registered and whether one was just
+invoked — never whether an agent is present — so the idle string describes the
+page (`WebMCP ready`), and the only string that names an agent is the live one
+(`Agent · running cell 6`), which appears exactly when one demonstrably acted.
+It even distinguishes a call genuinely in flight from one that merely just
+finished, and only claims the former when it is true. Every cell keeps a bounded history of
 who last changed it, human or agent. None of this can affect a tool result:
 the whole presence layer only decorates the DOM, swallows its own errors, and
 honors `prefers-reduced-motion`.
@@ -269,7 +272,7 @@ papered over.
 
 #### Try it
 
-Open the live demo, wait for the status bar to read `Agent connected`, open
+Open the live demo, wait for the status bar to read `WebMCP ready`, open
 `customer-analysis.ipynb`, and give your agent:
 
 > Open customer-analysis.ipynb. The conversion rate looks wrong to me — read
@@ -312,9 +315,13 @@ No sign-in, no install, no credentials required.
 
 1. Open https://jupyterlite-web-mcp.vercel.app/lab/index.html in ChatGPT's
    in-app browser, or in Google Chrome with WebMCP enabled.
-2. The status bar at the bottom-left should read "Agent connected". If it
-   reads "Agent not connected", the browser does not expose
-   document.modelContext; the notebook still works, but no tools are exposed.
+2. The status bar at the bottom-right should read "WebMCP ready" - meaning
+   this page published its 22 notebook tools, which is all a page can
+   actually know. It deliberately does not claim an agent is connected;
+   WebMCP gives a page no way to detect one. Once an agent does act, the
+   same item reads what it is doing ("Agent - running cell 6"). If it reads
+   "WebMCP unavailable", the browser does not expose document.modelContext;
+   the notebook still works, but no tools are published.
 3. In the file browser, double-click customer-analysis.ipynb. Wait for the
    kernel indicator to go idle (Pyodide takes a few seconds on first load).
 4. Ask your agent:
@@ -428,6 +435,13 @@ clobbering a human's concurrent edit (`src/jupyter/cells.ts`).
 invocation itself started, since the kernel is shared with the human
 (`src/jupyter/execution.ts`). Every tool result is bounded at several layers
 (`src/limits.ts`, `boundJson` in `src/webmcp/results.ts`).
+
+One detail stands for the whole approach. The status bar does **not** say
+"Agent connected", because a page cannot know that: WebMCP gives it no way to
+detect an agent's presence. It says `WebMCP ready` — a claim about the page,
+which is the only thing the page can verify — and only ever names an agent
+when one demonstrably acted (`Agent · running cell 6`). There is a unit test
+asserting that no idle or unavailable string may contain the word "agent".
 
 The human-agent experience is finished, not stubbed. The presence layer
 (`src/activity/markers.ts`, `src/ui/status.ts`) renders a targeted-cell halo,

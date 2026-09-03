@@ -34,14 +34,14 @@ document.modelContext && typeof document.modelContext.registerTool === 'function
 ```
 
 When that is false the extension registers nothing, the status bar reads
-`Agent not connected`, and JupyterLite — including the Agent panel and every
+`WebMCP unavailable`, and JupyterLite — including the Agent panel and every
 comment feature — works exactly as it otherwise would. The extension never
 defines `document.modelContext` itself; it ships no polyfill.
 
 Verified on the public deployment in Chrome 150 with WebMCP off:
 `document.modelContext` is `undefined`, both plugins still activate, the
 `jupyterlite-webmcp:add-comment` command is present, and the status bar reads
-`Agent not connected`.
+`WebMCP unavailable`.
 
 To turn it on in a Chromium-based browser that has the trial, enable
 **Experimental Web Platform features** at `chrome://flags` and restart. Verified

@@ -32,8 +32,8 @@ Do this once before recording, and re-establish it between clips per §4.
 1. Chrome with WebMCP enabled (or ChatGPT's in-app browser), agent side panel
    open and idle, on a clean profile with no extensions that draw UI.
 2. Navigate to `https://jupyterlite-web-mcp.vercel.app/lab/index.html`.
-3. **Wait for the status bar (bottom-left) to read `Agent connected`.** If it
-   reads `Agent not connected`, stop — the browser does not expose
+3. **Wait for the status bar (bottom-right) to read `WebMCP ready`.** If it
+   reads `WebMCP unavailable`, stop — the browser does not expose
    `document.modelContext` and there is no demo to record.
 4. Close every open tab inside JupyterLab. The launcher should be showing.
 5. The file browser (left sidebar) shows `customer-analysis.ipynb`,
@@ -87,9 +87,9 @@ built* and *the problem*, which the rules require in audio.
 - **CUT:** T1 title card, 0:00–0:02.5. Hard cut to screen.
 - **DO:** Show the JupyterLite launcher. Slowly move the cursor across the
   page — left file browser, top menu bar, bottom status bar — then rest it on
-  the status bar reading `Agent connected`.
+  the status bar reading `WebMCP ready`.
 - **SEE:** No chat panel. No model picker. No "Ask AI" button. Status bar
-  (**bottom right**): `Agent connected`.
+  (**bottom right**): `WebMCP ready`.
 - **CUT:** At 0:12, a 1.5s zoom-in to 200% on the bottom-right status bar,
   hold 2s, zoom back out.
 
@@ -336,7 +336,7 @@ cooperate): the open `±N changed` diff popover; the `Failed` badge popover
 with its error code; the status bar mid-phrase (`Agent · running cell 6`); the
 Agent panel's Activity tab listing the calls; the Access tab with the
 per-notebook dropdown open;
-the status bar reading `Agent not connected` in a non-WebMCP browser (proves
+the status bar reading `WebMCP unavailable` in a non-WebMCP browser (proves
 graceful degradation); a `STALE_CELL` error in the agent transcript.
 
 ---
@@ -348,7 +348,7 @@ graceful degradation); a `STALE_CELL` error in the agent transcript.
 | `STALE_CELL` when you didn't expect it | The concurrency guard working | **Keep the take.** Say "that's the guard — the agent has to reread." It is a better shot than the clean one. |
 | Agent doesn't see a manual edit | The read happened before the edit | Re-ask; the live model only reflects state as of each call |
 | `KERNEL_UNAVAILABLE` | Pyodide still starting | Wait for the kernel indicator to go idle, reshoot |
-| Status bar: `Agent not connected` | Browser doesn't expose `document.modelContext` | Stop. Switch browsers. There is no demo without this. |
+| Status bar: `WebMCP unavailable` | Browser doesn't expose `document.modelContext` | Stop. Switch browsers. There is no demo without this. |
 | A comment thread shows as orphaned | Anchored text was edited elsewhere; expected behavior | Full reset, pick an untouched selection |
 | Agent narrates its tool calls verbosely | Fine | Don't fight it — the tool names on screen are evidence |
 | Agent refuses or wanders | Prompt drift | Use the prompts in §3 **verbatim**; they are tuned to these tools |

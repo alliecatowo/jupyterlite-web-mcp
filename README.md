@@ -119,12 +119,18 @@ required:
   as context rather than showing a wholesale remove-and-add.
 - **`Run by Browser agent · 14:03:21`** under any output the agent produced,
   so a result never sits in your notebook without saying where it came from.
-- **A live status line** in the bottom-right status bar: not just
-  `Agent connected` but `Agent · running cell 6`, `Agent · pointing at cell
-  3`, `Agent · commenting on cell 5`. It distinguishes a call that is
-  *genuinely in flight* from one that merely *just finished*, and only claims
-  the former when it is true. Click it for the full tool list and recent
-  invocations with timings.
+- **A status line that refuses to overclaim.** A page can observe exactly
+  two things: whether `document.modelContext` exists and its tools
+  registered, and whether one of those tools was just invoked. It *cannot*
+  observe whether an agent is present or paying attention — WebMCP exposes
+  no such signal. So the idle string describes the page (`WebMCP ready`,
+  or `WebMCP unavailable`), and the only string that mentions an agent at all
+  is the live one — `Agent · running cell 6`, `Agent · pointing at cell 3`,
+  `Agent · commenting on cell 5` — which appears exactly when an agent
+  demonstrably did something. It even distinguishes a call that is *genuinely
+  in flight* from one that merely *just finished*, and only claims the former
+  when it is true. Click it for what that means in plain language, the recent
+  invocations with timings, and the published tool list.
 - **Per-cell provenance.** Every cell keeps a bounded, coalesced history of
   who last changed it — `human` or `agent`, with a timestamp. Your typing is
   attributed to you automatically; the agent's writes attribute themselves.
@@ -164,8 +170,8 @@ pretends otherwise, and the UI says so out loud.
 
 1. Open **<https://jupyterlite-web-mcp.vercel.app/lab/index.html>** in
    ChatGPT's in-app browser, or in Google Chrome with WebMCP enabled.
-2. Wait for the status bar (**bottom right**) to read **`Agent connected`**.
-   If it reads `Agent not connected`, this browser does not expose
+2. Wait for the status bar (**bottom right**) to read **`WebMCP ready`**.
+   If it reads `WebMCP unavailable`, this browser does not expose
    `document.modelContext` — the notebook still works, but there is no tool
    surface. Click the item for the full tool list.
 3. Double-click **`customer-analysis.ipynb`** in the file browser and wait
@@ -232,7 +238,7 @@ Design decisions that matter:
   is invoked, so the tool list never churns underneath the agent.
 - **Graceful absence.** If `document.modelContext` is `undefined`, every
   plugin still activates, the whole UI still works, and the status bar reads
-  `Agent not connected`. Registration failure surfaces as `Agent error` with
+  `WebMCP unavailable`. Registration failure surfaces as `WebMCP error` with
   the reason on hover — never swallowed.
 - **`AbortSignal` honored** by `jupyter_run_cells` — but an abort only
   interrupts execution *that invocation itself started*. The kernel is shared

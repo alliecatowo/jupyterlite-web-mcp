@@ -29,8 +29,10 @@ phrase (`Agent · running cell 6`), per-cell provenance history, and the
 `src/activity/markers.ts`, `src/ui/status.ts`, `src/ui/askAbout.ts` and
 `src/selection/capture.ts`. Illustrative strings below (e.g. a
 `WebMCP · 20 tools · Preview edits` badge) were **not** adopted; the shipped
-status text is `Agent connected` / `Agent not connected` / `Agent error` /
-`Agent · <live phrase>`. The permission-model decision below (owner-side
+status text is `WebMCP ready` / `WebMCP unavailable` / `WebMCP error` /
+`Agent · <live phrase>` — deliberately describing *the page*, since a page
+cannot detect an agent's presence, and mentioning an agent only when one
+demonstrably acted. The permission-model decision below (owner-side
 lockdown, no page-side consent prompts) shipped as written. Everything else
 remains a proposal.
 

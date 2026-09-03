@@ -303,7 +303,14 @@
 
 .jp-webmcp-StatusPopup-availability {
   font-weight: 600;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.jp-webmcp-StatusPopup-note {
   margin-bottom: 8px;
+  color: var(--jp-ui-font-color2);
+  line-height: 1.5;
 }
 
 .jp-webmcp-StatusPopup-error {

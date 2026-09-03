@@ -18,7 +18,7 @@ Everything still requiring a human before this entry is safely submitted.
 
 ## Demo recording
 
-- [ ] Confirm a WebMCP-capable browser works: open the live demo, verify the bottom-right status bar reads `Agent connected`. **Without this there is no video** (`DEMO.md` §1).
+- [ ] Confirm a WebMCP-capable browser works: open the live demo, verify the bottom-right status bar reads `WebMCP ready`. **Without this there is no video** (`DEMO.md` §1).
 - [ ] Set up capture: 1920×1080, Chrome window only, 125% zoom, bookmarks bar hidden, no music.
 - [ ] Record the 7 clips in the order in `DEMO.md` §5, resetting per `DEMO.md` §4 before every take.
 - [ ] In Clip 3, capture the full presence sequence: ring → `Applying…` badge → source change → `±2 changed` button → open the diff popover.

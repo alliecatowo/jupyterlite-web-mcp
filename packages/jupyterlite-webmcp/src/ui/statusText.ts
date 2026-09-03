@@ -90,30 +90,45 @@ export function describeInFlight(
   )}`;
 }
 
-/** The persistent status-bar text and hover tooltip for a given state. */
+/**
+ * The persistent status-bar text and hover tooltip for a given state.
+ *
+ * The wording is deliberately careful about what this page can actually
+ * know. A page can observe two things: whether `document.modelContext`
+ * exists and its tools registered, and whether one of those tools was just
+ * invoked. It cannot observe whether an agent is present, attached, or
+ * paying attention — WebMCP exposes no such signal. So the idle string
+ * describes *the page* (`WebMCP ready`), and the only string that mentions
+ * an agent at all is the live one, which appears exactly when an agent
+ * demonstrably did something. Saying "Agent connected" while nothing is
+ * connected would be the one dishonest pixel in the project.
+ */
 export function summarize(state: IWebMCPState, live: string | null): { text: string; title: string } {
   if (state.registrationError) {
     return {
-      text: 'Agent error',
-      title: 'WebMCP registration failed: ' + state.registrationError
+      text: 'WebMCP error',
+      title: 'WebMCP tool registration failed: ' + state.registrationError
     };
   }
   if (!state.available) {
     return {
-      text: 'Agent not connected',
+      text: 'WebMCP unavailable',
       title:
-        'No agent is connected — this browser does not expose document.modelContext, ' +
-        'so no agent can register tools here.'
+        'This browser does not expose document.modelContext, so this page cannot ' +
+        'publish tools and no agent can act on this notebook. Everything else works ' +
+        'normally.'
     };
   }
   if (live) {
     return {
       text: 'Agent · ' + live,
-      title: 'The agent is ' + live + ' — click for details.'
+      title: 'An agent is ' + live + ' — click for details.'
     };
   }
   return {
-    text: 'Agent connected',
-    title: 'An agent can see and act on this notebook through WebMCP — click for details.'
+    text: 'WebMCP ready',
+    title:
+      'This page has published its notebook tools. A compatible browser agent can ' +
+      'act on this notebook — none is doing so right now. Click for details.'
   };
 }

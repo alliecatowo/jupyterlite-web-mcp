@@ -11,14 +11,22 @@ repository source; everything you need is below.
 1. Open the live deployment in your WebMCP-capable browser:
    `https://jupyterlite-web-mcp.vercel.app/lab/index.html`
 2. Confirm the status bar (bottom-right of the JupyterLab shell) reads
-   `Agent connected`. If it reads `Agent not connected`, your browser does
+   `WebMCP ready`. If it reads `WebMCP unavailable`, your browser does
    not expose `document.modelContext` — stop and report `SETUP-BLOCKED`. If
-   it reads `Agent error`, hover it for the registration error and report
+   it reads `WebMCP error`, hover it for the registration error and report
    `SETUP-BLOCKED` with that text.
-3. Click the status-bar item. A popup opens listing `Available: yes`,
-   `Tools (22):` with all 22 names, and `Recent invocations:`. Confirm the
-   count is 22 and the names match the table below. `document.modelContext
-   .getTools()` (or your client's tool list) must agree.
+3. Click the status-bar item. A popup opens, in this order: a plain-language
+   line stating the page published **22** notebook tools; a note that the
+   page cannot wake, summon or notify an agent and does not know whether one
+   is watching; `Recent invocations:`; and `Tools (22):` listing all 22
+   names. Confirm the count is 22 and the names match the table below, and
+   that the popup paints an opaque background — no notebook text may show
+   through it. `document.modelContext.getTools()` (or your client's tool
+   list) must agree.
+
+   Note on wording: the idle status reads `WebMCP ready`, never "agent
+   connected". That is deliberate — a page cannot detect an agent. Report a
+   FAIL if any idle or unavailable status string claims an agent is present.
 4. Use the notebook `customer-analysis.ipynb` (workspace root). Open it
    once by hand so the kernel starts; wait for the kernel status to read
    idle before running anything. Kernel work below uses the cells already
