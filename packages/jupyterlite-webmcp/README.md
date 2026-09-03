@@ -13,9 +13,7 @@ same either way.
 
 For the full product story, human/agent examples, and tool table, see the
 [repository README](../../README.md). For per-tool detail see
-[`../../docs/webmcp-tools.md`](../../docs/webmcp-tools.md), and for the
-review/comments feature see
-[`../../docs/review-comments.md`](../../docs/review-comments.md).
+[`../../docs/webmcp-tools.md`](../../docs/webmcp-tools.md).
 
 Live demo: <https://jupyterlite-web-mcp.vercel.app/lab/index.html>
 

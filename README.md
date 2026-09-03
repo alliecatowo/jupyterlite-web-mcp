@@ -1,5 +1,34 @@
 # JupyterLite WebMCP
 
+<div align="center">
+
+<img src="docs/media/hero.gif" width="800" alt="Agent edits a notebook cell live in JupyterLite; a diff popover shows the exact +/- change before it's kept">
+
+<sub>The agent proposes a one-line fix inline. The diff is reviewable before it sticks — same cell, same kernel, same tab.</sub>
+
+<br/><br/>
+
+<table>
+<tr>
+<td width="33%" valign="top">
+<img src="docs/media/screenshot-1-access-control.png" alt="Right-click cell menu showing Agent Access: Editable">
+<br/><sub><b>Per-cell access control</b> — grant or lock the agent's write access, cell by cell.</sub>
+</td>
+<td width="33%" valign="top">
+<img src="docs/media/screenshot-2-presence.png" alt="Status bar reading Agent - running cell 5">
+<br/><sub><b>Live presence</b> — the status bar shows exactly what the agent is doing, as it happens.</sub>
+</td>
+<td width="33%" valign="top">
+<img src="docs/media/screenshot-3-review.png" alt="Add comment dialog attached to a specific expression in a cell">
+<br/><sub><b>Inline review</b> — comment on any cell; the agent reads it next turn and replies in the same thread.</sub>
+</td>
+</tr>
+</table>
+
+</div>
+
+---
+
 > **A portable semantic interface to a browser-native computational workspace.**
 > Your notebook is already in the browser. Now your agent can be too.
 
@@ -447,12 +476,6 @@ Then in that page's console, `window.__webmcp.call('jupyter_get_context', {})`
 invokes a tool exactly the way an agent would. The shim lives in `ui-tests/`,
 is never part of the extension, and is never injected into the deployed site.
 
-**A full external verification protocol** — every tool with exact call
-arguments, expected result, and expected visible UI change, plus seven
-interaction flows and a pass/fail report template — is in
-[`CODEX_DRIVER.md`](CODEX_DRIVER.md). It is written to be handed to an
-independent agent that never reads the source.
-
 ---
 
 ## Security notes
@@ -514,13 +537,6 @@ The extension, tests and documentation were written in collaboration with
 `git log` rather than asserted. Design, architecture, product boundaries and
 all review decisions are the author's.
 
-Verification was deliberately kept out-of-band.
-**[`CODEX_DRIVER.md`](CODEX_DRIVER.md)** is a black-box protocol for driving
-the deployed site through its real `document.modelContext` surface *without
-reading the repository*, so the implementation could be checked against
-observable behavior rather than against its own source. The dated audit trail
-is in [`docs/audit-verdict.md`](docs/audit-verdict.md).
-
 ## License and attribution
 
 MIT — see [`LICENSE`](LICENSE).
@@ -541,8 +557,5 @@ third-party attribution: [`NOTICE.md`](NOTICE.md).
 | [`docs/architecture.md`](docs/architecture.md) | Dependency direction, file-by-file, concurrency protocol, bounds. |
 | [`docs/webmcp-tools.md`](docs/webmcp-tools.md) | Every tool: inputs, outputs, bounds, error codes. |
 | [`docs/webmcp-compatibility.md`](docs/webmcp-compatibility.md) | Which WebMCP API, Chrome's calling convention, annotation choices. |
-| [`docs/review-comments.md`](docs/review-comments.md) | Review-thread storage format and the re-anchoring algorithm. |
 | [`docs/multiplayer.md`](docs/multiplayer.md) | What happens behind `jupyter-collaboration`, verified; and what is deliberately not shipped. |
-| [`docs/agent-collaboration-roadmap.md`](docs/agent-collaboration-roadmap.md) | The presence/consent design notes, including why there are no page-side consent prompts. |
 | [`docs/install.md`](docs/install.md) | Per-platform install and verification. |
-| [`CODEX_DRIVER.md`](CODEX_DRIVER.md) | Black-box external verification protocol. |

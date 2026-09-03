@@ -185,8 +185,7 @@ notebook is open, straight to the file when it is not) or from the Agent
 panel's Access tab (a per-notebook read/write/hidden dropdown plus an
 "apply to all cells" bulk toggle) — and no WebMCP tool can read or change
 it. There are no consent prompts anywhere: the owner declares what exists
-for the agent; the WebMCP client owns any allow-once/allow-always UX (see
-the decision note in `docs/agent-collaboration-roadmap.md`).
+for the agent; the WebMCP client owns any allow-once/allow-always UX.
 
 ---
 
@@ -661,10 +660,9 @@ panel uses.
 - **Errors:** `NO_ACTIVE_NOTEBOOK` if `scope: "current-cell"` is requested
   with no active cell.
 - **Concurrency:** `anchor.state`/`outputChanged` are computed live against
-  the current notebook on every call (see anchor resolution in
-  `docs/review-comments.md`), so a thread's anchor status always reflects
-  the notebook as it exists right now, not as it existed when the thread
-  was created.
+  the current notebook on every call, so a thread's anchor status always
+  reflects the notebook as it exists right now, not as it existed when the
+  thread was created.
 
 ### `jupyter_get_comment`
 
@@ -721,8 +719,7 @@ panel uses.
 - **Bounds:** `message` bounded to `MAX_COMMENT_BODY_BYTES` (8 KiB) by the
   store; for a `source-range` anchor, the captured `selectedText` and
   prefix/suffix context follow the same bounds as human-created anchors
-  (`MAX_SELECTED_TEXT_BYTES` / `MAX_ANCHOR_CONTEXT`, see
-  `docs/review-comments.md`).
+  (`MAX_SELECTED_TEXT_BYTES` / `MAX_ANCHOR_CONTEXT`).
 - **Errors:** `INVALID_ARGUMENT` if `anchor.kind`/`anchor.cellId`/`message`
   are missing, or if a `source-range` anchor supplies neither `anchor.text`
   nor `anchor.selection`; `CELL_NOT_FOUND` if `cellId` doesn't exist or is

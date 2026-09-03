@@ -71,7 +71,7 @@ pip uninstall jupyterlite_webmcp
 
 Uninstalling only removes the tool surface; it does not touch any notebook,
 file, or review comment already saved — comments live in the notebook's own
-metadata (see `docs/review-comments.md`), not in extension state.
+metadata, not in extension state.
 
 ## Verifying WebMCP is active
 
