@@ -9,7 +9,7 @@ Python kernel all run in your browser tab.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Test](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml)
-![350 unit tests](https://img.shields.io/badge/unit%20tests-350%20passing-brightgreen)
+![361 unit tests](https://img.shields.io/badge/unit%20tests-361%20passing-brightgreen)
 ![46 browser tests](https://img.shields.io/badge/browser%20tests-46%20passing-brightgreen)
 ![JupyterLab 4.6](https://img.shields.io/badge/JupyterLab-4.6-orange)
 ![Works in JupyterLab · Notebook 7 · JupyterLite](https://img.shields.io/badge/runs%20in-JupyterLab%20%C2%B7%20Notebook%207%20%C2%B7%20JupyterLite-informational)
@@ -407,7 +407,7 @@ PYTHON="$PWD/.venv/bin/python" ./scripts/build-site.sh   # → dist/
 ### Automated
 
 ```bash
-npm --prefix packages/jupyterlite-webmcp test          # 350 unit tests (jest)
+npm --prefix packages/jupyterlite-webmcp test          # 361 unit tests (jest)
 npm --prefix packages/jupyterlite-webmcp run lint:check
 npm --prefix packages/jupyterlite-webmcp run typecheck
 cd ui-tests && npm install && npm test                 # 46 browser tests

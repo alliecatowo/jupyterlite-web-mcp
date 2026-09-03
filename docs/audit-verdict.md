@@ -39,7 +39,7 @@ remains.
 
 | Check | Result |
 | --- | --- |
-| Extension unit tests | **Pass — 23 suites, 350 tests** (`npm --prefix packages/jupyterlite-webmcp test`) |
+| Extension unit tests | **Pass — 24 suites, 361 tests** (`npm --prefix packages/jupyterlite-webmcp test`) |
 | Browser E2E against the built `dist/` | **Pass — 46 Playwright tests** across 7 spec files |
 | TypeScript | Pass — `tsc --noEmit` |
 | Lint + formatting | Pass — ESLint clean, Prettier clean |
@@ -117,9 +117,11 @@ not yet complete.
 - Consequently the remaining fix is most likely a JupyterLite/docmanager
   configuration concern rather than a tool-path concern, and should be
   investigated there before more code is added to `resolveKernelName`.
-- **No test covers the new no-request branch.** `resolveKernelName` now has
-  real branching (registered default → a Python spec → the first spec) and
-  none of it is pinned by a unit test.
+- ~~No test covers the new no-request branch.~~ **Closed.**
+  `tests/unit/kernel-resolution.spec.ts` now pins all of it: registered
+  default, a default naming an unregistered spec, Python preferred by name,
+  Python matched by `language`, deterministic first-spec fallback, the empty
+  registry, and the pre-existing requested-name/language behavior.
 
 ### Findings from verifying the deploy
 
@@ -132,7 +134,7 @@ not yet complete.
   reachable SHA. **This must hold at submission time**, since the submission
   packet cites a commit SHA as the thing judges will build.
 - The uncommitted work itself was sound: `tsc --noEmit` clean, ESLint and
-  Prettier clean, 351 unit tests passing.
+  Prettier clean, 361 unit tests passing.
 - **The new Comments-tab controls ship unstyled.** `jp-webmcp-addComment` and
   `jp-webmcp-commentHelp` are referenced by `src/review/panel.tsx` but have no
   rule in `style/base.css`.

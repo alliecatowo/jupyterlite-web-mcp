@@ -245,7 +245,7 @@ gates one.
 
 #### Verification
 
-350 unit tests (jest) and 46 browser integration tests (Playwright, driven
+361 unit tests (jest) and 46 browser integration tests (Playwright, driven
 against the built static site through a WebMCP shim) run in CI on every push,
 alongside ESLint, Prettier and `tsc` — all green. In Chrome 150 with WebMCP
 enabled, on the live deployment, through the real `document.modelContext`, all
@@ -465,7 +465,7 @@ GitHub Pages cannot set the required headers, which is why the demo is hosted
 on Vercel instead. The exact deployed artifact is reproducible with one
 command (`PYTHON=… ./scripts/build-site.sh`).
 
-**350 unit tests** (jest, 23 suites) and **46 browser integration tests**
+**361 unit tests** (jest, 24 suites) and **46 browser integration tests**
 (Playwright, against the built static site) run in CI
 (`.github/workflows/test.yml`) alongside ESLint, Prettier and `tsc` — all
 green on `main`. In Chrome 150 with WebMCP enabled, driven through the real

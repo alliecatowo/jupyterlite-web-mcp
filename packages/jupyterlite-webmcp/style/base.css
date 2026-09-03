@@ -54,6 +54,38 @@
   max-width: 60%;
 }
 
+/*
+ * The Comments tab's human composer entry point: an ordinary notebook
+ * action, so it leads the tab above the filter row. `jp-webmcp-btn` already
+ * carries the shared control styling; these rules only place it and give the
+ * guidance line beneath it a quiet, secondary voice, matching
+ * `.jp-webmcp-empty`.
+ */
+.jp-webmcp-addComment {
+  display: block;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 4px 6px;
+  font-weight: 600;
+}
+
+.jp-webmcp-addComment:disabled {
+  color: var(--jp-ui-font-color3);
+  cursor: default;
+  opacity: 0.7;
+}
+
+.jp-webmcp-addComment:disabled:hover {
+  background: var(--jp-layout-color1);
+}
+
+.jp-webmcp-commentHelp {
+  margin-bottom: 10px;
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size0, 11px);
+  line-height: 1.4;
+}
+
 .jp-webmcp-filters {
   display: flex;
   gap: 4px;
