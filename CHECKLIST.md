@@ -9,11 +9,9 @@ Everything still requiring a human before this entry is safely submitted.
 
 ## Repository
 
-- [ ] **Make `github.com/alliecatowo/jupyterlite-web-mcp` PUBLIC.** The rules require an open-source, judge-accessible repository. It is currently private — this is a submission blocker.
-- [ ] Set the repo description to the tagline in `SUBMISSION.md` §4, and the homepage field to `https://jupyterlite-web-mcp.vercel.app/lab/index.html`.
-- [ ] Add repo topics: `webmcp`, `mcp`, `jupyterlab-extension`, `jupyterlite`, `pyodide`, `ai-agents`.
-- [ ] Confirm the `Test` and `Site Build` workflows are green on the final commit.
-- [ ] After any further commit, redeploy (`./scripts/deploy-vercel.sh`) and re-check that the live `jupyter-lite.json` loads the same `remoteEntry.*.js` hash as the local `dist/`.
+- [ ] Nothing outstanding — repo is public, described, topic-tagged, CI green, and the deployed build matches `HEAD`.
+
+- [ ] Only if you commit again: redeploy (`./scripts/deploy-vercel.sh`) and re-check that the live `jupyter-lite.json` loads the same `remoteEntry.*.js` hash as the local `dist/`.
 
 ## Demo recording
 

@@ -65,7 +65,7 @@ pages directly.
 | R4 | Description covers *how it improves UX* | ✅ | `README.md` § "The problem, and who has it" + § "What humans and agents can do together" |
 | R5 | Description covers *what humans + agents do together that was hard before* | ✅ | `README.md` § "What humans and agents can do together"; bidirectional pointing, shared kernel, shared review threads |
 | R6 | Description covers *implementation approach* | ✅ | `README.md` § "How WebMCP is actually implemented"; `docs/webmcp-compatibility.md` |
-| R7 | Public code repository with all source + instructions | ⚠️ **repo is currently PRIVATE** | `gh repo view` reports `"visibility":"PRIVATE"` — **must be flipped to public before submitting**; see `CHECKLIST.md` |
+| R7 | Public code repository with all source + instructions | ✅ verified | `gh repo view` reports `"visibility":"PUBLIC"`; README, LICENSE, SUBMISSION.md and CODEX_DRIVER.md all return `200` to an unauthenticated request |
 | R8 | Open source license file in the repo | ✅ | `LICENSE` (MIT); third-party attribution in `NOTICE.md` |
 | R9 | Demo video < 3 minutes | ⛔ not recorded | Production playbook is `DEMO.md`; target runtime 2:50 |
 | R10 | Video publicly visible on YouTube | ⛔ not uploaded | URL slot in §9 below |
@@ -296,8 +296,9 @@ the source.
 https://github.com/alliecatowo/jupyterlite-web-mcp
 ```
 
-⚠️ **Currently PRIVATE.** The rules require a public, open-source repository.
-Must be flipped to public before submitting (`CHECKLIST.md` → Repository).
+Public, MIT licensed, described and topic-tagged. Verified reachable
+unauthenticated: the repository page, `README.md`, `LICENSE`, `SUBMISSION.md`
+and `CODEX_DRIVER.md` all return `200` with no credentials.
 
 ## 8. YouTube URL
 
