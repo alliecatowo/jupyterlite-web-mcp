@@ -60,7 +60,7 @@ pages directly.
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | R1 | Working live URL, reachable in ChatGPT in-app browser or Chrome+WebMCP | ✅ deployed | <https://jupyterlite-web-mcp.vercel.app/lab/index.html> returns `HTTP/2 200`, `cross-origin-opener-policy: same-origin`, `cross-origin-embedder-policy: credentialless` |
-| R2 | Live build actually contains the shipped tool surface | ✅ verified | The deployed bundle `extensions/jupyterlite-webmcp/static/*.js` contains all 22 `jupyter_*` tool names and the current status strings; content-hashed filenames match the local `dist/` built from `1c78006` |
+| R2 | Live build actually contains the shipped tool surface | ✅ verified | The deployed bundle `extensions/jupyterlite-webmcp/static/*.js` contains all 22 `jupyter_*` tool names and the current status strings; content-hashed filenames match the local `dist/` built from `8955801` |
 | R3 | Description covers *why WebMCP fits* | ✅ | `README.md` § "Why this is specifically a strong WebMCP use case"; §6 of this document |
 | R4 | Description covers *how it improves UX* | ✅ | `README.md` § "The problem, and who has it" + § "What humans and agents can do together" |
 | R5 | Description covers *what humans + agents do together that was hard before* | ✅ | `README.md` § "What humans and agents can do together"; bidirectional pointing, shared kernel, shared review threads |
@@ -615,10 +615,12 @@ Invariant to check before filling this in: the deployed bundle hash under
 `https://jupyterlite-web-mcp.vercel.app/extensions/jupyterlite-webmcp/static/`
 must match the locally built `dist/` for that SHA.
 
-Last verified match: local `dist/` built from `1c78006`; the live
+Last verified match: local `dist/` built from `8955801`; the live
 `jupyter-lite.json` loads `remoteEntry.700c044df2408ad1.js`, identical to the
 local build's content-hashed filename, and the deployed chunks carry the
-current status strings and the Comments-composer styles.
+current status strings and the Comments-composer styles. The live
+`customer-analysis.ipynb` serves nine cells, with no ipywidgets anywhere in
+the deployment.
 
 ---
 
