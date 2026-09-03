@@ -265,7 +265,7 @@ worker instead of the slower service-worker fallback. (GitHub Pages cannot set
 those headers; that is why the demo is hosted on Vercel.)
 
 And one thing this does **not** claim: WebMCP gives a page no way to wake,
-summon, or notify an agent. Editing a cell, moving a slider, or leaving a
+summon, or notify an agent. Editing a cell, running something, or leaving a
 review comment never calls anyone. It changes the live state an agent will see
 the next time a human invokes it. That boundary is documented rather than
 papered over.

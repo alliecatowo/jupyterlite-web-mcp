@@ -33,7 +33,8 @@ repository source; everything you need is below.
    in that notebook. Cell ids you will need (stable, in file order):
    `intro-md`, `load-data`, `funnel-def`, `filter-md`,
    `working-filter`, `conversion-rate`, `by-region-md`, `region-table`,
-   `region-chart`, `widget-md`, `spend-widget`.
+   `region-chart`. (Nine cells; there are no ipywidgets in this fixture — see
+   the note in `content/README.md`.)
 5. For destructive checks (delete/insert), create a scratch notebook first
    via `jupyter_create_notebook` (`name: "codex-scratch"`) and do them
    there. Restore `customer-analysis.ipynb` afterward by re-downloading it

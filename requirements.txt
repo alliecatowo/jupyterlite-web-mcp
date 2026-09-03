@@ -9,8 +9,12 @@ notebook~=7.6.0
 # Python kernel (in-browser, via Pyodide)
 jupyterlite-pyodide-kernel==0.8.0
 
-# Widgets used by the demo notebook
-ipywidgets>=8.1.3,<9
+# No ipywidgets. `ipywidgets` itself is not among the wheels bundled by
+# jupyterlite-pyodide-kernel (only `widgetsnbextension`, the frontend shim),
+# so `import ipywidgets` in the in-browser kernel depends on a CDN fetch that
+# does not reliably resolve on this deployment. Rather than ship a demo cell
+# that sometimes renders a dead output area, the fixture has no widgets and
+# the frontend widget manager is not installed. See docs/audit-verdict.md.
 
 # The extension under development (frontend-only, JupyterLite compatible)
 -e ./packages/jupyterlite-webmcp

@@ -16,7 +16,9 @@ server anywhere — everything you see and run here stays on this page.
 ## Notebooks
 
 - **`customer-analysis.ipynb`** — the walkthrough. A straightforward look
-  at conversion, spend, and churn, meant to be run top to bottom.
+  at conversion, spend, and churn, meant to be run top to bottom. Pure
+  pandas and matplotlib: no ipywidgets, so every cell renders the same way
+  on every visit.
 - **`needs-review.ipynb`** — has problems in it, on purpose. Good for
   handing to an agent and asking it to review the notebook or fix it.
 - **`reviewed-analysis.ipynb`** — what a finished human-and-agent session

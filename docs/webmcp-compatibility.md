@@ -155,7 +155,7 @@ kicked off by hand. The remaining tools complete in single-digit milliseconds.
 ## What WebMCP cannot do
 
 WebMCP has no way for a page to wake, summon or notify an agent. Nothing in this
-extension implies otherwise. Editing a cell, moving a slider, running something,
+extension implies otherwise. Editing a cell, running something,
 or adding a review comment does not call an agent; it changes the live state the
 agent will see the next time the human invokes it.
 

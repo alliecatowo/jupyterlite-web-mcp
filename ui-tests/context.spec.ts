@@ -20,7 +20,7 @@ test.describe('jupyter_get_context / jupyter_list_workspace', () => {
     const { ok, payload } = await callTool(page, 'jupyter_get_context');
     expect(ok).toBe(true);
     expect(payload.notebook.path).toBe('customer-analysis.ipynb');
-    expect(payload.notebook.cellCount).toBe(11);
+    expect(payload.notebook.cellCount).toBe(9);
     expect(typeof payload.notebook.revision).toBe('string');
     expect(payload.notebook.revision.length).toBeGreaterThan(0);
     expect(payload.kernel).not.toBeNull();

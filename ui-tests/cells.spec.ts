@@ -83,7 +83,7 @@ test.describe('cell CRUD tools', () => {
     const beforeCount = before.payload.notebook.cellCount;
 
     const inserted = await callTool(page, 'jupyter_insert_cell', {
-      referenceCellId: 'spend-widget',
+      referenceCellId: 'region-chart',
       position: 'below',
       cellType: 'code',
       source: 'throwaway = 1'

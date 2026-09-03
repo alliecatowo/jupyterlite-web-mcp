@@ -100,6 +100,7 @@ not yet complete.
 | G1 | The automatic default-kernel selection still falls through to the Select Kernel prompt in a fresh tab | **Not complete.** See the finding below — the current change cannot reach the failing path. |
 | G2 | No one-step "apply edit and run" tool. `jupyter_update_cell` then `jupyter_run_cells` is two round trips for what is one intention. | Open. Deliberate today (edit and execution are separately auditable), but the ergonomic cost is real. |
 | G3 | The agent-edit diff popover shows what changed but offers no rollback. | Open. `before`/`after` are already captured in `ActivityMarkers._recordDiff`, so the data for a revert exists; only the control is missing. |
+| G5 | The Playwright suite is flaky; CI's `retries: 1` masks it | Open. See below. |
 | G4 | `jupyter_get_context` reports notebook-cell focus but not the Jupyter shell's active UI selector/picker state, so an agent cannot see or act on a dialog, launcher, or kernel picker the human is looking at. | Open. This is a genuine widening of "live state": today the context model is notebook-scoped by construction. |
 
 ### Findings from verifying G1
@@ -122,6 +123,54 @@ not yet complete.
   default, a default naming an unregistered spec, Python preferred by name,
   Python matched by `language`, deterministic first-spec fallback, the empty
   registry, and the pre-existing requested-name/language behavior.
+
+### Widgets: removed from the default fixture (2026-09-03)
+
+`customer-analysis.ipynb` carried a `widgets.interact` slider cell
+(`widget-md`, `spend-widget`). It is gone, and `ipywidgets` is out of
+`requirements.txt`.
+
+- **It was not reliably working.** `jupyterlite-pyodide-kernel` bundles
+  `widgetsnbextension` (the frontend shim) in its wheel index but **not**
+  `ipywidgets` itself, so `import ipywidgets` in the in-browser kernel
+  depends on resolving the package from a CDN at runtime. Reported as not
+  working during a live demo.
+- **No tool could drive it anyway.** There is no widget tool among the 22,
+  and no ipywidgets-specific code anywhere in `src/`. An agent can neither
+  read a widget's value nor move a slider. A `widgets.interact` output also
+  lives in a child output area rather than the cell's `outputs`, so even
+  `jupyter_get_cells` with `includeOutputs` returns nothing useful about it.
+  The cell was therefore inert in a demo whose entire subject is what the
+  agent and the human can both act on.
+- **What a real version would need**, if it is ever wanted: bundling the
+  `ipywidgets` wheel into the site's piplite index so the import resolves
+  locally, plus a tool surface for reading widget state — most naturally by
+  having the agent insert a visible cell that prints `slider.value`, which
+  needs no new tool at all but does need the widget bound to a named
+  variable rather than created anonymously by `interact`.
+
+### G5 — the browser suite is flaky, and CI hides it (2026-09-03)
+
+`playwright.config.ts` sets `retries: process.env.CI ? 1 : 0`. Two
+back-to-back local full runs each failed exactly one test, and a *different*
+one each time (`cells.spec.ts:117` then `context.spec.ts:109`); both pass in
+isolation, 8/8. CI's single retry turns those into green runs, so the
+flakiness is real but invisible there. Nothing is deterministically broken —
+but the suite's signal is weaker than the green badge implies, and the flakes
+should be diagnosed rather than retried away.
+
+### Note on a false negative while verifying this (2026-09-03)
+
+Driving the deployed site through browser automation showed `No Kernel` and a
+Select Kernel dialog, and `serviceManager.kernelspecs` reporting zero specs.
+That was **not** a product fault. The profile carried a remembered "No
+Kernel" choice plus a restored workspace, and repeated `Runtime.evaluate`
+calls timed out because the main thread was blocked by Pyodide booting.
+Running `ui-tests/execution.spec.ts` against the same `dist/` passes all five
+tests in under ten seconds, including the one asserting a real
+`executionCount` and `4` rendered in the output area. Recorded here so the
+same false trail is not followed twice: **trust the Playwright suite over
+hand-driven automation for kernel questions.**
 
 ### Findings from verifying the deploy
 
