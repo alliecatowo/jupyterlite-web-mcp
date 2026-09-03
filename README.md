@@ -8,8 +8,8 @@ Python kernel all run in your browser tab.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Test](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml)
-![218 unit tests](https://img.shields.io/badge/unit%20tests-218%20passing-brightgreen)
-![37 browser tests](https://img.shields.io/badge/browser%20tests-37%20passing-brightgreen)
+![318 unit tests](https://img.shields.io/badge/unit%20tests-318%20passing-brightgreen)
+![42 browser tests](https://img.shields.io/badge/browser%20tests-42%20passing-brightgreen)
 ![JupyterLab 4.6](https://img.shields.io/badge/JupyterLab-4.6-orange)
 ![Works in JupyterLab · Notebook 7 · JupyterLite](https://img.shields.io/badge/runs%20in-JupyterLab%20%C2%B7%20Notebook%207%20%C2%B7%20JupyterLite-informational)
 ![WebMCP](https://img.shields.io/badge/WebMCP-document.modelContext-purple)
@@ -36,7 +36,7 @@ workspace to a compatible browser agent through
 (`document.modelContext.registerTool`). The agent reads, edits, runs, and
 *reviews* the same notebook the human already has open: the same unsaved
 edits, the same selection, the same kernel, the same outputs, the same
-review threads. Turn WebMCP off and the notebook — including the Review
+review threads. Turn WebMCP off and the notebook — including the Agent
 panel — works exactly the same; the extension only adds a tool surface, it
 never gates one.
 
@@ -143,7 +143,8 @@ in [`docs/webmcp-tools.md`](docs/webmcp-tools.md).
 Review is an ordinary notebook feature, not an AI feature: a human can
 create, reply to, resolve, reopen, and navigate threaded comments anchored
 to a cell, an exact range of source text, or a cell output, entirely without
-a browser agent, from a right-sidebar "Review" panel. Comments are stored in
+a browser agent, from the Comments tab of the right-sidebar Agent panel.
+Comments are stored in
 the notebook's own metadata (see `docs/review-comments.md`), so they travel
 with the downloaded `.ipynb` file — no comment server, no account service.
 
@@ -164,10 +165,12 @@ short:
 JupyterLab APIs -> src/jupyter/* adapter -> semantic operations -> src/webmcp/* adapter
 ```
 
-The two plugins are `jupyterlite-webmcp:review` (the notebook comment
-feature; works with or without WebMCP) and `jupyterlite-webmcp:tools` (the
-WebMCP tool registration, which depends on the review plugin so it can
-expose comment tools).
+Six small plugins keep notebook features decoupled from WebMCP:
+`jupyterlite-webmcp:review`, `:access`, `:activity`, `:panel` (the single
+right-sidebar Agent panel: Activity/Comments/Access) and `:output-selection`
+all work with or without WebMCP; `jupyterlite-webmcp:tools` is the one that
+registers the WebMCP tool surface, and it depends on the review plugin so it
+can expose comment tools.
 
 </details>
 
@@ -199,10 +202,10 @@ so the extension is picked up automatically.
 <summary><strong>Testing</strong></summary>
 
 ```bash
-cd packages/jupyterlite-webmcp && npm test        # 218 unit tests (jest)
+cd packages/jupyterlite-webmcp && npm test        # 318 unit tests (jest)
 cd packages/jupyterlite-webmcp && npm run lint:check
 cd packages/jupyterlite-webmcp && npm run typecheck
-cd ui-tests && npm install && npx playwright test  # 37 browser tests
+cd ui-tests && npm install && npx playwright test  # 42 browser tests
 ```
 
 To drive the tools by hand in a real browser — useful because no browser
@@ -278,7 +281,7 @@ real `document.modelContext`: all 22 tools register, `getTools()` returns
 them with annotations intact, `executeTool()` round-trips, and the status
 bar reflects that an agent is connected. With WebMCP off,
 `document.modelContext` is `undefined`, both plugins still activate, the
-Review panel still works, and the status bar reflects that no agent is
+Agent panel still works, and the status bar reflects that no agent is
 connected.
 
 **WebMCP cannot wake, summon, or notify an agent.** Selecting code, editing

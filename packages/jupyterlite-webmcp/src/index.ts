@@ -10,18 +10,18 @@ import { IStatusBar } from '@jupyterlab/statusbar';
 
 import { ActivityLog } from './activity/model';
 import { ActivityMarkers } from './activity/markers';
-import { ActivityPanel } from './activity/panel';
 import { registerAccessCommands, AccessCommandIDs } from './access/commands';
 import { AccessMarkers } from './access/markers';
+import { AccessOverview } from './access/overview';
 import { ProvenanceTracker } from './access/provenance';
 import { IJupyterEnv } from './jupyter/workspace';
 import { registerReviewCommands, ReviewCommandIDs } from './review/commands';
 import { ReviewMarkers } from './review/markers';
-import { ReviewPanel } from './review/panel';
 import { ReviewStore } from './review/storage';
 import { OutputSelectionTracker } from './selection/capture';
 import { IActivityLog, IOutputSelectionTracker, IReviewStore } from './tokens';
 import { AskAboutCommandIDs, AskAboutOutputAffordance, registerAskAboutCommands } from './ui/askAbout';
+import { WebMcpPanel } from './ui/panel';
 import { WebMCPStatus } from './ui/status';
 import { WebMCPRegistry } from './webmcp/register';
 import { buildTools } from './webmcp/tools';
@@ -31,36 +31,18 @@ import { buildTools } from './webmcp/tools';
  *
  * Ordinary notebook functionality: create, reply to, resolve and navigate
  * comments anchored to cells, source ranges and outputs. No agent required.
+ * Owns the store and the cosmetic per-cell markers; the Comments section
+ * itself lives in the single Agent panel (`panelPlugin`, below), since
+ * showing it requires the commands that need a panel to reveal.
  */
 const reviewPlugin: JupyterFrontEndPlugin<ReviewStore> = {
   id: 'jupyterlite-webmcp:review',
   description: 'Threaded review comments stored in notebook metadata.',
   autoStart: true,
   requires: [INotebookTracker],
-  optional: [ILayoutRestorer],
   provides: IReviewStore,
-  activate: (
-    app: JupyterFrontEnd,
-    tracker: INotebookTracker,
-    restorer: ILayoutRestorer | null
-  ): ReviewStore => {
+  activate: (app: JupyterFrontEnd, tracker: INotebookTracker): ReviewStore => {
     const store = new ReviewStore(tracker);
-
-    const panel = new ReviewPanel({ app, tracker, store });
-    panel.id = 'jupyterlite-webmcp-review';
-    app.shell.add(panel, 'right', { rank: 900 });
-    if (restorer) {
-      restorer.add(panel, 'jupyterlite-webmcp-review');
-    }
-
-    registerReviewCommands({
-      app,
-      tracker,
-      store,
-      reveal: () => {
-        app.shell.activateById(panel.id);
-      }
-    });
 
     const markers = new ReviewMarkers(tracker, store);
     app.shell.disposed.connect(() => markers.dispose());
@@ -101,34 +83,67 @@ const accessPlugin: JupyterFrontEndPlugin<void> = {
  * Shows, in the ordinary spirit of collaborative-editor presence, what each
  * participant — the human, or the browser agent accompanying them — is
  * touching right now and did recently. Additive: the tools plugin works
- * exactly the same with or without it.
+ * exactly the same with or without it. Just the bounded, in-memory log
+ * itself: the Activity section and the cell/output presence markers (which
+ * need a panel to reveal) live in `panelPlugin`, below.
  */
 const activityPlugin: JupyterFrontEndPlugin<ActivityLog> = {
   id: 'jupyterlite-webmcp:activity',
-  description: 'Presence and recent-activity timeline for the notebook.',
+  description: 'A bounded, in-memory log of recent tool activity.',
   autoStart: true,
-  requires: [INotebookTracker],
-  optional: [ILayoutRestorer],
   provides: IActivityLog,
+  activate: (): ActivityLog => new ActivityLog()
+};
+
+/**
+ * The single right-sidebar Agent panel.
+ *
+ * Consolidates what used to be two separate sidebar panels (Review,
+ * Activity) plus the only complete place to configure per-cell agent access
+ * (Access) into one restrained, tabbed panel - see `src/ui/panel.tsx`. Also
+ * registers the review commands and the activity presence markers, since
+ * both need a panel to reveal.
+ */
+const panelPlugin: JupyterFrontEndPlugin<void> = {
+  id: 'jupyterlite-webmcp:panel',
+  description:
+    'The single right-sidebar Agent panel: activity, review comments and per-cell access, in one place.',
+  autoStart: true,
+  requires: [INotebookTracker, IReviewStore, IActivityLog],
+  optional: [ILayoutRestorer],
   activate: (
     app: JupyterFrontEnd,
     tracker: INotebookTracker,
+    store: ReviewStore,
+    log: ActivityLog,
     restorer: ILayoutRestorer | null
-  ): ActivityLog => {
-    const log = new ActivityLog();
+  ): void => {
+    const access = new AccessOverview(tracker);
+    app.shell.disposed.connect(() => access.dispose());
 
-    const panel = new ActivityPanel({ app, tracker, log });
-    app.shell.add(panel, 'right', { rank: 901 });
+    const panel = new WebMcpPanel({ app, tracker, store, log, access });
+    app.shell.add(panel, 'right', { rank: 900 });
     if (restorer) {
-      restorer.add(panel, 'jupyterlite-webmcp-activity');
+      restorer.add(panel, 'jupyterlite-webmcp-panel');
     }
 
-    const markers = new ActivityMarkers(tracker, log, {
-      revealActivityPanel: () => app.shell.activateById(panel.id)
+    registerReviewCommands({
+      app,
+      tracker,
+      store,
+      reveal: () => {
+        panel.activateTab('comments');
+        app.shell.activateById(panel.id);
+      }
     });
-    app.shell.disposed.connect(() => markers.dispose());
 
-    return log;
+    const activityMarkers = new ActivityMarkers(tracker, log, {
+      revealActivityPanel: () => {
+        panel.activateTab('activity');
+        app.shell.activateById(panel.id);
+      }
+    });
+    app.shell.disposed.connect(() => activityMarkers.dispose());
   }
 };
 
@@ -204,4 +219,11 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
 
 export { ReviewCommandIDs, AccessCommandIDs, AskAboutCommandIDs, IReviewStore, IActivityLog, IOutputSelectionTracker };
 
-export default [reviewPlugin, accessPlugin, activityPlugin, outputSelectionPlugin, webmcpPlugin];
+export default [
+  reviewPlugin,
+  accessPlugin,
+  activityPlugin,
+  panelPlugin,
+  outputSelectionPlugin,
+  webmcpPlugin
+];

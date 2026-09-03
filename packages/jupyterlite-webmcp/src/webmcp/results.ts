@@ -108,7 +108,8 @@ export function boundJson(value: unknown, maxBytes: number = LIMITS.MAX_TOTAL_RE
 
 /**
  * Builds a successful tool result for `payload`: a single bounded-JSON text
- * block plus the unbounded `payload` as `structuredContent`.
+ * block plus the same payload as `structuredContent` when it fitted inside
+ * the bound (see below).
  */
 export function okResult(payload: unknown): IToolResult {
   const bounded = boundJson(payload);

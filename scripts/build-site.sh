@@ -16,7 +16,9 @@ python="${PYTHON:-python3}"
 # necessarily alongside the shell's default Python. Honour PYTHON completely:
 # without this, `PYTHON=.venv/bin/python ./scripts/build-site.sh` builds TypeScript
 # successfully but fails when the builder executable cannot be found on PATH.
-python_bin="$(dirname "$(command -v "$python")")"
+# Resolved to an absolute directory: npm lifecycle scripts run with cwd set to
+# the package, so a relative bin directory would not resolve from there.
+python_bin="$(cd "$(dirname "$(command -v "$python")")" && pwd)"
 PATH="$python_bin:$PATH"
 export PATH
 

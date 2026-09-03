@@ -96,15 +96,15 @@ reader/writer of exactly the same model, exposed outward through
 
 | File | Job |
 | --- | --- |
-| `src/index.ts` | Defines and exports the two plugins (`jupyterlite-webmcp:review`, `jupyterlite-webmcp:tools`); wires the review store, panel, commands, and markers together, and registers WebMCP tools once `app.started` resolves. |
-| `src/tokens.ts` | The `IReviewStore` Lumino token, so the review store can be `provide`d by one plugin and `require`d by another. |
+| `src/index.ts` | Defines and exports the six plugins (`jupyterlite-webmcp:review`, `:access`, `:activity`, `:panel`, `:output-selection`, `:tools`); wires the single right-sidebar Agent panel, the review/access/"Ask about…" commands, and the cosmetic markers together, and registers WebMCP tools once `app.started` resolves. |
+| `src/tokens.ts` | The `IReviewStore`, `IActivityLog` and `IOutputSelectionTracker` Lumino tokens, so a store can be `provide`d by one plugin and `require`d by another. |
 | `src/limits.ts` | Centralized numeric bounds (see below) used by every module that serializes notebook data into a tool result. |
 | `src/jupyter/workspace.ts` | `IJupyterEnv` (the app/docManager/tracker/fileBrowser bundle every operation takes), workspace listing, current directory, and open-document paths. |
 | `src/jupyter/paths.ts` | Validates and normalizes workspace-relative paths; rejects absolute paths, `..` traversal, backslashes, and control characters. |
 | `src/jupyter/notebook.ts` | Resolves a notebook panel from an optional path (reusing an already-open panel so reads are always live, never stale disk bytes); notebook/kernel summaries; create and save notebook. |
 | `src/jupyter/cells.ts` | Reads bounded cell snapshots; insert/update/delete cell, each guarded by `sourceHash` where mutation risks discarding an edit. |
 | `src/jupyter/execution.ts` | Runs existing cells on the shared kernel (never an arbitrary source string); interrupt/restart kernel actions. |
-| `src/jupyter/focus.ts` | Reads the human's active cell/selection/cursor; reveals and focuses a cell, optionally setting an exact selection, using the notebook's native windowed-scroll and editor APIs. |
+| `src/jupyter/focus.ts` | Reads the human's active cell/selection/cursor — withholding id, index and selected text of cells hidden from the agent by `'none'` access, exactly like the cell reads do; reveals and focuses a cell, optionally setting an exact selection, using the notebook's native windowed-scroll and editor APIs. |
 | `src/jupyter/outputs.ts` | Serializes raw nbformat outputs into bounded, agent-safe JSON: text is ANSI-stripped and byte-bounded, images/binary payloads are represented only by mime type and byte estimate, and a deterministic output fingerprint is computed for change detection. |
 | `src/jupyter/revisions.ts` | `stableHash`, `hashCellSource`, and `computeNotebookRevision` — the deterministic, non-cryptographic hashing this project's concurrency guarantees are built on. |
 | `src/jupyter/errors.ts` | The closed `ErrorCode` union, the `ToolError` exception type, and `normalizeError`, which reduces any thrown value to a plain `{error, message, ...}` object. |
@@ -117,36 +117,57 @@ reader/writer of exactly the same model, exposed outward through
 | `src/review/anchors.ts` | Pure line/column <-> offset conversion and the source-range re-anchoring algorithm (`resolveSourceAnchor`, `makeSourceAnchor`). |
 | `src/review/storage.ts` | `ReviewStore`: reads/writes the review metadata key on the live notebook model, lists/creates/replies/resolves/reopens threads, and computes each thread's current `anchorStatus` against the live notebook. |
 | `src/review/commands.ts` | Front-end commands (`Add Comment`, `Comment on Cell`, `Comment on Output`, `Show Review Panel`) and their context-menu entries, used by a human without any agent involved. |
-| `src/review/panel.tsx` | The right-sidebar React `ReviewPanel`: lists threads for the current notebook with filters (Open/Resolved/All/Current cell), reply/resolve/reopen controls, and click-to-navigate. |
+| `src/review/panel.tsx` | The Comments section of the Agent panel (`CommentsSection`/`CommentsFilter`, rendered by `src/ui/panel.tsx`): lists threads for the current notebook with filters (Open/Resolved/All/Current cell), reply/resolve/reopen controls, and click-to-navigate. |
 | `src/review/markers.ts` | Purely cosmetic: toggles a CSS class and `data-webmcp-threads`/`data-webmcp-open-threads` attributes on cell DOM nodes that have comment threads, debounced, so the notebook shows where the comments are without opening the panel. |
 | `src/ui/status.ts` | `WebMCPStatus`: an optional status-bar item showing availability and tool count, with a click-to-open diagnostics popover (registered tools, recent invocations). |
+| `src/ui/panel.tsx` | `WebMcpPanel`: the single right-sidebar Agent panel, one React widget tabbing between the Activity, Comments and Access sections — what used to be separate Review and Activity panels plus the missing complete access UI, consolidated behind one small tab bar. |
+| `src/activity/panel.tsx` | The Agent panel's Activity section (`ActivitySection`): who is present (human and agent) and a bounded timeline of what each has just done. |
+| `src/access/overview.ts` | `AccessOverview`: a presentation-only, debounced watcher that derives the per-cell access rows (id, index, type, label, effective access, last provenance entry) for the Access section. |
+| `src/access/panel.tsx` | The Agent panel's Access section (`AccessSection`): the complete per-cell access list, each row click-to-reveal and click-to-cycle — every write still going through `setCellAccess`, the same choke point the context-menu shortcut uses. |
 | `src/access/model.ts` | Pure data model for per-cell agent access control and provenance: `CellAccess`/`IHistoryEntry` types, `normalizeCellMetadata` (defensive deserialization, mirroring `review/model.ts`), and `appendHistory`'s bounding/coalescing rule. |
 | `src/access/guard.ts` | `assertCellAccessible`: the single centralized access-control checkpoint every id-addressed cell path runs a cell's access through; `cellAccess`/`setCellAccess`/`recordCellHistory` (read/write the `jupyterlite_webmcp` cell metadata key, undo-exempt); `withAgentAttribution`/`isAgentAttributed` (the scope marker the human-edit listener checks). |
 | `src/access/provenance.ts` | `ProvenanceTracker`: a debounced model listener that attributes a cell's source edits to the human, deferring to whatever an agent tool call already recorded when one is in flight. |
 | `src/access/commands.ts` | `jupyterlite-webmcp:cycle-cell-access`, the only way a cell's access ever changes, plus its cell context-menu entry — a human control with no WebMCP dependency. |
 | `src/access/markers.ts` | Purely cosmetic: toggles a CSS class and a native tooltip (access state, plus provenance when known) on cell DOM nodes whose agent access is restricted. |
 
-## The two plugins
+## The plugins
 
 ```ts
 jupyterlite-webmcp:review
   requires: [INotebookTracker]
-  optional: [ILayoutRestorer]
   provides: IReviewStore
+
+jupyterlite-webmcp:access
+  requires: [INotebookTracker]
+
+jupyterlite-webmcp:activity
+  provides: IActivityLog
+
+jupyterlite-webmcp:panel
+  requires: [INotebookTracker, IReviewStore, IActivityLog]
+  optional: [ILayoutRestorer]
+
+jupyterlite-webmcp:output-selection
+  requires: [INotebookTracker]
+  provides: IOutputSelectionTracker
 
 jupyterlite-webmcp:tools
   requires: [INotebookTracker, IDocumentManager, IReviewStore]
-  optional: [IDefaultFileBrowser, IStatusBar]
+  optional: [IDefaultFileBrowser, IStatusBar, IActivityLog, IOutputSelectionTracker]
 ```
 
 Review is its own plugin, independent of WebMCP, because it is a normal
 notebook feature in its own right: a human creates, replies to, resolves,
-reopens, and navigates comments from the Review panel with no browser agent
-involved at all, and that must keep working in a browser with no
-`document.modelContext`. Structuring it this way also means the tools
+reopens, and navigates comments from the Agent panel's Comments tab with no
+browser agent involved at all, and that must keep working in a browser with
+no `document.modelContext`. Structuring it this way also means the tools
 plugin doesn't need to know anything about comment storage — it just
 `require`s the `IReviewStore` token the review plugin provides and calls its
-public methods, the same way the Review panel does.
+public methods, the same way the panel does. Access, activity and
+output-selection follow the same split: plain notebook functionality in
+their own plugins, with only the tools plugin touching
+`document.modelContext`, and the panel plugin owning the one consolidated
+Agent panel that surfaces all three.
 
 ## Concurrency: hashing and the read-hash-write protocol
 
@@ -199,7 +220,7 @@ not a cell currently has an on-screen widget.
 The one deliberate exception is `src/review/markers.ts`: it toggles a CSS
 class (`jp-webmcp-hasComments`) and two `data-*` attributes on cell DOM
 nodes purely so a human can visually see which cells have comments without
-opening the Review panel. This is cosmetic presentation layered on top of
+opening the Agent panel's Comments tab. This is cosmetic presentation layered on top of
 state that is already authoritative elsewhere (`ReviewStore`); nothing reads
 these DOM attributes back as a source of truth.
 

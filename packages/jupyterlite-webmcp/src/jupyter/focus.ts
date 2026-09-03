@@ -2,7 +2,7 @@ import { Cell } from '@jupyterlab/cells';
 import { CodeEditor } from '@jupyterlab/codeeditor';
 import { NotebookPanel } from '@jupyterlab/notebook';
 
-import { resolveCellIndex } from '../access/guard';
+import { resolveCellIndex, cellAccess, IMetadataCell } from '../access/guard';
 import { LIMITS } from '../limits';
 import { toolError } from './errors';
 import {
@@ -42,8 +42,12 @@ export interface IFocusContext {
   activeCellIndex: number | null;
   /** Type of the active cell, or `null`. */
   activeCellType: string | null;
-  /** Ids of every selected cell (includes the active cell). */
+  /** Ids of every selected cell visible to the agent (includes the active cell when visible). */
   selectedCellIds: string[];
+  /** How many selected cells are hidden from the agent by `'none'` access. */
+  hiddenSelectedCellCount: number;
+  /** Whether the active cell itself is hidden from the agent by `'none'` access. */
+  hiddenActiveCell: boolean;
   /** Cursor position inside the active cell editor. */
   cursor: IPosition | null;
   /** Non-empty source selection inside the active cell editor. */
@@ -136,24 +140,45 @@ function readTextSelection(
   return result;
 }
 
-/** Read the human's current focus inside a notebook panel. */
+/**
+ * Read the human's current focus inside a notebook panel.
+ *
+ * A cell the notebook owner restricted to `'none'` must stay as unknowable
+ * here as in every other agent-facing path: when it is the active cell its
+ * id, index, type, cursor and selection are withheld entirely (only the
+ * honest `hiddenActiveCell` flag remains), and hidden selected cells are
+ * counted, never listed — the same omit-and-report rule `jupyter_get_cells`
+ * applies through `hiddenCellCount`.
+ */
 export function readFocus(panel: NotebookPanel): IFocusContext {
   const notebook = panel.content;
   const activeCell = notebook.activeCell;
+  const activeHidden =
+    !!activeCell &&
+    cellAccess(activeCell.model as unknown as IMetadataCell) === 'none';
   const selectedCellIds: string[] = [];
+  let hiddenSelectedCellCount = 0;
   for (let i = 0; i < notebook.widgets.length; i++) {
     const widget = notebook.widgets[i];
-    if (notebook.isSelectedOrActive(widget)) {
+    if (!notebook.isSelectedOrActive(widget)) {
+      continue;
+    }
+    if (cellAccess(widget.model as unknown as IMetadataCell) === 'none') {
+      hiddenSelectedCellCount++;
+    } else {
       selectedCellIds.push(widget.model.id);
     }
   }
 
-  const editor = activeCell?.editor ?? null;
+  const visibleActiveCell = activeCell && !activeHidden ? activeCell : null;
+  const editor = visibleActiveCell?.editor ?? null;
   return {
-    activeCellId: activeCell ? activeCell.model.id : null,
-    activeCellIndex: activeCell ? notebook.activeCellIndex : null,
-    activeCellType: activeCell ? activeCell.model.type : null,
+    activeCellId: visibleActiveCell ? visibleActiveCell.model.id : null,
+    activeCellIndex: visibleActiveCell ? notebook.activeCellIndex : null,
+    activeCellType: visibleActiveCell ? visibleActiveCell.model.type : null,
     selectedCellIds,
+    hiddenSelectedCellCount,
+    hiddenActiveCell: activeHidden,
     cursor: editor ? editor.getCursorPosition() : null,
     textSelection: editor ? readTextSelection(editor) : null
   };

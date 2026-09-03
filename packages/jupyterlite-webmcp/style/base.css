@@ -10,13 +10,31 @@
   --jp-webmcp-human-color: #0e9384;
 }
 
-.jp-webmcp-ReviewPanel {
+.jp-webmcp-Panel-body {
   padding: 8px;
   overflow: auto;
   font-size: var(--jp-ui-font-size1);
   color: var(--jp-ui-font-color1);
   height: 100%;
   box-sizing: border-box;
+}
+
+/*
+ * The panel's tab bar (Activity / Comments / Access): the same button
+ * language as `.jp-webmcp-filters` below it, so the two rows of controls
+ * read as one consistent pattern rather than two different widgets.
+ */
+.jp-webmcp-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--jp-border-color2);
+}
+
+.jp-webmcp-tab {
+  flex: 1 1 0;
+  text-align: center;
 }
 
 .jp-webmcp-header {
@@ -125,6 +143,88 @@
   border-color: var(--jp-brand-color1);
 }
 
+.jp-webmcp-btn:hover {
+  background: var(--jp-layout-color2);
+}
+
+.jp-webmcp-btn.jp-mod-selected:hover {
+  background: var(--jp-brand-color1);
+  filter: brightness(1.08);
+}
+
+.jp-webmcp-btn:focus-visible,
+.jp-webmcp-thread:focus-visible,
+.jp-webmcp-activity-row:focus-visible,
+.jp-webmcp-accessRow:focus-visible {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: 1px;
+}
+
+/*
+ * The Access section (`src/access/panel.tsx`): every cell of the current
+ * notebook, its effective agent-access level, clickable to jump to the
+ * cell, and a control that cycles it. The left-edge accent mirrors the
+ * per-cell markers in `.jp-webmcp-access-read` / `.jp-webmcp-access-none`
+ * above, so the panel and the notebook agree on what "restricted" looks
+ * like.
+ */
+.jp-webmcp-accessList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jp-webmcp-accessRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 3px;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+
+.jp-webmcp-accessRow:hover {
+  background: var(--jp-layout-color2);
+}
+
+.jp-webmcp-accessRow-read {
+  border-left-color: var(--jp-warn-color1);
+}
+
+.jp-webmcp-accessRow-none {
+  border-left-color: var(--jp-error-color1);
+  opacity: 0.85;
+}
+
+.jp-webmcp-accessIndex {
+  flex: 0 0 auto;
+  font-size: var(--jp-ui-font-size0, 11px);
+  color: var(--jp-ui-font-color2);
+  min-width: 1.5em;
+}
+
+.jp-webmcp-accessLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--jp-code-font-family);
+  font-size: var(--jp-ui-font-size0, 11px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-webmcp-accessHistory {
+  flex: 0 0 auto;
+  font-size: var(--jp-ui-font-size0, 11px);
+  color: var(--jp-ui-font-color2);
+  white-space: nowrap;
+}
+
+.jp-webmcp-accessToggle {
+  flex: 0 0 auto;
+}
+
 .jp-webmcp-StatusItem {
   cursor: pointer;
   font-size: var(--jp-ui-font-size1);
@@ -176,15 +276,6 @@
   outline: 2px solid var(--jp-brand-color1);
   outline-offset: 2px;
   transition: outline-color 0.2s ease-in-out;
-}
-
-.jp-webmcp-ActivityPanel {
-  padding: 8px;
-  overflow: auto;
-  font-size: var(--jp-ui-font-size1);
-  color: var(--jp-ui-font-color1);
-  height: 100%;
-  box-sizing: border-box;
 }
 
 .jp-webmcp-participants {

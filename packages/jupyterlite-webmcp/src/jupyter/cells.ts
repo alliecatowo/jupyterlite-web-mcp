@@ -564,10 +564,15 @@ export async function deleteCell(
 
   model.sharedModel.deleteCell(index);
   const activeCell = panel.content.activeCell;
+  // The post-delete active cell may be one the owner hid from the agent,
+  // so its id is withheld exactly like `readFocus` withholds it.
+  const activeCellVisible =
+    !!activeCell &&
+    cellAccess(activeCell.model as unknown as IMetadataCell) !== 'none';
   return {
     notebook: notebookInfo(panel),
     deletedCellId: params.cellId,
-    activeCellId: activeCell ? activeCell.model.id : null
+    activeCellId: activeCellVisible ? activeCell!.model.id : null
   };
 }
 

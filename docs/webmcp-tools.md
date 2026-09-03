@@ -123,8 +123,10 @@ cell's access through one function, `assertCellAccessible`
 (`src/access/guard.ts`): a `"none"` cell always yields `CELL_NOT_FOUND`
 (indistinguishable from a bad id, so the restriction cannot be probed for),
 and a `"read"` cell yields `CELL_ACCESS_DENIED` only when the call needed
-write access. A non-explicit read (a `jupyter_get_cells` range, or the cell
-content `jupyter_get_comment` surfaces) instead silently omits a `"none"`
+write access. A non-explicit read (a `jupyter_get_cells` range, the cell
+content `jupyter_get_comment` surfaces, or the focus state
+`jupyter_get_context`/`jupyter_open_notebook`/`jupyter_focus_cell` report)
+instead silently omits a `"none"`
 cell and reports how many were omitted in `hiddenCellCount` — never a
 silent gap the agent has no way to notice.
 
@@ -177,9 +179,14 @@ metadata behaves exactly as it did before this feature existed.
   `IKernelInfo`: `{ name: string | null, displayName?, status }`
   (`status` one of `idle`/`busy`/`starting`/`dead`/`unavailable`/`unknown`).
   `IFocusContext`: `{ activeCellId, activeCellIndex, activeCellType,
-  selectedCellIds, cursor: {line, column} | null, textSelection: {start,
-  end, text, truncated?} | null }`. `textSelection` is `null` when the
-  selection is empty (start === end).
+  selectedCellIds, hiddenSelectedCellCount, hiddenActiveCell, cursor:
+  {line, column} | null, textSelection: {start, end, text, truncated?} |
+  null }`. `textSelection` is `null` when the
+  selection is empty (start === end). Cells the owner restricted to
+  `"none"`-access never appear by id: a hidden active cell yields `null`
+  id/index/type/cursor/`textSelection` with `hiddenActiveCell: true`, and
+  hidden selected cells are counted in `hiddenSelectedCellCount` instead of
+  listed — the same "never a silent gap" rule as `hiddenCellCount`.
 - **Bounds:** `textSelection.text` bounded to `MAX_SELECTED_TEXT_BYTES` (4 KiB).
 - **Errors:** none thrown; every field degrades to `null` when there is no
   current notebook.
@@ -424,6 +431,8 @@ metadata behaves exactly as it did before this feature existed.
   ```ts
   { notebook: INotebookInfo; deletedCellId: string; activeCellId: string | null }
   ```
+  `activeCellId` is also `null` when the cell that became active after the
+  delete is `"none"`-access.
 - **Bounds:** none.
 - **Errors:** `INVALID_ARGUMENT` if `expectedSourceHash` is missing;
   `CELL_NOT_FOUND` (also thrown for a `"none"`-access cell);

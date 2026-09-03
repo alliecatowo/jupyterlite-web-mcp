@@ -46,7 +46,7 @@ test.describe.serial('review comments', () => {
     await page.waitForSelector('.jp-Dialog', { state: 'detached' });
 
     await page.evaluate(() => (window as any).jupyterapp.commands.execute('jupyterlite-webmcp:open-review'));
-    const panel = page.locator('.jp-webmcp-ReviewPanel');
+    const panel = page.locator('.jp-webmcp-Comments');
     await expect(panel).toBeVisible();
     await expect(panel).toContainText('This section needs a caption.');
   });
@@ -313,7 +313,7 @@ test.describe.serial('review comments', () => {
     await page.evaluate(() =>
       (window as any).jupyterapp.commands.execute('jupyterlite-webmcp:open-review')
     );
-    const panel = page.locator('.jp-webmcp-ReviewPanel');
+    const panel = page.locator('.jp-webmcp-Comments');
     await expect(panel).toBeVisible();
     const threadCard = panel.locator('.jp-webmcp-thread', { hasText: uniqueMessage });
     await expect(threadCard).toBeVisible();

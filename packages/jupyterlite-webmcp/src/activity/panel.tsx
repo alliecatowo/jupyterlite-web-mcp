@@ -1,23 +1,15 @@
 /**
- * The right-sidebar activity panel: shows who is present (the human and the
- * browser agent) and a timeline of what each has just done, in the same
- * spirit as the presence UI of a collaborative editor.
+ * The Agent panel's Activity section: shows who is present (the human and
+ * the browser agent) and a timeline of what each has just done, in the same
+ * spirit as the presence UI of a collaborative editor. A stateless renderer
+ * (`ActivitySection`) rather than its own widget: the containing
+ * `WebMcpPanel` (`src/ui/panel.tsx`) re-renders this alongside the Comments
+ * and Access sections.
  */
-import { JupyterFrontEnd } from '@jupyterlab/application';
 import { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
-import { LabIcon, ReactWidget, UseSignal } from '@jupyterlab/ui-components';
 import * as React from 'react';
 
 import { ActivityKind, ActivityLog, IActivityEvent, IParticipant } from './model';
-
-const activityIcon = new LabIcon({
-  name: 'jupyterlite-webmcp:activity',
-  svgstr:
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16">' +
-    '<circle class="jp-icon3" fill="none" stroke="currentColor" stroke-width="2" cx="12" cy="12" r="8"/>' +
-    '<path class="jp-icon3" fill="none" stroke="currentColor" stroke-width="2" d="M12 8v4l3 2"/>' +
-    '</svg>'
-});
 
 /** Short labels for each {@link ActivityKind}, used as timeline chips. */
 const KIND_LABELS: Record<ActivityKind, string> = {
@@ -30,10 +22,8 @@ const KIND_LABELS: Record<ActivityKind, string> = {
   kernel: 'kernel'
 };
 
-/** Options accepted by the {@link ActivityPanel} constructor. */
-export interface IActivityPanelOptions {
-  /** The application (kept for parity with other widgets; not used directly). */
-  app: JupyterFrontEnd;
+/** Options accepted by {@link ActivitySection}. */
+export interface IActivitySectionProps {
   /** Tracks the current notebook. */
   tracker: INotebookTracker;
   /** Where activity events are read from. */
@@ -61,116 +51,91 @@ function relativeTime(at: string): string {
   return `${hours}h ago`;
 }
 
+function renderParticipant(participant: IParticipant, events: readonly IActivityEvent[]): JSX.Element {
+  const latest = events.find(event => event.participantId === participant.id);
+  return (
+    <div key={participant.id} className="jp-webmcp-participant">
+      <span className="jp-webmcp-swatch" style={{ backgroundColor: participant.color }} />
+      <div className="jp-webmcp-participant-info">
+        <div className="jp-webmcp-participant-name">{participant.name}</div>
+        {participant.kind === 'agent' ? (
+          <div className="jp-webmcp-participant-status">
+            {latest ? `${latest.summary} · ${relativeTime(latest.at)}` : 'No activity yet.'}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function reveal(tracker: INotebookTracker, event: IActivityEvent): void {
+  const panel = tracker.currentWidget;
+  if (!panel || panel.isDisposed) {
+    return;
+  }
+  const cellId = event.cellIds[0];
+  if (!cellId) {
+    return;
+  }
+  const notebook = (panel as NotebookPanel).content;
+  const widgets = notebook.widgets;
+  for (let i = 0; i < widgets.length; i++) {
+    if (widgets[i].model.id === cellId) {
+      notebook.activeCellIndex = i;
+      void notebook.scrollToItem(i, 'center').catch(() => undefined);
+      return;
+    }
+  }
+}
+
+function renderEvent(tracker: INotebookTracker, event: IActivityEvent): JSX.Element {
+  const navigate = (): void => {
+    try {
+      reveal(tracker, event);
+    } catch (err) {
+      console.warn('[jupyterlite-webmcp]', err);
+    }
+  };
+  return (
+    <div
+      key={event.id}
+      className={'jp-webmcp-activity-row' + (event.ok ? '' : ' jp-webmcp-activity-failed')}
+      role="button"
+      tabIndex={0}
+      onClick={navigate}
+      onKeyDown={keyEvent => {
+        if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
+          keyEvent.preventDefault();
+          navigate();
+        }
+      }}
+    >
+      <span className="jp-webmcp-activity-time">{relativeTime(event.at)}</span>
+      <span className={`jp-webmcp-activity-chip jp-webmcp-activity-chip-${event.kind}`}>
+        {KIND_LABELS[event.kind] ?? event.kind}
+      </span>
+      <span className="jp-webmcp-activity-summary">{event.summary}</span>
+    </div>
+  );
+}
+
 /**
- * A `ReactWidget` shown in the right sidebar, listing the current
- * participants and a timeline of recent tool activity for the notebook that
- * is currently active.
+ * Renders the Activity section body: participants, then either the
+ * timeline or an empty-state message.
  */
-export class ActivityPanel extends ReactWidget {
-  constructor(options: IActivityPanelOptions) {
-    super();
-    this._tracker = options.tracker;
-    this._log = options.log;
-    this.id = 'jupyterlite-webmcp-activity';
-    this.addClass('jp-webmcp-ActivityPanel');
-    this.title.caption = 'Activity';
-    this.title.label = '';
-    this.title.icon = activityIcon;
-  }
-
-  render(): JSX.Element {
-    return <UseSignal signal={this._log.changed}>{() => this._renderBody()}</UseSignal>;
-  }
-
-  private _renderBody(): JSX.Element {
-    const events = this._log.events;
-    return (
-      <div>
-        <div className="jp-webmcp-header">
-          <span>Activity</span>
-        </div>
-        <div className="jp-webmcp-participants">
-          {this._log.participants.map(participant => this._renderParticipant(participant, events))}
-        </div>
-        {events.length === 0 ? (
-          <div className="jp-webmcp-empty">
-            Nothing yet. Tool calls from a connected agent show up here.
-          </div>
-        ) : (
-          <div className="jp-webmcp-timeline">
-            {events.map(event => this._renderEvent(event))}
-          </div>
-        )}
+export function ActivitySection(props: IActivitySectionProps): JSX.Element {
+  const { tracker, log } = props;
+  const events = log.events;
+  return (
+    <div className="jp-webmcp-Activity">
+      <div className="jp-webmcp-participants">
+        {log.participants.map(participant => renderParticipant(participant, events))}
       </div>
-    );
-  }
-
-  private _renderParticipant(
-    participant: IParticipant,
-    events: readonly IActivityEvent[]
-  ): JSX.Element {
-    const latest = events.find(event => event.participantId === participant.id);
-    return (
-      <div key={participant.id} className="jp-webmcp-participant">
-        <span
-          className="jp-webmcp-swatch"
-          style={{ backgroundColor: participant.color }}
-        />
-        <div className="jp-webmcp-participant-info">
-          <div className="jp-webmcp-participant-name">{participant.name}</div>
-          {participant.kind === 'agent' ? (
-            <div className="jp-webmcp-participant-status">
-              {latest ? `${latest.summary} · ${relativeTime(latest.at)}` : 'No activity yet.'}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  private _renderEvent(event: IActivityEvent): JSX.Element {
-    const navigate = (): void => {
-      try {
-        this._reveal(event);
-      } catch (err) {
-        console.warn('[jupyterlite-webmcp]', err);
-      }
-    };
-    return (
-      <div
-        key={event.id}
-        className={'jp-webmcp-activity-row' + (event.ok ? '' : ' jp-webmcp-activity-failed')}
-        onClick={navigate}
-      >
-        <span className="jp-webmcp-activity-time">{relativeTime(event.at)}</span>
-        <span className={`jp-webmcp-activity-chip jp-webmcp-activity-chip-${event.kind}`}>
-          {KIND_LABELS[event.kind] ?? event.kind}
-        </span>
-        <span className="jp-webmcp-activity-summary">{event.summary}</span>
-      </div>
-    );
-  }
-
-  private _reveal(event: IActivityEvent): void {
-    const panel = this._tracker.currentWidget;
-    if (!panel || panel.isDisposed) {
-      return;
-    }
-    const cellId = event.cellIds[0];
-    if (!cellId) {
-      return;
-    }
-    const notebook = (panel as NotebookPanel).content;
-    const widgets = notebook.widgets;
-    for (let i = 0; i < widgets.length; i++) {
-      if (widgets[i].model.id === cellId) {
-        notebook.activeCellIndex = i;
-        void notebook.scrollToItem(i, 'center').catch(() => undefined);
-        return;
-      }
-    }
-  }
-
-  private _tracker: INotebookTracker;
-  private _log: ActivityLog;
+      {events.length === 0 ? (
+        <div className="jp-webmcp-empty">Nothing yet. Tool calls from a connected agent show up here.</div>
+      ) : (
+        <div className="jp-webmcp-timeline">{events.map(event => renderEvent(tracker, event))}</div>
+      )}
+    </div>
+  );
 }
