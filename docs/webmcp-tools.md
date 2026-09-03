@@ -62,6 +62,7 @@ no stack trace is ever included.
 | `COMMENT_NOT_FOUND` | No review thread with the given `threadId` exists in the resolved notebook. |
 | `COMMENT_ANCHOR_STALE` | A comment anchor could not be validated: the selected text is no longer present in the cell, the output index doesn't exist, or (for source-range creation via `anchor.text`) the given text was not found in the cell source. |
 | `CELL_ACCESS_DENIED` | The notebook owner restricted a `"read"` cell and the call needed write access (editing, deleting, or running it, or commenting on it). Carries `cellId` and the effective `access` in its details. Never thrown for a `"none"` cell — that yields `CELL_NOT_FOUND` instead, so the restriction can't be probed for. |
+| `NOTEBOOK_ACCESS_DENIED` | The notebook owner restricted the whole notebook to `"read"` and the call needed write access (editing, deleting, inserting, or running cells, saving, kernel actions, or creating/replying/resolving/reopening comments). Carries `path` and the effective `access` in its details. Never thrown for a `"none"` notebook — that yields `NOTEBOOK_NOT_FOUND` instead, so the restriction can't be probed for. |
 | `INTERNAL_ERROR` | Any unexpected failure, normalized with a truncated message and no stack trace. |
 
 ### Why there is no `KERNEL_BUSY`
@@ -150,6 +151,43 @@ command, the cell markers, and the provenance listener never touch
 `document.modelContext` — and a notebook with no `jupyterlite_webmcp` cell
 metadata behaves exactly as it did before this feature existed.
 
+### Notebook-level agent access control
+
+Every notebook carries the same three-state policy one level up, under the
+same `jupyterlite_webmcp` metadata key, this time on the *notebook's* own
+metadata (`src/access/notebook.ts`), so it travels with the `.ipynb` file
+exactly like cell access and review threads do:
+
+- `write` (the default): normal per-cell rules apply.
+- `read`: the agent may list, open, and read the notebook, but every tool
+  that would mutate it is refused with `NOTEBOOK_ACCESS_DENIED` — inserting,
+  editing, deleting, or running cells, saving, kernel actions, and
+  creating/replying/resolving/reopening review comments. Navigating
+  (`jupyter_open_notebook`, `jupyter_focus_cell`, `jupyter_focus_comment`)
+  and all read tools keep working.
+- `none`: the notebook is hidden from the agent entirely. It is omitted from
+  `jupyter_list_workspace` (silently — not even a count, so a hidden file is
+  indistinguishable from a file that does not exist) and from
+  `jupyter_get_context`'s `openDocuments`; resolving it by path throws
+  exactly the `NOTEBOOK_NOT_FOUND` a nonexistent path would (same code, same
+  message, same details); a hidden current notebook reads exactly like no
+  notebook being open at all (`NO_ACTIVE_NOTEBOOK`).
+
+Enforcement lives in one place, `resolveNotebook` (`src/jupyter/notebook.ts`
+takes an `intent: 'read' | 'write'` option, defaulting to `'read'`), plus the
+two paths that never resolve a notebook: `listWorkspace` filters hidden files
+before returning, and `getContext` filters them out of the workspace
+summary. Like cell access, notebook access is set entirely by the human —
+from the file-browser context menu on notebooks
+(`jupyterlite-webmcp:cycle-notebook-access`, which cycles
+`write -> read -> none -> write` and writes through the live model when the
+notebook is open, straight to the file when it is not) or from the Agent
+panel's Access tab (a per-notebook read/write/hidden dropdown plus an
+"apply to all cells" bulk toggle) — and no WebMCP tool can read or change
+it. There are no consent prompts anywhere: the owner declares what exists
+for the agent; the WebMCP client owns any allow-once/allow-always UX (see
+the decision note in `docs/agent-collaboration-roadmap.md`).
+
 ---
 
 ## Context & navigation
@@ -189,7 +227,10 @@ metadata behaves exactly as it did before this feature existed.
   listed — the same "never a silent gap" rule as `hiddenCellCount`.
 - **Bounds:** `textSelection.text` bounded to `MAX_SELECTED_TEXT_BYTES` (4 KiB).
 - **Errors:** none thrown; every field degrades to `null` when there is no
-  current notebook.
+  current notebook — including when the current notebook is hidden from the
+  agent (`notebookAccess: "none"`), which reads exactly like no notebook
+  being open, with hidden documents filtered out of `openDocuments` (see
+  "Notebook-level agent access control" above).
 - **Concurrency:** always reads the live model; reflects unsaved edits and
   the human's current selection at call time.
 
@@ -220,6 +261,10 @@ metadata behaves exactly as it did before this feature existed.
   `INVALID_PATH` if the root path is a file, not a directory (a
   non-existent recursive subdirectory is silently skipped rather than
   erroring, since it may have been deleted mid-walk).
+- **Notebook visibility:** notebooks the owner hid (`notebookAccess:
+  "none"`) are omitted silently — never listed, never counted — so they are
+  indistinguishable from files that do not exist (see "Notebook-level agent
+  access control" above).
 - **Concurrency:** none needed; read-only.
 
 ### `jupyter_open_notebook`
@@ -245,9 +290,10 @@ metadata behaves exactly as it did before this feature existed.
   }
   ```
 - **Bounds:** none beyond the notebook/kernel/review summary shapes above.
-- **Errors:** `NOTEBOOK_NOT_FOUND` if no file exists at `path` or it is not
-  a notebook; `CELL_NOT_FOUND` if `cellId` is given but doesn't exist once
-  opened.
+- **Errors:** `NOTEBOOK_NOT_FOUND` if no file exists at `path`, if it is not
+  a notebook — or if the notebook is hidden from the agent, which is
+  deliberately indistinguishable from the missing-file case;
+  `CELL_NOT_FOUND` if `cellId` is given but doesn't exist once opened.
 - **Concurrency:** if the notebook is already open, the existing panel (and
   its unsaved edits) is reused rather than the file being re-opened from disk.
 

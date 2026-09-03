@@ -8,8 +8,8 @@ Python kernel all run in your browser tab.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Test](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml)
-![318 unit tests](https://img.shields.io/badge/unit%20tests-318%20passing-brightgreen)
-![42 browser tests](https://img.shields.io/badge/browser%20tests-42%20passing-brightgreen)
+![318 unit tests](https://img.shields.io/badge/unit%20tests-339%20passing-brightgreen)
+![42 browser tests](https://img.shields.io/badge/browser%20tests-46%20passing-brightgreen)
 ![JupyterLab 4.6](https://img.shields.io/badge/JupyterLab-4.6-orange)
 ![Works in JupyterLab · Notebook 7 · JupyterLite](https://img.shields.io/badge/runs%20in-JupyterLab%20%C2%B7%20Notebook%207%20%C2%B7%20JupyterLite-informational)
 ![WebMCP](https://img.shields.io/badge/WebMCP-document.modelContext-purple)
@@ -202,10 +202,10 @@ so the extension is picked up automatically.
 <summary><strong>Testing</strong></summary>
 
 ```bash
-cd packages/jupyterlite-webmcp && npm test        # 318 unit tests (jest)
+cd packages/jupyterlite-webmcp && npm test        # 339 unit tests (jest)
 cd packages/jupyterlite-webmcp && npm run lint:check
 cd packages/jupyterlite-webmcp && npm run typecheck
-cd ui-tests && npm install && npx playwright test  # 42 browser tests
+cd ui-tests && npm install && npx playwright test  # 46 browser tests
 ```
 
 To drive the tools by hand in a real browser — useful because no browser
@@ -223,6 +223,22 @@ is never part of the extension, and is never injected into the deployed site.
 `.github/workflows/test.yml` runs lint, typecheck, unit tests, an extension
 build, a JupyterLite site build, and the full Playwright suite on every push
 and pull request — all green.
+
+</details>
+
+<details>
+<summary><strong>Access control</strong></summary>
+
+The notebook owner decides what a connected agent may touch, per cell and
+per notebook — `write` (default), `read` (may read but not change), or
+`none` (hidden: invisible to list/open/read tools, indistinguishable from a
+file or cell that does not exist). Cell access is set from the cell
+context menu; notebook access from the file-browser context menu on
+notebooks or the Agent panel's Access tab (read/write/hidden dropdown plus
+an apply-to-all-cells bulk toggle). Both are human-only: no WebMCP tool can
+read or change them, and there are no consent prompts anywhere — owner-side
+lockdown is the page's job; allow-once/allow-always UX belongs to the
+WebMCP client.
 
 </details>
 

@@ -610,7 +610,8 @@ export function buildTools(
       handler: async input => {
         const panel = await resolveNotebook(
           env,
-          optionalString(input, 'notebookPath')
+          optionalString(input, 'notebookPath'),
+          { intent: 'write' }
         );
         const rawAnchor = (input.anchor ?? {}) as Input;
         const kind = requiredEnum(rawAnchor, 'kind', ANCHOR_KINDS) as AnchorKind;
@@ -691,7 +692,8 @@ export function buildTools(
       handler: async input => {
         const panel = await resolveNotebook(
           env,
-          optionalString(input, 'notebookPath')
+          optionalString(input, 'notebookPath'),
+          { intent: 'write' }
         );
         const thread = review.reply(
           panel,
@@ -713,7 +715,8 @@ export function buildTools(
       handler: async input => {
         const panel = await resolveNotebook(
           env,
-          optionalString(input, 'notebookPath')
+          optionalString(input, 'notebookPath'),
+          { intent: 'write' }
         );
         const thread = review.setStatus(
           panel,
@@ -735,7 +738,8 @@ export function buildTools(
       handler: async input => {
         const panel = await resolveNotebook(
           env,
-          optionalString(input, 'notebookPath')
+          optionalString(input, 'notebookPath'),
+          { intent: 'write' }
         );
         const thread = review.setStatus(
           panel,

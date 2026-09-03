@@ -53,6 +53,24 @@ extension, and the deployed demo is JupyterLite: there is no server, so there is
 no real-time collaboration there at all. Everything above requires a real
 Jupyter Server.
 
+**Turning it on for the hosted demo was investigated and deliberately not
+shipped (2026-09-03).** In JupyterLite, server-style collaboration would have
+to come through a WebRTC document provider. The only existing one,
+`jupyterlite/jupyterlab-webrtc-docprovider`, is unmaintained (JupyterLab 3
+era, ~29 commits) and explicitly reported by JupyterLite core as not working
+with current versions; JupyterLite itself removed its RTC flags and documents
+"no official support for Real Time Collaboration" for every 0.2+ release,
+pointing only at the experimental `jupyter-shared-drive` prototype. On top of
+that, WebRTC still needs a signaling server — which static Vercel hosting
+cannot provide — and the provider's default public signaling endpoints are
+dead or unsuitable for a real deployment by their own documentation's
+admission. So the honest options were an incompatible dependency, a research
+prototype, or hand-rolled Yjs glue plus a signaling backend we do not have:
+all of them half-broken or fake on this stack. Per the project's rule — never
+ship half-broken or fake — the demo stays honestly single-user, and what it
+would take (a maintained Lite-compatible provider plus a real signaling
+endpoint) is stated here instead of implied.
+
 **The agent is not in the presence layer.** Shared cursors and the participant
 list are carried on Yjs *awareness*, a separate channel from the document. This
 extension writes to the document only, so other people see the agent's edits

@@ -404,7 +404,7 @@ export async function insertCell(
     activate?: boolean;
   }
 ): Promise<{ notebook: INotebookInfo; cell: ICellSnapshot }> {
-  const panel = await resolveNotebook(env, params.notebookPath);
+  const panel = await resolveNotebook(env, params.notebookPath, { intent: 'write' });
   const model = panel.context.model;
   const notebook = panel.content;
   const cellType = params.cellType ?? 'code';
@@ -490,7 +490,7 @@ export async function updateCell(
       'expectedSourceHash is required so a concurrent human edit cannot be overwritten.'
     );
   }
-  const panel = await resolveNotebook(env, params.notebookPath);
+  const panel = await resolveNotebook(env, params.notebookPath, { intent: 'write' });
   const model = panel.context.model;
   const index = requireCellIndex(panel, params.cellId);
   const cell = model.cells.get(index);
@@ -541,7 +541,7 @@ export async function deleteCell(
       'expectedSourceHash is required so a concurrent human edit cannot be discarded.'
     );
   }
-  const panel = await resolveNotebook(env, params.notebookPath);
+  const panel = await resolveNotebook(env, params.notebookPath, { intent: 'write' });
   const model = panel.context.model;
   const index = requireCellIndex(panel, params.cellId);
   const cell = model.cells.get(index);

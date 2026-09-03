@@ -225,6 +225,50 @@
   flex: 0 0 auto;
 }
 
+/*
+ * The notebook-level control at the top of the same Access section: the
+ * current notebook's own agent-access level plus the apply-to-all-cells
+ * bulk toggle, in the same row language as the per-cell list beneath it.
+ */
+.jp-webmcp-notebookAccess {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--jp-border-color2);
+}
+
+.jp-webmcp-notebookAccess-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jp-webmcp-notebookAccess-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--jp-code-font-family);
+  font-size: var(--jp-ui-font-size0, 11px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-webmcp-notebookAccess-select {
+  flex: 0 0 auto;
+  font-size: var(--jp-ui-font-size0, 11px);
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+.jp-webmcp-notebookAccess-apply {
+  align-self: flex-start;
+}
+
 .jp-webmcp-StatusItem {
   cursor: pointer;
   font-size: var(--jp-ui-font-size1);

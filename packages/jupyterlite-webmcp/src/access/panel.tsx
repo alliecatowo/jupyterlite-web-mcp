@@ -12,6 +12,13 @@ import * as React from 'react';
 import { revealCell } from '../jupyter/focus';
 import { IMetadataCell, setCellAccess } from './guard';
 import { accessLabel, accessShortLabel, nextAccess } from './model';
+import {
+  notebookAccessLabel,
+  notebookAccessOfPanel,
+  notebookAccessShortLabel,
+  NotebookAccess,
+  setNotebookAccess
+} from './notebook';
 import { AccessOverview, IAccessRow } from './overview';
 
 /** Options accepted by {@link AccessSection}. */
@@ -69,19 +76,77 @@ function renderRow(panel: NotebookPanel, row: IAccessRow): JSX.Element {
 }
 
 /**
- * Renders the Access section body: every cell of the current notebook with
- * its effective access level, clickable to jump to the cell, plus a control
- * that cycles it (write -> read -> none -> write), or an empty-state
- * message when there is no notebook open or it has no cells.
+ * Renders the Access section body: the current notebook's own agent-access
+ * level (plus a bulk control applying it to every cell), then every cell of
+ * the notebook with its effective access level, clickable to jump to the
+ * cell, plus a control that cycles it (write -> read -> none -> write).
+ * Every write still goes through the `src/access/*` choke points
+ * (`setNotebookAccess`/`setCellAccess`) — the same ones the context-menu
+ * shortcuts use — so enforcement is untouched.
  */
 export function AccessSection(props: IAccessSectionProps): JSX.Element {
+  const bump = React.useReducer((version: number) => version + 1, 0)[1];
   const panel = props.tracker.currentWidget;
   if (!panel) {
     return <div className="jp-webmcp-empty">No notebook open.</div>;
   }
+  const access = notebookAccessOfPanel(panel);
+  const name = panel.context.path.split('/').pop() || panel.context.path;
   const rows = props.overview.rows(panel);
-  if (rows.length === 0) {
-    return <div className="jp-webmcp-empty">This notebook has no cells.</div>;
-  }
-  return <div className="jp-webmcp-accessList">{rows.map(row => renderRow(panel, row))}</div>;
+
+  const setNotebook = (next: NotebookAccess): void => {
+    try {
+      setNotebookAccess(panel, next);
+    } catch (err) {
+      console.warn('[jupyterlite-webmcp]', err);
+    }
+    bump();
+  };
+  const applyToAllCells = (): void => {
+    try {
+      const model = panel.context.model;
+      for (let i = 0; i < model.cells.length; i++) {
+        setCellAccess(model.cells.get(i) as unknown as IMetadataCell, access);
+      }
+    } catch (err) {
+      console.warn('[jupyterlite-webmcp]', err);
+    }
+    bump();
+  };
+
+  return (
+    <div>
+      <div className="jp-webmcp-notebookAccess">
+        <div className="jp-webmcp-notebookAccess-row" title={notebookAccessLabel(access)}>
+          <span className="jp-webmcp-notebookAccess-name">{name}</span>
+          <select
+            className="jp-webmcp-notebookAccess-select"
+            aria-label="Agent access for this notebook"
+            value={access}
+            onChange={event => setNotebook(event.target.value as NotebookAccess)}
+          >
+            {(['write', 'read', 'none'] as NotebookAccess[]).map(level => (
+              <option key={level} value={level}>
+                {notebookAccessShortLabel(level)}
+              </option>
+            ))}
+          </select>
+        </div>
+        {rows.length > 0 ? (
+          <button
+            className="jp-webmcp-btn jp-webmcp-notebookAccess-apply"
+            title={`Set every cell in this notebook to ${notebookAccessShortLabel(access)} for the agent.`}
+            onClick={applyToAllCells}
+          >
+            {`Apply to all ${rows.length} cell${rows.length === 1 ? '' : 's'}`}
+          </button>
+        ) : null}
+      </div>
+      {rows.length === 0 ? (
+        <div className="jp-webmcp-empty">This notebook has no cells.</div>
+      ) : (
+        <div className="jp-webmcp-accessList">{rows.map(row => renderRow(panel, row))}</div>
+      )}
+    </div>
+  );
 }

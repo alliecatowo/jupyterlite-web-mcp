@@ -52,22 +52,28 @@ const reviewPlugin: JupyterFrontEndPlugin<ReviewStore> = {
 };
 
 /**
- * Per-cell agent access control and provenance.
+ * Per-cell and per-notebook agent access control and provenance.
  *
- * Ordinary notebook functionality: the human decides, per cell, what a
- * connected agent may do with it (write/read/none), and every cell keeps a
- * bounded, coalesced trail of who last changed it. Both work exactly the
- * same with no agent connected: the command, the markers, and the human-edit
- * provenance listener never touch `document.modelContext`.
+ * Ordinary notebook functionality: the human decides, per cell and per
+ * notebook, what a connected agent may do with it (write/read/none), and
+ * every cell keeps a bounded, coalesced trail of who last changed it. All
+ * of it works exactly the same with no agent connected: the commands, the
+ * markers, and the human-edit provenance listener never touch
+ * `document.modelContext`.
  */
 const accessPlugin: JupyterFrontEndPlugin<void> = {
   id: 'jupyterlite-webmcp:access',
   description:
-    'Per-cell agent access control (write/read/none) and cell provenance history.',
+    'Per-cell and per-notebook agent access control (write/read/none) and cell provenance history.',
   autoStart: true,
   requires: [INotebookTracker],
-  activate: (app: JupyterFrontEnd, tracker: INotebookTracker): void => {
-    registerAccessCommands({ app, tracker });
+  optional: [IDefaultFileBrowser],
+  activate: (
+    app: JupyterFrontEnd,
+    tracker: INotebookTracker,
+    fileBrowser: IDefaultFileBrowser | null
+  ): void => {
+    registerAccessCommands({ app, tracker, fileBrowser });
 
     const markers = new AccessMarkers(tracker);
     app.shell.disposed.connect(() => markers.dispose());

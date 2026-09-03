@@ -81,7 +81,7 @@ export async function runCells(
   },
   signal?: AbortSignal
 ): Promise<IRunCellsResult> {
-  const panel = await resolveNotebook(env, params.notebookPath);
+  const panel = await resolveNotebook(env, params.notebookPath, { intent: 'write' });
   const model = panel.context.model;
   const stopOnError = params.stopOnError !== false;
 
@@ -403,7 +403,7 @@ export async function kernelAction(
   kernel: ReturnType<typeof kernelInfo>;
   message: string;
 }> {
-  const panel: NotebookPanel = await resolveNotebook(env, params.notebookPath);
+  const panel: NotebookPanel = await resolveNotebook(env, params.notebookPath, { intent: 'write' });
   await panel.sessionContext.ready;
   const kernel = panel.sessionContext.session?.kernel;
 

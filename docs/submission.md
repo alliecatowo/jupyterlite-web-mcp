@@ -69,7 +69,7 @@ credentialless`) — verified `crossOriginIsolated === true` with
 `SharedArrayBuffer` available — so the Pyodide kernel runs on a real
 `SharedArrayBuffer` worker instead of the slower service-worker fallback;
 GitHub Pages cannot set the required headers, which is why the demo is
-hosted on Vercel instead. 218 unit tests (jest) and 37 browser integration
+hosted on Vercel instead. 339 unit tests (jest) and 46 browser integration
 tests (Playwright, against the built static site) run in CI
 (`.github/workflows/test.yml`) alongside ESLint, Prettier, and `tsc`, all
 green. In Chrome 150 with WebMCP enabled, driven through the real
@@ -120,6 +120,21 @@ expression (`jupyter_focus_cell`, `jupyter_focus_comment`), and the human
 can select code by hand and have the agent read exactly that substring
 (`focus.textSelection`) — the two participants point at things the way a
 pair of humans at one keyboard would.
+
+## Owner-side access control
+
+The same boundary test is why access control is publisher-side lockdown,
+not per-call consent: the human owner declares per cell and per notebook
+what the agent may do (`write`/`read`/`none`), from the cell context menu,
+the file-browser context menu, and the Agent panel's Access tab — all
+ordinary notebook surfaces that work with no agent connected, none of them
+changeable by any tool, with hidden cells and notebooks indistinguishable
+from nonexistent ones (`CELL_NOT_FOUND` / `NOTEBOOK_NOT_FOUND`, never a
+leakier code) and read-only violations reported as `CELL_ACCESS_DENIED` /
+`NOTEBOOK_ACCESS_DENIED`. There are no allow-once/allow-always prompts
+anywhere in the extension: that permissioning UX belongs to the WebMCP
+client, never the page (see the decision note in
+`docs/agent-collaboration-roadmap.md`).
 
 ## What this is not
 

@@ -3,6 +3,7 @@ import { CodeEditor } from '@jupyterlab/codeeditor';
 import { NotebookPanel } from '@jupyterlab/notebook';
 
 import { resolveCellIndex, cellAccess, IMetadataCell } from '../access/guard';
+import { notebookAccessOfPanel } from '../access/notebook';
 import { LIMITS } from '../limits';
 import { toolError } from './errors';
 import {
@@ -188,7 +189,11 @@ export function readFocus(panel: NotebookPanel): IFocusContext {
  * Gather the bounded live context of the workspace.
  *
  * This never opens or changes anything; it is the read the agent performs
- * before deciding what to do.
+ * before deciding what to do. Notebooks the owner hid from the agent are
+ * invisible here: a hidden current notebook reads exactly like no notebook
+ * being open at all, and hidden documents are filtered out of
+ * `openDocuments` — the same omit-without-a-trace rule `listWorkspace`
+ * applies, so neither a path nor a count leaks.
  */
 export async function getContext(
   env: IJupyterEnv,
@@ -196,12 +201,23 @@ export async function getContext(
     panel: NotebookPanel
   ) => { openThreads: number; totalThreads: number }
 ): Promise<IWorkspaceContext> {
-  const panel = env.tracker.currentWidget;
+  const visibleOpenDocuments = openDocuments(env).filter((path: string) => {
+    try {
+      const widget = env.docManager.findWidget(path);
+      return (
+        !(widget instanceof NotebookPanel) ||
+        notebookAccessOfPanel(widget) !== 'none'
+      );
+    } catch {
+      return true;
+    }
+  });
   const workspace = {
     currentDirectory: currentDirectory(env),
-    openDocuments: openDocuments(env)
+    openDocuments: visibleOpenDocuments
   };
 
+  const panel = env.tracker.currentWidget;
   if (!panel) {
     return {
       workspace,
@@ -212,6 +228,15 @@ export async function getContext(
     };
   }
   await panel.context.ready;
+  if (notebookAccessOfPanel(panel) === 'none') {
+    return {
+      workspace,
+      notebook: null,
+      kernel: null,
+      focus: null,
+      review: null
+    };
+  }
 
   return {
     workspace,

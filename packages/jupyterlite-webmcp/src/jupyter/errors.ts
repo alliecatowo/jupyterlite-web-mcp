@@ -19,6 +19,7 @@ export type ErrorCode =
   | 'COMMENT_NOT_FOUND'
   | 'COMMENT_ANCHOR_STALE'
   | 'CELL_ACCESS_DENIED'
+  | 'NOTEBOOK_ACCESS_DENIED'
   | 'INTERNAL_ERROR';
 
 /**

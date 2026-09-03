@@ -194,6 +194,23 @@ an ordinary Jupyter command or panel even when no agent is connected. Store
 only durable user policy in notebook/workspace metadata; keep one-turn grants
 and preview tokens in memory.
 
+### Decision (2026-09-03): owner-side lockdown yes, page-side consent no
+
+The `ApprovalMode` proposal above (`ask-every-change`, `preview-and-apply`,
+per-action approval prompts) is **declined for page implementation**.
+Permissioning UX — allow-once/allow-always prompts, per-call approvals —
+belongs to the WebMCP *client* (the browser/host agent), never to the page.
+What the page owner does own is publisher-side lockdown: declaring what is
+exposed at all. That is the per-cell `write`/`read`/`none` model plus the
+notebook-level `write`/`read`/`none` model (file-browser context menu, Access
+tab dropdown, bulk apply-to-all-cells), both human-only with no tool able to
+change them and no consent prompt anywhere in the extension. Rationale: a
+page that can gate each tool call with its own dialog reintroduces exactly
+the prompt-fatigue and spoofable-authority problems the client-side
+permission model exists to solve, while a declarative "what exists for the
+agent" policy composes with any client and keeps working with no agent
+connected.
+
 ## Presence and visual feedback
 
 The local Activity panel and decaying cell markers are a good start. Promote

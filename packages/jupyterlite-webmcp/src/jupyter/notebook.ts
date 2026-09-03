@@ -1,5 +1,11 @@
 import { INotebookModel, NotebookPanel } from '@jupyterlab/notebook';
 
+import {
+  assertNotebookAccessible,
+  notebookAccessOfContent,
+  notebookAccessOfPanel
+} from '../access/notebook';
+import type { AccessIntent } from '../access/guard';
 import { toolError } from './errors';
 import { basename, joinPath, validatePath } from './paths';
 import { computeNotebookRevision, ICellHashInput } from './revisions';
@@ -35,6 +41,13 @@ export interface IResolveOptions {
   activate?: boolean;
   /** Open the notebook if it is not already open. Defaults to `true`. */
   open?: boolean;
+  /**
+   * What the caller intends to do with the notebook: `'read'` only requires
+   * it to be visible at all; `'write'` additionally refuses a notebook the
+   * owner restricted to read-only. Defaults to `'read'`, so call sites that
+   * mutate must opt into the stricter check deliberately.
+   */
+  intent?: AccessIntent;
 }
 
 /** How long to wait for a kernel spec to be contributed before giving up. */
@@ -86,6 +99,13 @@ async function serviceManagerReady(env: IJupyterEnv): Promise<void> {
  * With no path this returns the notebook the human is currently working in.
  * With a path it reuses an already-open panel when there is one, so tools
  * always read the live model including unsaved edits, never the bytes on disk.
+ *
+ * Notebook-level agent access (`src/access/notebook.ts`) is enforced here,
+ * once, for every tool: a notebook the owner hid (`'none'`) throws exactly
+ * the `NOTEBOOK_NOT_FOUND` a nonexistent path would — the agent can never
+ * learn from the error shape that a hidden file exists — and a notebook the
+ * owner restricted to read-only throws `NOTEBOOK_ACCESS_DENIED` when the
+ * caller declared a `'write'` intent.
  */
 export async function resolveNotebook(
   env: IJupyterEnv,
@@ -94,6 +114,7 @@ export async function resolveNotebook(
 ): Promise<NotebookPanel> {
   const activate = options.activate ?? false;
   const open = options.open ?? true;
+  const intent = options.intent ?? 'read';
 
   if (path === null || path === undefined || path === '') {
     const panel = env.tracker.currentWidget;
@@ -104,6 +125,16 @@ export async function resolveNotebook(
       );
     }
     await panel.context.ready;
+    const access = notebookAccessOfPanel(panel);
+    if (access === 'none') {
+      // The current notebook is hidden from the agent: behave exactly as if
+      // no notebook were open, leaking neither its path nor its existence.
+      throw toolError(
+        'NO_ACTIVE_NOTEBOOK',
+        'There is no notebook open. Open one first, or pass notebookPath.'
+      );
+    }
+    assertNotebookAccessible(panel.context.path, access, intent);
     if (activate) {
       env.app.shell.activateById(panel.id);
     }
@@ -111,7 +142,7 @@ export async function resolveNotebook(
   }
 
   const normalized = validatePath(path);
-  let widget = env.docManager.findWidget(normalized);
+  const widget = env.docManager.findWidget(normalized);
 
   // Opening a notebook before JupyterLite has registered its kernel specs
   // leaves the panel with no kernel and pops a "Select Kernel" dialog at the
@@ -129,8 +160,9 @@ export async function resolveNotebook(
         { path: normalized }
       );
     }
+    let saved: { type: string; content?: unknown };
     try {
-      await contentsManager(env).get(normalized, { content: false });
+      saved = await contentsManager(env).get(normalized, { content: true });
     } catch {
       throw toolError(
         'NOTEBOOK_NOT_FOUND',
@@ -138,11 +170,34 @@ export async function resolveNotebook(
         { path: normalized }
       );
     }
-    widget = env.docManager.openOrReveal(normalized, 'default', undefined, {
+    if (saved.type === 'notebook') {
+      // Check the saved file's own access metadata *before* opening it, so a
+      // hidden notebook is never visibly opened (or otherwise touched) on the
+      // agent's behalf. The error is byte-identical to the not-on-disk case
+      // above: same code, same message, same details.
+      assertNotebookAccessible(
+        normalized,
+        notebookAccessOfContent(saved.content),
+        intent
+      );
+    }
+    const opened = env.docManager.openOrReveal(normalized, 'default', undefined, {
       activate
     });
-  } else if (activate) {
-    env.app.shell.activateById(widget.id);
+    if (!(opened instanceof NotebookPanel)) {
+      throw toolError(
+        'NOTEBOOK_NOT_FOUND',
+        `"${normalized}" is not a notebook.`,
+        { path: normalized }
+      );
+    }
+    await opened.context.ready;
+    assertNotebookAccessible(
+      normalized,
+      notebookAccessOfPanel(opened),
+      intent
+    );
+    return opened;
   }
 
   if (!(widget instanceof NotebookPanel)) {
@@ -153,6 +208,10 @@ export async function resolveNotebook(
     );
   }
   await widget.context.ready;
+  assertNotebookAccessible(normalized, notebookAccessOfPanel(widget), intent);
+  if (activate) {
+    env.app.shell.activateById(widget.id);
+  }
   return widget;
 }
 
@@ -292,7 +351,7 @@ export async function saveNotebook(
   env: IJupyterEnv,
   path?: string | null
 ): Promise<{ saved: boolean; path: string; dirty: boolean }> {
-  const panel = await resolveNotebook(env, path);
+  const panel = await resolveNotebook(env, path, { intent: 'write' });
   await panel.context.save();
   return {
     saved: true,

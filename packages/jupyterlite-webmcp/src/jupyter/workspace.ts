@@ -5,6 +5,7 @@ import { INotebookTracker } from '@jupyterlab/notebook';
 import { Contents } from '@jupyterlab/services';
 
 import { LIMITS } from '../limits';
+import { notebookAccessOfContent } from '../access/notebook';
 import { toolError } from './errors';
 import { validatePath } from './paths';
 
@@ -92,9 +93,37 @@ function toEntry(model: Contents.IModel): IWorkspaceEntry {
 }
 
 /**
+ * Whether a workspace entry is a notebook the owner hid from the agent
+ * (`notebookAccess: 'none'`). Reads the file's own saved metadata; anything
+ * unreadable degrades to visible, so lockdown can never brick a listing.
+ * Only `.ipynb`/notebook entries are ever checked — anything else is
+ * trivially visible.
+ */
+async function isHiddenNotebook(
+  contents: Contents.IManager,
+  entry: IWorkspaceEntry
+): Promise<boolean> {
+  if (entry.type !== 'notebook' && !entry.path.endsWith('.ipynb')) {
+    return false;
+  }
+  try {
+    const model = await contents.get(entry.path, { content: true });
+    if (model.type !== 'notebook') {
+      return false;
+    }
+    return notebookAccessOfContent(model.content) === 'none';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * List files and directories in the browser-local workspace.
  *
  * Never returns file contents: this is a navigation aid, not a bulk export.
+ * Notebooks the owner hid from the agent are omitted silently — never listed,
+ * never counted — so a hidden notebook is indistinguishable from a file that
+ * does not exist.
  */
 export async function listWorkspace(
   env: IJupyterEnv,
@@ -157,7 +186,11 @@ export async function listWorkspace(
         omittedCount += 1;
         continue;
       }
-      entries.push(toEntry(child));
+      const entry = toEntry(child);
+      if (await isHiddenNotebook(contents, entry)) {
+        continue;
+      }
+      entries.push(entry);
       if (params.recursive && child.type === 'directory') {
         queue.push(child.path);
       }
