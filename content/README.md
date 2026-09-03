@@ -11,7 +11,7 @@ server anywhere — everything you see and run here stays on this page.
 - Open `customer-analysis.ipynb`
 - Run the cells
 - Edit them
-- Use the Review panel in the right sidebar to leave comments
+- Use the **Agent** panel in the right sidebar (Comments tab) to leave comments
 
 ## Notebooks
 
@@ -22,9 +22,16 @@ server anywhere — everything you see and run here stays on this page.
 - **`reviewed-analysis.ipynb`** — what a finished human-and-agent session
   looks like: a normal analysis, a cell the agent added while looking into
   a question, and a handful of review comments already in it. Open the
-  Review panel in the right sidebar to read the conversation.
+  **Agent** panel in the right sidebar (Comments tab) to read the
+  conversation.
 
 If your browser has a WebMCP-compatible agent installed, the same live
 notebook — including unsaved edits, your current selection, outputs, and
-review threads — is available to it as tools. If it does not, everything
-above still works exactly the same.
+review threads — is available to it as tools. When the agent acts, you see
+it: the cell gets a ring and a `Reading… / Applying… / Running…` badge, an
+edited cell grows a `±N changed` button that shows the exact before/after
+diff, agent-run outputs are labelled `Run by Browser agent`, and the status
+bar reads what it is doing right now.
+
+If your browser has no agent, everything above still works exactly the
+same — the panel, the comments, the access controls, all of it.

@@ -22,7 +22,7 @@ observed.
 | `jupyter_update_cell` | The new source, within about two seconds, no reload |
 | `jupyter_insert_cell` | The new cell appear |
 | `jupyter_run_cells` | The output and the execution count |
-| `jupyter_create_comment` | The thread, both in its own metadata and in its Review panel |
+| `jupyter_create_comment` | The thread, both in its own metadata and in its Agent panel |
 | Set a cell to `none` access in B | The agent in A could no longer see that cell at all |
 
 ## The result that matters

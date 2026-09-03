@@ -4,7 +4,7 @@ Review threads are an ordinary notebook feature, built and usable exactly
 like a comment feature in a normal document editor. **No browser agent is
 required to use them.** A human creates, replies to, resolves, reopens, and
 navigates comments entirely from the notebook UI and the right-sidebar
-Review panel (`src/review/panel.tsx`). A compatible browser agent
+Agent panel's Comments tab (`src/review/panel.tsx`). A compatible browser agent
 additionally participates through seven WebMCP tools
 (`docs/webmcp-tools.md`), using exactly the same underlying store — there is
 no separate "AI comment" format, author identity, or code path.
@@ -108,13 +108,13 @@ before source re-anchoring is even attempted.
 This resolved state (`exact` / `reanchored` / `orphaned` / `cell-missing`)
 is surfaced in every read: as `anchor.state` in `jupyter_list_comments`, as
 `anchorStatus.state` in `jupyter_get_comment` and `jupyter_focus_comment`,
-and in the Review panel UI. **An orphaned anchor is displayed as orphaned,
+and in the Agent panel's Comments tab. **An orphaned anchor is displayed as orphaned,
 never silently reattached to the wrong text.**
 
 ### Manual re-anchoring
 
 A thread whose `anchorStatus.state` is `orphaned` or `cell-missing` gets a
-**Re-anchor** button next to Reply in the Review panel
+**Re-anchor** button next to Reply in the Agent panel's Comments tab
 (`src/review/panel.tsx`). Clicking it takes the human's *current* editor
 selection — the active cell plus whatever text is highlighted in it — and
 rewrites the thread's anchor to a fresh `source-range` anchor
@@ -136,7 +136,7 @@ object keys sorted recursively so key order never affects the result.
 If the cell is rerun and the output at that index changes, the thread is
 **not** destroyed or dropped — `anchorStatus.outputChanged` becomes `true`
 (surfaced in `jupyter_list_comments`/`jupyter_get_comment`, and shown in the
-Review panel as "Output changed since this comment was created."). If the
+Comments tab as "Output changed since this comment was created."). If the
 output disappears entirely (fewer outputs than the anchored index), the
 same `outputChanged: true` signal is set. Review history is never destroyed
 by a rerun.
@@ -163,9 +163,9 @@ From `src/review/commands.ts` and the context menu it registers:
 
 Each of the first three prompts for the comment body with a plain input
 dialog, then creates the thread via `ReviewStore.createThread` with
-`HUMAN_AUTHOR`, and reveals the Review panel.
+`HUMAN_AUTHOR`, and reveals the Agent panel's Comments tab.
 
-From the **Review panel** itself (`src/review/panel.tsx`), a human can
+From the **Agent panel's Comments tab** (`src/review/panel.tsx`), a human can
 filter by Open / Resolved / All / Current cell, reply to any thread,
 resolve or reopen it, and click a thread to navigate to it: this reveals
 the anchored cell and, for a resolved `source-range` anchor, selects the
@@ -193,7 +193,7 @@ documented in `docs/webmcp-tools.md`: `jupyter_list_comments`,
 thread or message is stored identically to a human one, tagged only with
 `AGENT_AUTHOR` in its `author` field.
 
-A characteristic flow (see `docs/demo-script.md` for the full scripted
+A characteristic flow (see `DEMO.md` for the full scripted
 version): a human leaves a comment on a suspicious calculation and another
 on a table's outlier row, then later asks the agent to "go through my
 unresolved comments." The agent calls `jupyter_list_comments`, reads each

@@ -10,11 +10,15 @@ repository source; everything you need is below.
 
 1. Open the live deployment in your WebMCP-capable browser:
    `https://jupyterlite-web-mcp.vercel.app/lab/index.html`
-2. Confirm the status bar reads `WebMCP · 22 tools` (not "WebMCP
-   unavailable"). If it says unavailable, your browser does not expose
-   `document.modelContext` — stop and report `SETUP-BLOCKED`.
-3. Confirm `document.modelContext.getTools()` (or your client's tool list)
-   shows all 22 tools named below.
+2. Confirm the status bar (bottom-right of the JupyterLab shell) reads
+   `Agent connected`. If it reads `Agent not connected`, your browser does
+   not expose `document.modelContext` — stop and report `SETUP-BLOCKED`. If
+   it reads `Agent error`, hover it for the registration error and report
+   `SETUP-BLOCKED` with that text.
+3. Click the status-bar item. A popup opens listing `Available: yes`,
+   `Tools (22):` with all 22 names, and `Recent invocations:`. Confirm the
+   count is 22 and the names match the table below. `document.modelContext
+   .getTools()` (or your client's tool list) must agree.
 4. Use the notebook `customer-analysis.ipynb` (workspace root). Open it
    once by hand so the kernel starts; wait for the kernel status to read
    idle before running anything. Kernel work below uses the cells already
@@ -136,6 +140,34 @@ step is visible in the panel and nothing ever summons or notifies anyone
 (the agent only sees the thread on its next invocation — WebMCP cannot
 wake it).
 
+**F7 — presence and provenance are visible without asking.** Everything in
+this flow is checked by *looking at the notebook*, not by reading a tool
+result. With `customer-analysis.ipynb` open and in view:
+
+1. Call `jupyter_get_cells` on `funnel-def`. PASS if that cell briefly gains
+   a ring/left-edge tint and the status bar reads something like
+   `Agent · reading cell 3`.
+2. Call `jupyter_update_cell` on a scratch cell. PASS if a small
+   `Reading… / Applying… / Running… / Done` badge appears under the cell
+   input, **and** a `±N changed` button appears beside it. Click that
+   button: PASS if a popover opens headed "What the agent changed" showing a
+   `+`/`-` line diff of exactly what you wrote.
+3. Call `jupyter_run_cells` on `load-data`. PASS if a
+   `Run by Browser agent · HH:MM:SS` line appears under that cell's output.
+   Click it: a popover names the tool, the duration in ms, and offers
+   **Open Activity panel**.
+4. Force a failure (e.g. `jupyter_update_cell` with a stale hash). PASS if
+   the badge settles to `Failed` and clicking it shows the structured error
+   code and duration.
+5. Open the Agent panel → **Activity** tab. PASS if every call you made in
+   this section is listed with its tool name, target and timing.
+6. Edit a cell **by hand**, then call `jupyter_get_cell_access` on it. PASS
+   if its `history` records a `human` `edited` entry — i.e. the notebook
+   distinguishes your edits from the agent's.
+
+Report FAIL for any step where the tool call succeeded but nothing on screen
+told the human it had happened.
+
 ## 4. Pass/fail report template
 
 ```text
@@ -154,6 +186,7 @@ F3 hidden notebook invisibility: PASS/FAIL — ...
 F4 access-cycle UI:            PASS/FAIL — ...
 F5 real kernel output + inline error: PASS/FAIL — ...
 F6 review round-trip:          PASS/FAIL — ...
+F7 presence + provenance visible: PASS/FAIL — ...
 
 Cleanup: customer-analysis.ipynb left unmodified / restored (dirty: true/false);
   codex-scratch.ipynb deleted by hand: yes/no; access levels all back to write: yes/no.

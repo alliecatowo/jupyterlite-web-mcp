@@ -18,6 +18,22 @@ than transactional. A human should always be able to answer four questions:
 This document is a proposal, not a claim that all features below have been
 implemented.
 
+**Status note (2026-09-02).** Much of the "Presence and visual feedback" and
+"Output-selection handoff" material below has since shipped: the targeted-cell
+halo, the per-kind activity tint, the inline
+`Reading…`/`Applying…`/`Running…`/`Done`/`Failed` badge with a click-through
+failure popover, the `±N changed` before/after diff toggle, the
+`Run by Browser agent · HH:MM:SS` output-provenance line, the live status
+phrase (`Agent · running cell 6`), per-cell provenance history, and the
+**Ask about this output** chip are all implemented — see
+`src/activity/markers.ts`, `src/ui/status.ts`, `src/ui/askAbout.ts` and
+`src/selection/capture.ts`. Illustrative strings below (e.g. a
+`WebMCP · 20 tools · Preview edits` badge) were **not** adopted; the shipped
+status text is `Agent connected` / `Agent not connected` / `Agent error` /
+`Agent · <live phrase>`. The permission-model decision below (owner-side
+lockdown, no page-side consent prompts) shipped as written. Everything else
+remains a proposal.
+
 ## Observed baseline
 
 The current project has a strong foundation:

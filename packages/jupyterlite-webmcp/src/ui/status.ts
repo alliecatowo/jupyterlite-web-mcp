@@ -133,7 +133,10 @@ export class WebMCPStatus extends Widget {
         this._popup = null;
       }
       const body = this._buildPopupBody();
-      this._popup = showPopup({ body, anchor: this, align: 'right' });
+      // `showPopup` measures geometry before the body lays out; without
+      // `hasDynamicSize` the host keeps that first, wrong height and the
+      // content spills over the notebook underneath.
+      this._popup = showPopup({ body, anchor: this, align: 'right', hasDynamicSize: true });
     } catch {
       // Diagnostics are a nicety; never let this throw.
     }
@@ -145,40 +148,66 @@ export class WebMCPStatus extends Widget {
     container.className = 'jp-webmcp-StatusPopup';
 
     const availability = document.createElement('div');
+    availability.className = 'jp-webmcp-StatusPopup-availability';
     availability.textContent = state.available ? 'Available: yes' : 'Available: no';
     container.appendChild(availability);
 
     if (state.registrationError) {
       const error = document.createElement('div');
+      error.className = 'jp-webmcp-StatusPopup-error';
       error.textContent = 'Error: ' + state.registrationError;
       container.appendChild(error);
     }
 
     const toolsHeading = document.createElement('div');
+    toolsHeading.className = 'jp-webmcp-StatusPopup-heading';
     toolsHeading.textContent = 'Tools (' + state.toolNames.length + '):';
     container.appendChild(toolsHeading);
 
     const toolsList = document.createElement('ul');
+    toolsList.className = 'jp-webmcp-StatusPopup-tools';
     for (const name of state.toolNames) {
       const item = document.createElement('li');
       item.textContent = name;
+      item.title = name;
       toolsList.appendChild(item);
     }
     container.appendChild(toolsList);
 
     const recentHeading = document.createElement('div');
+    recentHeading.className = 'jp-webmcp-StatusPopup-heading';
     recentHeading.textContent = 'Recent invocations:';
     container.appendChild(recentHeading);
 
-    const recentList = document.createElement('ul');
-    for (const record of state.recent) {
-      const item = document.createElement('li');
-      const status = record.ok ? 'ok' : record.errorCode || 'ERROR';
-      item.textContent =
-        formatTime(record.at) + '  ' + record.name + '  ' + status + '  ' + record.durationMs + 'ms';
-      recentList.appendChild(item);
+    if (state.recent.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'jp-webmcp-StatusPopup-empty';
+      empty.textContent = 'None yet.';
+      container.appendChild(empty);
+    } else {
+      const recentList = document.createElement('ul');
+      recentList.className = 'jp-webmcp-StatusPopup-recent';
+      for (const record of state.recent) {
+        const item = document.createElement('li');
+
+        const name = document.createElement('span');
+        name.className = 'jp-webmcp-StatusPopup-name';
+        name.textContent = formatTime(record.at) + ' ' + record.name;
+        name.title = record.name;
+        item.appendChild(name);
+
+        const status = document.createElement('span');
+        status.className = record.ok
+          ? 'jp-webmcp-StatusPopup-ok'
+          : 'jp-webmcp-StatusPopup-err';
+        status.textContent =
+          (record.ok ? 'ok' : record.errorCode || 'ERROR') + ' · ' + record.durationMs + 'ms';
+        item.appendChild(status);
+
+        recentList.appendChild(item);
+      }
+      container.appendChild(recentList);
     }
-    container.appendChild(recentList);
 
     const widget = new Widget({ node: container });
     return widget;
