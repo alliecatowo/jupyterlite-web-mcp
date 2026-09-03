@@ -60,7 +60,7 @@ pages directly.
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | R1 | Working live URL, reachable in ChatGPT in-app browser or Chrome+WebMCP | ✅ deployed | <https://jupyterlite-web-mcp.vercel.app/lab/index.html> returns `HTTP/2 200`, `cross-origin-opener-policy: same-origin`, `cross-origin-embedder-policy: credentialless` |
-| R2 | Live build actually contains the shipped tool surface | ✅ verified | The deployed bundle `extensions/jupyterlite-webmcp/static/*.js` contains all 22 `jupyter_*` tool names; filenames match locally built `dist/` byte-hashes |
+| R2 | Live build actually contains the shipped tool surface | ✅ verified | The deployed bundle `extensions/jupyterlite-webmcp/static/*.js` contains all 22 `jupyter_*` tool names and the current status strings; content-hashed filenames match the local `dist/` built from `4b6ffe6` |
 | R3 | Description covers *why WebMCP fits* | ✅ | `README.md` § "Why this is specifically a strong WebMCP use case"; §6 of this document |
 | R4 | Description covers *how it improves UX* | ✅ | `README.md` § "The problem, and who has it" + § "What humans and agents can do together" |
 | R5 | Description covers *what humans + agents do together that was hard before* | ✅ | `README.md` § "What humans and agents can do together"; bidirectional pointing, shared kernel, shared review threads |
@@ -606,8 +606,10 @@ Invariant to check before filling this in: the deployed bundle hash under
 `https://jupyterlite-web-mcp.vercel.app/extensions/jupyterlite-webmcp/static/`
 must match the locally built `dist/` for that SHA.
 
-Last verified match: local `dist/` built 2026-09-02 18:43 PT from `ded13c3`;
-deployed `remoteEntry.6c88d727001a6a07.js` is byte-identical.
+Last verified match: local `dist/` built from `4b6ffe6`; the live
+`jupyter-lite.json` loads `remoteEntry.0e62444078b79451.js`, identical to the
+local build's content-hashed filename, and the deployed chunk carries the
+current status strings.
 
 ---
 
