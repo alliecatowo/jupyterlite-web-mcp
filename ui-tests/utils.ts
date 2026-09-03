@@ -30,12 +30,55 @@ export async function waitForTools(page: Page): Promise<void> {
   );
 }
 
-/** Invoke a registered WebMCP tool exactly the way an agent would. */
-export async function callTool(page: Page, name: string, args?: Record<string, unknown>): Promise<any> {
+/**
+ * Invoke a registered WebMCP tool exactly the way an agent would. `options`
+ * forwards to the shim's own `call` (currently just `abortAfterMs`, for
+ * exercising `AbortSignal` handling).
+ */
+export async function callTool(
+  page: Page,
+  name: string,
+  args?: Record<string, unknown>,
+  options?: { abortAfterMs?: number }
+): Promise<any> {
   return page.evaluate(
-    ([n, a]) => (window as any).__webmcp.call(n, a),
-    [name, args ?? {}] as const
+    ([n, a, o]) => (window as any).__webmcp.call(n, a, o),
+    [name, args ?? {}, options] as const
   );
+}
+
+/**
+ * Fires a WebMCP tool call the way an agent would, but does not wait for it
+ * to resolve: the returned promise settles as soon as the call has started,
+ * not once the tool call itself finishes.
+ *
+ * For Propose mode, a mutating tool call's `execute()` Promise deliberately
+ * does not resolve until the human accepts or denies it in the notebook UI
+ * (`src/propose/tools.ts`), so a test needs to start the call, interact with
+ * that UI, and only then wait for the result — `callTool`'s single
+ * `page.evaluate` cannot express that because Playwright's `evaluate` itself
+ * awaits whatever promise the page function returns. This stashes the
+ * in-page promise on `window` under `key` instead of returning it, so this
+ * call resolves immediately; retrieve the eventual result with
+ * {@link awaitBackgroundCall}.
+ */
+export async function callToolInBackground(
+  page: Page,
+  key: string,
+  name: string,
+  args?: Record<string, unknown>
+): Promise<void> {
+  await page.evaluate(
+    ([k, n, a]) => {
+      (window as any)[k] = (window as any).__webmcp.call(n, a);
+    },
+    [key, name, args ?? {}] as const
+  );
+}
+
+/** Awaits the result of a call previously started with {@link callToolInBackground}. */
+export async function awaitBackgroundCall(page: Page, key: string): Promise<any> {
+  return page.evaluate(k => (window as any)[k], key);
 }
 
 /**

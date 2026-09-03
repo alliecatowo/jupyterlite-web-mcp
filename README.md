@@ -38,8 +38,8 @@ Python kernel all run in your browser tab.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Test](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/alliecatowo/jupyterlite-web-mcp/actions/workflows/test.yml)
-![361 unit tests](https://img.shields.io/badge/unit%20tests-361%20passing-brightgreen)
-![46 browser tests](https://img.shields.io/badge/browser%20tests-46%20passing-brightgreen)
+![385 unit tests](https://img.shields.io/badge/unit%20tests-385%20passing-brightgreen)
+![52 browser tests](https://img.shields.io/badge/browser%20tests-52%20passing-brightgreen)
 ![JupyterLab 4.6](https://img.shields.io/badge/JupyterLab-4.6-orange)
 ![Works in JupyterLab · Notebook 7 · JupyterLite](https://img.shields.io/badge/runs%20in-JupyterLab%20%C2%B7%20Notebook%207%20%C2%B7%20JupyterLite-informational)
 ![WebMCP](https://img.shields.io/badge/WebMCP-document.modelContext-purple)
@@ -99,6 +99,27 @@ integration can see, because there is no server holding it:
 
 On a JupyterLite deployment — a static site with no backend of any kind —
 WebMCP is not the convenient option. It is the only one.
+
+### Verified portable — one install, three real platforms, zero code changes
+
+Most notebook/IDE-agent projects are built against a single kernel and stay
+there. This one was independently checked against all three environments
+`jupyterlite-webmcp` installs into, not just the JupyterLite deployment
+pictured above:
+
+- **JupyterLite** (this repo's live demo) — the in-browser Pyodide kernel,
+  exercised end-to-end by the full 52-test Playwright suite on every push.
+- **A real JupyterLab 4.6 server** — `pip install`, a real ipykernel,
+  `jupyter_run_cells` executing real code.
+- **A real Notebook 7 server** — the *exact same* installed package, no
+  branch, no build flag, no platform-specific code path.
+
+`jupyter lab`/`jupyter notebook` ship on the same extension system, so
+`pip install ./packages/jupyterlite-webmcp` is the entire install for
+either — verified with a full open → read → update → run round trip
+through the WebMCP tools on both, on top of the JupyterLite suite already
+running on every commit. Full walkthrough:
+[`docs/install.md`](docs/install.md).
 
 **And it is not the notebook's only reason to exist.** Turn WebMCP off and
 everything still works: the notebook, the Agent panel, the review threads,
@@ -192,6 +213,43 @@ pretends otherwise, and the UI says so out loud.
 - **Decide what the agent may touch.** Per cell and per notebook: `write`,
   `read`, or `none` (hidden — indistinguishable from a cell or file that does
   not exist). Human-only; no tool can read or change it.
+- **Review before it sticks, if you want to.** Switch the Agent panel to
+  **Propose mode** and `jupyter_update_cell` stops applying immediately —
+  it waits, inline, for you to Accept or Deny. See below.
+
+---
+
+## Propose/Deny mode
+
+Direct mode (the default) is everything above: a mutating tool call applies
+immediately, guarded by `sourceHash`. **Propose mode** is the fourth thing
+you can let the agent do, alongside per-cell `write`/`read`/`none` access —
+a toggle in the Agent panel's header, human-only, exactly like access
+levels.
+
+With Propose mode on, `jupyter_update_cell` does not apply on call: it
+stages the change as a reviewable diff **inline, under the cell it
+targets** — reusing the same before/after line-diff rendering as the
+`±N changed` popover, not a second diff UI — with **Accept** and **Deny**
+controls. The tool call's Promise genuinely does not resolve until you
+decide:
+
+- **Accept** applies the change through the exact same code path Direct
+  mode uses — there is exactly one place a cell's source is ever written.
+- **Deny** resolves the call as a normal, non-error result (not a thrown
+  error) carrying a reason you can type in — coded `PROPOSAL_DENIED` — so
+  the agent's next turn sees *why*, not just that it was told no.
+- Aborting the call (`AbortSignal`) cleanly cancels the pending proposal
+  and removes the banner.
+- A cell can have at most one pending proposal at a time; a second one is
+  refused with `PROPOSAL_ALREADY_PENDING` rather than silently queued or
+  replacing the first.
+
+This currently covers `jupyter_update_cell`; `jupyter_insert_cell`,
+`jupyter_delete_cell` and `jupyter_run_cells` still apply directly in both
+modes — see [`docs/propose-mode.md`](docs/propose-mode.md) for the full
+design, the reasoning behind each choice above, and why that scope stops
+where it does.
 
 ---
 
@@ -271,7 +329,10 @@ Design decisions that matter:
   the reason on hover — never swallowed.
 - **`AbortSignal` honored** by `jupyter_run_cells` — but an abort only
   interrupts execution *that invocation itself started*. The kernel is shared
-  with the human, so the tool never kills work the human launched.
+  with the human, so the tool never kills work the human launched. Also
+  honored by `jupyter_update_cell` in Propose mode, where an aborted call
+  cleanly cancels a proposal that is genuinely still waiting on the human
+  ([`docs/propose-mode.md`](docs/propose-mode.md)).
 - **Untrusted-content annotations.** Notebook source, outputs and comment
   bodies are attacker-controllable text. Every tool that can return notebook
   content sets `untrustedContentHint: true` so a well-behaved agent treats it
@@ -284,8 +345,11 @@ Design decisions that matter:
   content the human keeps.
 - **Structured errors, not prose.** `STALE_CELL`, `CELL_NOT_FOUND`,
   `NOTEBOOK_NOT_FOUND`, `CELL_ACCESS_DENIED`, `NOTEBOOK_ACCESS_DENIED`,
-  `KERNEL_UNAVAILABLE`, `INVALID_ARGUMENT`, `PATH_EXISTS` — with hidden
-  things deliberately reported as *not found*, never with a leakier code.
+  `KERNEL_UNAVAILABLE`, `INVALID_ARGUMENT`, `PATH_EXISTS`,
+  `PROPOSAL_ALREADY_PENDING` — with hidden things deliberately reported as
+  *not found*, never with a leakier code. A **denied** proposal (below)
+  is deliberately the exception: it is not an error at all, so the agent's
+  next turn reads it as a normal result, not a failure to recover from.
 - **Defensive handlers.** Numeric ranges, enumerations and bounded text are
   validated inside each handler rather than assuming the WebMCP client
   enforced the JSON Schema. `startIndex: -1` is an `INVALID_ARGUMENT`, never
@@ -344,18 +408,19 @@ JupyterLab APIs → src/jupyter/*  (adapter: notebooks, cells, execution, focus)
                   document.modelContext
 ```
 
-Six small plugins keep notebook features decoupled from WebMCP:
+Seven small plugins keep notebook features decoupled from WebMCP:
 
 | Plugin | Works without WebMCP? | Role |
 | --- | --- | --- |
 | `jupyterlite-webmcp:review` | yes | Threaded comments in notebook metadata, plus per-cell comment markers. |
 | `jupyterlite-webmcp:access` | yes | Per-cell / per-notebook access levels, restricted-cell markers, and human-edit provenance. |
 | `jupyterlite-webmcp:activity` | yes | The bounded, in-memory log of recent tool activity. |
-| `jupyterlite-webmcp:panel` | yes | The right-sidebar **Agent** panel (Activity / Comments / Access) and the presence markers. |
+| `jupyterlite-webmcp:propose` | yes | The Direct/Propose mode toggle and the pending-proposal state machine ([`docs/propose-mode.md`](docs/propose-mode.md)). |
+| `jupyterlite-webmcp:panel` | yes | The right-sidebar **Agent** panel (Activity / Comments / Access), the mode toggle, the presence markers, and the inline proposal banner. |
 | `jupyterlite-webmcp:output-selection` | yes | Output-selection capture and the "Ask about…" handoff affordances. |
 | `jupyterlite-webmcp:tools` | **no** — this is the WebMCP surface | Registers all 22 tools; depends on `:review` so it can expose comment tools. |
 
-Only the last one touches `document.modelContext`. The other five are
+Only the last one touches `document.modelContext`. The other six are
 ordinary notebook features that happen to be useful when an agent is around.
 
 Key invariants:
@@ -436,10 +501,10 @@ PYTHON="$PWD/.venv/bin/python" ./scripts/build-site.sh   # → dist/
 ### Automated
 
 ```bash
-npm --prefix packages/jupyterlite-webmcp test          # 361 unit tests (jest)
+npm --prefix packages/jupyterlite-webmcp test          # 385 unit tests (jest)
 npm --prefix packages/jupyterlite-webmcp run lint:check
 npm --prefix packages/jupyterlite-webmcp run typecheck
-cd ui-tests && npm install && npm test                 # 46 browser tests
+cd ui-tests && npm install && npm test                 # 52 browser tests
 ```
 
 The browser suite serves the built `dist/` — the same artifact that gets
@@ -511,16 +576,16 @@ is never part of the extension, and is never injected into the deployed site.
 Two things a reader might reasonably expect, stated plainly rather than
 implied:
 
-- **There is no propose/suggest mode.** Agent access is `write`, `read` or
-  `none`. A write call on a `read` cell is *refused* with
-  `CELL_ACCESS_DENIED` — it does not degrade into a pending suggestion. The
-  natural fourth level is a `propose` access where a write lands as a staged
-  edit the human accepts or rejects; the diff rendering it would need already
-  exists (that is the `±N changed` popover), but the staging semantics — what
-  `sourceHash` a proposal returns under the read-hash-write contract, how a
-  proposed insert or delete is represented, what every read tool reports about
-  a pending proposal — are real design work. Shipping half of them, on the
-  write path everything else depends on, would be worse than not shipping them.
+- **Propose/Deny mode covers `jupyter_update_cell` only.**
+  `jupyter_insert_cell`, `jupyter_delete_cell` and `jupyter_run_cells`
+  still apply directly even with Propose mode on. An insert/delete
+  proposal needs a different diff representation than a source
+  replacement (there is no "before" to diff against for an insert), and a
+  "propose to run this cell" UX raises its own questions about what a
+  pending-but-not-yet-run cell should show the human. Extending the same
+  state machine to those tools is real, separate design work; see
+  [`docs/propose-mode.md`](docs/propose-mode.md) for what shipped and why
+  the scope stops there for now.
 - **The agent is not in the Yjs awareness layer.** Behind
   `jupyter-collaboration`, remote humans see the agent's edits arrive, but
   without a labelled cursor. Additive and plausible; not claimed as done. See
@@ -556,6 +621,7 @@ third-party attribution: [`NOTICE.md`](NOTICE.md).
 | --- | --- |
 | [`docs/architecture.md`](docs/architecture.md) | Dependency direction, file-by-file, concurrency protocol, bounds. |
 | [`docs/webmcp-tools.md`](docs/webmcp-tools.md) | Every tool: inputs, outputs, bounds, error codes. |
+| [`docs/propose-mode.md`](docs/propose-mode.md) | Propose/Deny mode: the design, the one-pending-proposal-per-cell rule, `AbortSignal` handling, and its current scope. |
 | [`docs/webmcp-compatibility.md`](docs/webmcp-compatibility.md) | Which WebMCP API, Chrome's calling convention, annotation choices. |
 | [`docs/multiplayer.md`](docs/multiplayer.md) | What happens behind `jupyter-collaboration`, verified; and what is deliberately not shipped. |
 | [`docs/install.md`](docs/install.md) | Per-platform install and verification. |

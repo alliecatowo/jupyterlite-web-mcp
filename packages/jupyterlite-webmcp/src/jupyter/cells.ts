@@ -466,10 +466,54 @@ export async function insertCell(
 }
 
 /**
+ * Resolves a cell by id against a live notebook panel and validates it is
+ * writable: visible to the agent, not restricted to read-only, and its
+ * current source hash matches `expectedSourceHash`.
+ *
+ * This is the one validation path both {@link updateCell} (Direct mode) and
+ * `proposeUpdateCell` (`src/propose/tools.ts`, Propose mode) go through, so
+ * a doomed write — a bad id, a `read`-only cell, or a stale hash — fails the
+ * same way and at the same point regardless of mode: before a proposal is
+ * ever created, not after a human has already reviewed one that could never
+ * have been applied.
+ */
+export function resolveWritableCell(
+  panel: NotebookPanel,
+  cellId: string,
+  expectedSourceHash: string
+): { index: number; cell: ReturnType<INotebookModel['cells']['get']>; currentSource: string } {
+  if (!expectedSourceHash) {
+    throw toolError(
+      'INVALID_ARGUMENT',
+      'expectedSourceHash is required so a concurrent human edit cannot be overwritten.'
+    );
+  }
+  const model = panel.context.model;
+  const index = requireCellIndex(panel, cellId);
+  const cell = model.cells.get(index);
+  const currentSource = cell.sharedModel.getSource();
+  const currentHash = hashCellSource(cell.type, currentSource);
+
+  if (currentHash !== expectedSourceHash) {
+    throw toolError('STALE_CELL', 'Cell changed since it was read.', {
+      cellId,
+      expectedSourceHash,
+      currentSourceHash: currentHash,
+      currentSourcePreview: currentSource.slice(0, LIMITS.MAX_PREVIEW_CHARS)
+    });
+  }
+
+  return { index, cell, currentSource };
+}
+
+/**
  * Replace the source of a visible cell in the live model.
  *
  * Requires the hash returned by a previous read so an unsaved human edit can
- * never be silently overwritten.
+ * never be silently overwritten. This is the single apply path for a cell
+ * source write: Direct mode calls it immediately, and Propose mode
+ * (`src/propose/tools.ts`) calls this exact function once a proposal is
+ * accepted, rather than duplicating the mutation logic.
  */
 export async function updateCell(
   env: IJupyterEnv,
@@ -484,27 +528,9 @@ export async function updateCell(
     throw toolError('INVALID_ARGUMENT', 'source must be a string.');
   }
   checkSourceSize(params.source);
-  if (!params.expectedSourceHash) {
-    throw toolError(
-      'INVALID_ARGUMENT',
-      'expectedSourceHash is required so a concurrent human edit cannot be overwritten.'
-    );
-  }
   const panel = await resolveNotebook(env, params.notebookPath, { intent: 'write' });
   const model = panel.context.model;
-  const index = requireCellIndex(panel, params.cellId);
-  const cell = model.cells.get(index);
-  const currentSource = cell.sharedModel.getSource();
-  const currentHash = hashCellSource(cell.type, currentSource);
-
-  if (currentHash !== params.expectedSourceHash) {
-    throw toolError('STALE_CELL', 'Cell changed since it was read.', {
-      cellId: params.cellId,
-      expectedSourceHash: params.expectedSourceHash,
-      currentSourceHash: currentHash,
-      currentSourcePreview: currentSource.slice(0, LIMITS.MAX_PREVIEW_CHARS)
-    });
-  }
+  const { index, cell } = resolveWritableCell(panel, params.cellId, params.expectedSourceHash);
 
   // Wrapped so the human-edit provenance listener (`src/access/provenance.ts`)
   // recognizes this source change as already accounted for below, instead of

@@ -22,6 +22,8 @@ import {
 } from '../jupyter/notebook';
 import { IJupyterEnv, listWorkspace } from '../jupyter/workspace';
 import { LIMITS } from '../limits';
+import { ProposeStore } from '../propose/store';
+import { proposeUpdateCell } from '../propose/tools';
 import { makeSourceAnchor, positionAt } from '../review/anchors';
 import { scrollOutputIntoView } from '../review/panel';
 import {
@@ -269,7 +271,8 @@ function threadSummary(
 export function buildTools(
   env: IJupyterEnv,
   review: ReviewStore,
-  outputSelection?: OutputSelectionTracker
+  outputSelection?: OutputSelectionTracker,
+  propose?: ProposeStore
 ): IToolDefinition[] {
   // Context and open-notebook results must not become a count side-channel
   // for threads whose anchors are hidden from the agent. Human Review UI
@@ -414,10 +417,10 @@ export function buildTools(
       name: 'jupyter_update_cell',
       title: 'Update a cell',
       description:
-        'Replace the source of a visible notebook cell in the live model. Requires the sourceHash returned by a previous read, so an unsaved human edit can never be overwritten by accident: if the cell changed, the write is refused with a STALE_CELL error containing the current hash and a preview. Does not run or save the cell.',
+        'Replace the source of a visible notebook cell in the live model. Requires the sourceHash returned by a previous read, so an unsaved human edit can never be overwritten by accident: if the cell changed, the write is refused with a STALE_CELL error containing the current hash and a preview. Does not run or save the cell. When the human has switched the notebook to Propose mode, this call does not apply immediately: it stages a reviewable diff in the notebook UI and does not resolve until the human accepts (applied, same as Direct mode) or denies it (a normal, non-error result carrying their reason, coded PROPOSAL_DENIED) — or the call is aborted.',
       inputSchema: SCHEMAS.jupyter_update_cell,
       annotations: { readOnlyHint: false, untrustedContentHint: true },
-      handler: async input => {
+      handler: async (input, options) => {
         // The schema marks `source` required, but the handler must not trust
         // the runtime to enforce that: a missing source must be refused, not
         // silently reinterpreted as "empty the cell".
@@ -427,12 +430,16 @@ export function buildTools(
             '"source" is required and must be a string.'
           );
         }
-        return updateCell(env, {
+        const params = {
           notebookPath: optionalString(input, 'notebookPath'),
           cellId: requiredString(input, 'cellId'),
           source: input.source,
           expectedSourceHash: requiredString(input, 'expectedSourceHash')
-        });
+        };
+        if (propose && propose.mode === 'propose') {
+          return proposeUpdateCell(env, propose, params, options.signal);
+        }
+        return updateCell(env, params);
       }
     },
 

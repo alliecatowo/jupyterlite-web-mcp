@@ -1,6 +1,7 @@
 import { Token } from '@lumino/coreutils';
 
 import { ActivityLog } from './activity/model';
+import { ProposeStore } from './propose/store';
 import { OutputSelectionTracker } from './selection/capture';
 import { ReviewStore } from './review/storage';
 
@@ -39,4 +40,18 @@ export const IActivityLog = new Token<ActivityLog>(
 export const IOutputSelectionTracker = new Token<OutputSelectionTracker>(
   'jupyterlite-webmcp:IOutputSelectionTracker',
   'Tracks a bounded, precisely-scoped selection inside one notebook output.'
+);
+
+/**
+ * Token for the Propose/Deny mode store.
+ *
+ * Holds the human-only Direct/Propose toggle and the pending-proposal state
+ * machine (`src/propose/store.ts`). Stands on its own, exactly like
+ * {@link IActivityLog}: provided by its own plugin, and the tools plugin
+ * reads it to decide whether `jupyter_update_cell` applies immediately or
+ * stages a reviewable proposal.
+ */
+export const IProposeStore = new Token<ProposeStore>(
+  'jupyterlite-webmcp:IProposeStore',
+  'Propose/Deny mode: the Direct/Propose toggle and the pending-proposal state machine.'
 );

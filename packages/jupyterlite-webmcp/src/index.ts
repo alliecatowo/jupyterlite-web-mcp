@@ -15,11 +15,14 @@ import { AccessMarkers } from './access/markers';
 import { AccessOverview } from './access/overview';
 import { ProvenanceTracker } from './access/provenance';
 import { IJupyterEnv } from './jupyter/workspace';
+import { ProposeCommandIDs, registerProposeCommands } from './propose/commands';
+import { ProposalMarkers } from './propose/markers';
+import { ProposeStore } from './propose/store';
 import { registerReviewCommands, ReviewCommandIDs } from './review/commands';
 import { ReviewMarkers } from './review/markers';
 import { ReviewStore } from './review/storage';
 import { OutputSelectionTracker } from './selection/capture';
-import { IActivityLog, IOutputSelectionTracker, IReviewStore } from './tokens';
+import { IActivityLog, IOutputSelectionTracker, IProposeStore, IReviewStore } from './tokens';
 import { AskAboutCommandIDs, AskAboutOutputAffordance, registerAskAboutCommands } from './ui/askAbout';
 import { WebMcpPanel } from './ui/panel';
 import { WebMCPStatus } from './ui/status';
@@ -102,6 +105,27 @@ const activityPlugin: JupyterFrontEndPlugin<ActivityLog> = {
 };
 
 /**
+ * Propose/Deny mode.
+ *
+ * Owns the human-only Direct/Propose toggle and the pending-proposal state
+ * machine (`src/propose/store.ts`), stands on its own exactly like
+ * `activityPlugin` above, and registers the toggle commands. The tools
+ * plugin takes it as an optional dependency so `jupyter_update_cell` still
+ * works (in Direct mode, unchanged) if this plugin were ever unavailable.
+ */
+const proposePlugin: JupyterFrontEndPlugin<ProposeStore> = {
+  id: 'jupyterlite-webmcp:propose',
+  description: 'Propose/Deny mode: the Direct/Propose toggle and the pending-proposal state machine.',
+  autoStart: true,
+  provides: IProposeStore,
+  activate: (app: JupyterFrontEnd): ProposeStore => {
+    const store = new ProposeStore();
+    registerProposeCommands(app, store);
+    return store;
+  }
+};
+
+/**
  * The single right-sidebar Agent panel.
  *
  * Consolidates what used to be two separate sidebar panels (Review,
@@ -115,19 +139,20 @@ const panelPlugin: JupyterFrontEndPlugin<void> = {
   description:
     'The single right-sidebar Agent panel: activity, review comments and per-cell access, in one place.',
   autoStart: true,
-  requires: [INotebookTracker, IReviewStore, IActivityLog],
+  requires: [INotebookTracker, IReviewStore, IActivityLog, IProposeStore],
   optional: [ILayoutRestorer],
   activate: (
     app: JupyterFrontEnd,
     tracker: INotebookTracker,
     store: ReviewStore,
     log: ActivityLog,
+    propose: ProposeStore,
     restorer: ILayoutRestorer | null
   ): void => {
     const access = new AccessOverview(tracker);
     app.shell.disposed.connect(() => access.dispose());
 
-    const panel = new WebMcpPanel({ app, tracker, store, log, access });
+    const panel = new WebMcpPanel({ app, tracker, store, log, access, propose });
     app.shell.add(panel, 'right', { rank: 900 });
     if (restorer) {
       restorer.add(panel, 'jupyterlite-webmcp-panel');
@@ -150,6 +175,9 @@ const panelPlugin: JupyterFrontEndPlugin<void> = {
       }
     });
     app.shell.disposed.connect(() => activityMarkers.dispose());
+
+    const proposalMarkers = new ProposalMarkers(tracker, propose);
+    app.shell.disposed.connect(() => proposalMarkers.dispose());
   }
 };
 
@@ -194,7 +222,7 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
     'Expose the live JupyterLite workspace to a compatible browser agent through WebMCP.',
   autoStart: true,
   requires: [INotebookTracker, IDocumentManager, IReviewStore],
-  optional: [IDefaultFileBrowser, IStatusBar, IActivityLog, IOutputSelectionTracker],
+  optional: [IDefaultFileBrowser, IStatusBar, IActivityLog, IOutputSelectionTracker, IProposeStore],
   activate: (
     app: JupyterFrontEnd,
     tracker: INotebookTracker,
@@ -203,7 +231,8 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
     fileBrowser: IDefaultFileBrowser | null,
     statusBar: IStatusBar | null,
     activity: ActivityLog | null,
-    outputSelection: OutputSelectionTracker | null
+    outputSelection: OutputSelectionTracker | null,
+    propose: ProposeStore | null
   ): void => {
     const env: IJupyterEnv = { app, docManager, tracker, fileBrowser };
     const registry = new WebMCPRegistry(activity ?? undefined);
@@ -218,17 +247,27 @@ const webmcpPlugin: JupyterFrontEndPlugin<void> = {
     }
 
     void app.started.then(() =>
-      registry.register(buildTools(env, review, outputSelection ?? undefined))
+      registry.register(buildTools(env, review, outputSelection ?? undefined, propose ?? undefined))
     );
   }
 };
 
-export { ReviewCommandIDs, AccessCommandIDs, AskAboutCommandIDs, IReviewStore, IActivityLog, IOutputSelectionTracker };
+export {
+  ReviewCommandIDs,
+  AccessCommandIDs,
+  AskAboutCommandIDs,
+  ProposeCommandIDs,
+  IReviewStore,
+  IActivityLog,
+  IOutputSelectionTracker,
+  IProposeStore
+};
 
 export default [
   reviewPlugin,
   accessPlugin,
   activityPlugin,
+  proposePlugin,
   panelPlugin,
   outputSelectionPlugin,
   webmcpPlugin

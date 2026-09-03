@@ -37,5 +37,7 @@ export const LIMITS = {
   /** Maximum rendered size of a `jupyter_export_notebook` document. */
   MAX_EXPORT_BYTES: 40 * 1024,
   /** Maximum number of cells `jupyter_export_notebook` will walk. */
-  MAX_EXPORT_CELLS: 500
+  MAX_EXPORT_CELLS: 500,
+  /** Maximum accepted byte length of a human's deny-with-reason message. */
+  MAX_DENY_REASON_BYTES: 2 * 1024
 };

@@ -16,6 +16,7 @@ import { AccessOverview } from '../access/overview';
 import { AccessSection } from '../access/panel';
 import { ActivityLog } from '../activity/model';
 import { ActivitySection } from '../activity/panel';
+import { ProposeStore } from '../propose/store';
 import { CommentsFilter, CommentsSection } from '../review/panel';
 import { ReviewStore } from '../review/storage';
 
@@ -50,6 +51,8 @@ export interface IWebMcpPanelOptions {
   log: ActivityLog;
   /** Computes the per-cell access overview. */
   access: AccessOverview;
+  /** The Direct/Propose mode toggle and pending-proposal state machine. */
+  propose: ProposeStore;
 }
 
 /**
@@ -64,6 +67,7 @@ export class WebMcpPanel extends ReactWidget {
     this._store = options.store;
     this._log = options.log;
     this._access = options.access;
+    this._propose = options.propose;
 
     this.id = 'jupyterlite-webmcp-panel';
     this.addClass('jp-webmcp-Panel');
@@ -75,6 +79,7 @@ export class WebMcpPanel extends ReactWidget {
     this._store.changed.connect(this._scheduleUpdate, this);
     this._log.changed.connect(this._scheduleUpdate, this);
     this._access.changed.connect(this._scheduleUpdate, this);
+    this._propose.changed.connect(this._scheduleUpdate, this);
   }
 
   /** Switches to `tab`, re-rendering immediately. */
@@ -111,6 +116,26 @@ export class WebMcpPanel extends ReactWidget {
         <div className="jp-webmcp-header">
           <span>Agent</span>
           <span>{panel ? panel.context.path.split('/').pop() : 'No notebook open'}</span>
+        </div>
+        <div className="jp-webmcp-modeRow">
+          <button
+            type="button"
+            className={
+              'jp-webmcp-btn jp-webmcp-modeToggle' +
+              (this._propose.mode === 'propose' ? ' jp-mod-selected' : '')
+            }
+            title={
+              this._propose.mode === 'propose'
+                ? 'Propose mode: mutating tool calls wait for you to accept or deny them inline. Click to switch to Direct mode.'
+                : 'Direct mode: mutating tool calls apply immediately. Click to switch to Propose mode.'
+            }
+            onClick={() => this._propose.toggleMode()}
+          >
+            {this._propose.mode === 'propose' ? 'Propose mode' : 'Direct mode'}
+          </button>
+          {this._propose.mode === 'propose' && (
+            <span className="jp-webmcp-modeHint">Edits wait for your review</span>
+          )}
         </div>
         <div className="jp-webmcp-tabs" role="tablist">
           {(['activity', 'comments', 'access'] as PanelTab[]).map(tab => (
@@ -158,4 +183,5 @@ export class WebMcpPanel extends ReactWidget {
   private _store: ReviewStore;
   private _log: ActivityLog;
   private _access: AccessOverview;
+  private _propose: ProposeStore;
 }

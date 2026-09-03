@@ -55,6 +55,28 @@
 }
 
 /*
+ * The Direct/Propose mode row, just under the header: a human-only toggle
+ * (`src/propose/store.ts`), exactly like per-cell access — no WebMCP tool
+ * can read or change it. `jp-webmcp-btn`'s `.jp-mod-selected` state already
+ * gives Propose mode a distinct, brand-colored look when active.
+ */
+.jp-webmcp-modeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.jp-webmcp-modeToggle {
+  font-weight: 600;
+}
+
+.jp-webmcp-modeHint {
+  font-size: var(--jp-ui-font-size0, 11px);
+  color: var(--jp-ui-font-color2);
+}
+
+/*
  * The Comments tab's human composer entry point: an ordinary notebook
  * action, so it leads the tab above the filter row. `jp-webmcp-btn` already
  * carries the shared control styling; these rules only place it and give the
@@ -677,6 +699,64 @@
 
 .jp-webmcp-diffToggle:hover {
   background: var(--jp-layout-color2);
+  color: var(--jp-ui-font-color1);
+}
+
+/*
+ * The Propose-mode inline banner (`src/propose/markers.ts`): a pending
+ * proposal's before/after diff plus Accept/Deny, rendered directly under
+ * the cell it targets. Unlike the `±N changed` popover, this is not a
+ * floating layer and does not dismiss on an outside click — it is meant to
+ * stay put until the human actually decides.
+ */
+.jp-webmcp-proposal {
+  border: 1px solid var(--jp-webmcp-agent-color);
+  border-radius: 4px;
+  margin: 4px 12px 8px;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--jp-webmcp-agent-color) 6%, var(--jp-layout-color1));
+}
+
+.jp-webmcp-proposal-header {
+  font-size: var(--jp-ui-font-size0, 11px);
+  font-weight: 600;
+  color: var(--jp-webmcp-agent-color);
+  margin-bottom: 4px;
+}
+
+.jp-webmcp-proposal-diff {
+  margin-bottom: 6px;
+}
+
+.jp-webmcp-proposal-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.jp-webmcp-proposal-accept {
+  background: var(--jp-success-color1, #4caf50);
+  color: var(--jp-ui-inverse-font-color1, #fff);
+  border-color: var(--jp-success-color1, #4caf50);
+  font-weight: 600;
+}
+
+.jp-webmcp-proposal-deny {
+  background: var(--jp-error-color1);
+  color: var(--jp-ui-inverse-font-color1, #fff);
+  border-color: var(--jp-error-color1);
+  font-weight: 600;
+}
+
+.jp-webmcp-proposal-reason {
+  flex: 1 1 auto;
+  min-width: 120px;
+  font-size: var(--jp-ui-font-size0, 11px);
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 3px;
+  padding: 2px 6px;
+  background: var(--jp-layout-color1);
   color: var(--jp-ui-font-color1);
 }
 

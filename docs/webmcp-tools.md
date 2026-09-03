@@ -63,7 +63,13 @@ no stack trace is ever included.
 | `COMMENT_ANCHOR_STALE` | A comment anchor could not be validated: the selected text is no longer present in the cell, the output index doesn't exist, or (for source-range creation via `anchor.text`) the given text was not found in the cell source. |
 | `CELL_ACCESS_DENIED` | The notebook owner restricted a `"read"` cell and the call needed write access (editing, deleting, or running it, or commenting on it). Carries `cellId` and the effective `access` in its details. Never thrown for a `"none"` cell — that yields `CELL_NOT_FOUND` instead, so the restriction can't be probed for. |
 | `NOTEBOOK_ACCESS_DENIED` | The notebook owner restricted the whole notebook to `"read"` and the call needed write access (editing, deleting, inserting, or running cells, saving, kernel actions, or creating/replying/resolving/reopening comments). Carries `path` and the effective `access` in its details. Never thrown for a `"none"` notebook — that yields `NOTEBOOK_NOT_FOUND` instead, so the restriction can't be probed for. |
+| `PROPOSAL_ALREADY_PENDING` | Propose mode only: `jupyter_update_cell` was called for a cell that already has an unresolved proposal. Carries `cellId` and `existingProposalId`. See `docs/propose-mode.md`. |
 | `INTERNAL_ERROR` | Any unexpected failure, normalized with a truncated message and no stack trace. |
+
+A denied proposal is **not** reported through this error channel at all —
+`PROPOSAL_DENIED` is a normal, non-error result (`isError` unset), because a
+human saying no is an expected outcome, not a failure. See
+`docs/propose-mode.md`.
 
 ### Why there is no `KERNEL_BUSY`
 
@@ -439,7 +445,12 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   live model. Requires the sourceHash returned by a previous read, so an
   unsaved human edit can never be overwritten by accident: if the cell
   changed, the write is refused with a STALE_CELL error containing the
-  current hash and a preview. Does not run or save the cell."
+  current hash and a preview. Does not run or save the cell. When the human
+  has switched the notebook to Propose mode, this call does not apply
+  immediately: it stages a reviewable diff in the notebook UI and does not
+  resolve until the human accepts (applied, same as Direct mode) or denies
+  it (a normal, non-error result carrying their reason, coded
+  PROPOSAL_DENIED) — or the call is aborted."
 - **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs (all required except `notebookPath`):**
   | Field | Type |
@@ -448,8 +459,18 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   | `cellId` | string |
   | `source` | string — the complete replacement source |
   | `expectedSourceHash` | string — `sourceHash` from a previous read |
-- **Output:** `{ notebook: INotebookInfo; cell: ICellSnapshot }`.
-- **Bounds:** standard cell-snapshot bounds on the returned cell.
+- **Output (Direct mode, and Propose mode once accepted):**
+  `{ notebook: INotebookInfo; cell: ICellSnapshot }`, plus (Propose mode
+  only) `status: 'accepted'` and `proposalId`.
+- **Output (Propose mode, denied):** a normal, non-error result —
+  ```ts
+  { status: 'denied', code: 'PROPOSAL_DENIED', proposalId, cellId,
+    reason: string | null }
+  ```
+  `reason` is the human's free-text explanation typed into the inline deny
+  control, or `null` when they left it blank.
+- **Bounds:** standard cell-snapshot bounds on the returned cell;
+  `MAX_DENY_REASON_BYTES` (2KB) on the human's deny reason.
 - **Errors:** `INVALID_ARGUMENT` if `source` isn't a string or
   `expectedSourceHash` is missing (a missing `source` is refused, never
   silently treated as "empty the cell"); `CELL_NOT_FOUND` (also thrown for a
@@ -459,10 +480,23 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   { error: 'STALE_CELL', message: 'Cell changed since it was read.',
     cellId, expectedSourceHash, currentSourceHash, currentSourcePreview }
   ```
-  (`currentSourcePreview` bounded to `MAX_PREVIEW_CHARS`, 400 characters).
+  (`currentSourcePreview` bounded to `MAX_PREVIEW_CHARS`, 400 characters);
+  in Propose mode only, **`PROPOSAL_ALREADY_PENDING`** when the same cell
+  already has an unresolved proposal (`{ cellId, existingProposalId }`) —
+  see `docs/propose-mode.md` for why a second proposal is refused outright
+  rather than queued; and **`ABORTED`** if the caller's `AbortSignal` fires
+  before the human decides.
 - **Concurrency:** this is the read-hash-write protocol described in
-  `docs/architecture.md`. Does not run or save the notebook; the notebook
-  becomes dirty naturally through the normal shared-model change.
+  `docs/architecture.md`. In Propose mode, the `sourceHash` is checked
+  **twice** — once before the proposal is even created (so a doomed write
+  fails immediately instead of sitting in front of the human unnecessarily),
+  and again on accept (so a human edit made while the proposal was pending
+  still wins). Does not run or save the notebook; the notebook becomes
+  dirty naturally through the normal shared-model change.
+- **Propose mode:** see `docs/propose-mode.md` for the full design — the
+  Direct/Propose toggle, the inline accept/deny UI, the one-pending-
+  proposal-per-cell rule, and how `AbortSignal` is honored while a proposal
+  is genuinely pending.
 
 ### `jupyter_delete_cell`
 

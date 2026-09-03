@@ -11,10 +11,15 @@ Install from a clone or directly from git.
 
 ## JupyterLab (or Notebook 7)
 
-Both JupyterLab 4.6 and Notebook 7 ship on the same extension system, so the
-same install works for either — verified against a real JupyterLab 4.6
-server and a real Notebook 7 server, including a full open → read → update →
-run round trip through the WebMCP tools.
+**Verified, not just claimed:** both JupyterLab 4.6 and Notebook 7 ship on
+the same extension system, so the exact same install works for either — no
+branch, no build flag, no platform-specific code anywhere in this
+package. That was checked directly against a real JupyterLab 4.6 server
+*and* a real Notebook 7 server, each with a full open → read → update →
+run round trip through the WebMCP tools, `jupyter_run_cells` executing on
+a real ipykernel. Combined with the JupyterLite demo (the in-browser
+Pyodide kernel, covered by the Playwright suite on every push), that is
+three real environments from one unmodified install.
 
 From a clone of this repository:
 
