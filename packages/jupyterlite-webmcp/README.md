@@ -1,68 +1,87 @@
 # jupyterlite-webmcp
 
-A JupyterLab 4 frontend extension that exposes the live JupyterLite
-workspace to a compatible browser agent through
-[WebMCP](https://github.com/webmachinelearning/webmcp)
-(`document.modelContext.registerTool`).
+A JupyterLab 4 frontend extension that exposes your **live, in-browser
+notebook** — the open cells, the running kernel, your mouse selection, the
+review comments — to a browser-based AI agent through
+[WebMCP](https://github.com/webmachinelearning/webmcp), the emerging W3C
+proposal for a web page to register callable tools with an agent sharing the
+same browser tab (`document.modelContext.registerTool`).
 
-It is frontend-only: there is no server extension and no backend, and it
-runs unmodified in JupyterLite. If the browser does not expose
-`document.modelContext`, the extension registers nothing and the rest of
-the application is unaffected — the notebook and the Review panel work the
-same either way.
+Concretely: once installed, a WebMCP-aware agent in your browser can read
+your notebook's *live* cells (not stale `.ipynb` bytes off disk — the actual
+unsaved state in memory), run code on the kernel you're already using, insert
+or edit cells with conflict detection, and read/reply to review comments —
+all subject to per-cell access control (`write` / `read` / `none`) that you
+set. If your browser doesn't expose `document.modelContext` yet, the
+extension registers nothing and your notebook behaves exactly as it always
+has; nothing about the normal editing experience is gated behind it.
 
-For the full product story, human/agent examples, and tool table, see the
-[repository README](../../README.md). For per-tool detail see
-[`../../docs/webmcp-tools.md`](../../docs/webmcp-tools.md).
+It is **frontend-only**: no server extension, no backend, no API keys, no
+Python runtime dependencies (`dependencies = []`). Works unmodified in
+JupyterLab 4.6, Notebook 7, and JupyterLite.
 
-Live demo: <https://jupyterlite-web-mcp.vercel.app/lab/index.html>
+**Live demo:** <https://jupyterlite-web-mcp.vercel.app/lab/index.html>
+**Full project README, design rationale, and the 22-tool reference:**
+<https://github.com/alliecatowo/jupyterlite-web-mcp>
 
 ## Install
 
-Not yet published to PyPI. Works in JupyterLab 4.6, Notebook 7, and
-JupyterLite — install from a clone or directly from git:
-
 ```bash
-pip install ./packages/jupyterlite-webmcp
-# or
-pip install "git+https://github.com/alliecatowo/jupyterlite-web-mcp.git#subdirectory=packages/jupyterlite-webmcp"
+pip install jupyterlite-webmcp
 ```
 
-It is a prebuilt extension (the wheel ships compiled JS/CSS), so installing
-it does not require Node.js or a build step. See
-[`../../docs/install.md`](../../docs/install.md) for the JupyterLite
-`requirements.txt` variant and how to verify the install.
+> This is the target install once the package is published to PyPI. **It is
+> not live yet.** Until then, install from a clone or directly from git —
+> see [`docs/install.md`](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/docs/install.md)
+> in the repository for the exact command and how to verify it.
 
-## Plugins
-
-This package contributes two plugins, both `autoStart: true`:
-
-- **`jupyterlite-webmcp:review`** — the notebook review/comments feature.
-  Reads and writes threaded comments stored in notebook metadata, adds the
-  right-sidebar Review panel, and registers the commands (and matching
-  context-menu items) a human uses to add, resolve, and reopen comments by
-  hand. This plugin works whether or not the browser supports WebMCP; it
-  provides the `IReviewStore` token that the tools plugin depends on.
-
-- **`jupyterlite-webmcp:tools`** — WebMCP tool registration. Feature-detects
-  `document.modelContext`; if present, builds and registers all 22 tools
-  once, at activation, against the live notebook tracker and the review
-  store above. If absent, it does nothing beyond an optional status-bar
-  indicator.
-
-## Install / build
-
-From the repository root:
+Once installed, confirm it registered:
 
 ```bash
-cd packages/jupyterlite-webmcp
+jupyter labextension list
+# jupyterlite-webmcp v0.1.0 enabled OK (python, jupyterlite_webmcp)
+```
+
+Then start `jupyter lab` or `jupyter notebook` as usual — no configuration
+is required.
+
+```bash
+pip uninstall jupyterlite_webmcp
+```
+
+## What it contributes
+
+Two frontend plugins, both `autoStart: true`:
+
+- **`jupyterlite-webmcp:review`** — a notebook review/comments panel.
+  Threaded comments on a cell, a text range, or an output, stored in the
+  notebook's own metadata. Works whether or not the browser supports WebMCP.
+- **`jupyterlite-webmcp:tools`** — registers the WebMCP tool surface
+  (22 tools) when `document.modelContext` is present; otherwise a no-op
+  beyond an optional status-bar indicator.
+
+See the [tool reference](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/docs/webmcp-tools.md)
+for the full list of tools and their schemas, and
+[`docs/install.md`](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/docs/install.md)
+for the JupyterLite `requirements.txt` variant and how to check whether
+WebMCP is active in your browser.
+
+## Building from source (contributors)
+
+Installing this package never requires Node.js — it ships prebuilt
+JS/CSS. Node is only needed if you're changing the extension's source:
+
+```bash
+git clone https://github.com/alliecatowo/jupyterlite-web-mcp.git
+cd jupyterlite-web-mcp/packages/jupyterlite-webmcp
 npm install
 npm run build:prod
+pip install -e .
 ```
 
 Other useful scripts (see `package.json`): `npm run build` (development
-build), `npm run watch`, `npm test` (jest unit tests), `npm run typecheck`.
+build), `npm run watch`, `npm test` (Jest unit tests), `npm run typecheck`.
 
-This package is also installable as an editable Python package (see
-`pyproject.toml`); the repository root's `requirements.txt` installs it with
-`-e ./packages/jupyterlite-webmcp`.
+## License
+
+MIT — see [LICENSE](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/LICENSE).
