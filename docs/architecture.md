@@ -96,8 +96,8 @@ reader/writer of exactly the same model, exposed outward through
 
 | File | Job |
 | --- | --- |
-| `src/index.ts` | Defines and exports the six plugins (`jupyterlite-webmcp:review`, `:access`, `:activity`, `:panel`, `:output-selection`, `:tools`); wires the single right-sidebar Agent panel, the review/access/"Ask about…" commands, and the cosmetic markers together, and registers WebMCP tools once `app.started` resolves. |
-| `src/tokens.ts` | The `IReviewStore`, `IActivityLog` and `IOutputSelectionTracker` Lumino tokens, so a store can be `provide`d by one plugin and `require`d by another. |
+| `src/index.ts` | Defines and exports the seven plugins (`jupyterlite-webmcp:review`, `:access`, `:activity`, `:propose`, `:panel`, `:output-selection`, `:tools`); wires the single right-sidebar Agent panel, the review/access/"Ask about…" commands, and the cosmetic markers together, and registers WebMCP tools once `app.started` resolves. |
+| `src/tokens.ts` | The `IReviewStore`, `IActivityLog`, `IOutputSelectionTracker` and `IProposeStore` Lumino tokens, so a store can be `provide`d by one plugin and `require`d by another. |
 | `src/limits.ts` | Centralized numeric bounds (see below) used by every module that serializes notebook data into a tool result. |
 | `src/jupyter/workspace.ts` | `IJupyterEnv` (the app/docManager/tracker/fileBrowser bundle every operation takes), workspace listing, current directory, and open-document paths. |
 | `src/jupyter/paths.ts` | Validates and normalizes workspace-relative paths; rejects absolute paths, `..` traversal, backslashes, and control characters. |
@@ -107,6 +107,7 @@ reader/writer of exactly the same model, exposed outward through
 | `src/jupyter/focus.ts` | Reads the human's active cell/selection/cursor — withholding id, index and selected text of cells hidden from the agent by `'none'` access, exactly like the cell reads do; reveals and focuses a cell, optionally setting an exact selection, using the notebook's native windowed-scroll and editor APIs. |
 | `src/jupyter/outputs.ts` | Serializes raw nbformat outputs into bounded, agent-safe JSON: text is ANSI-stripped and byte-bounded, images/binary payloads are represented only by mime type and byte estimate, and a deterministic output fingerprint is computed for change detection. |
 | `src/jupyter/revisions.ts` | `stableHash`, `hashCellSource`, and `computeNotebookRevision` — the deterministic, non-cryptographic hashing this project's concurrency guarantees are built on. |
+| `src/jupyter/export.ts` | Renders a notebook to a bounded markdown document for `jupyter_export_notebook`: markdown cells verbatim, code cells as fenced blocks, outputs as fenced text/error blocks with images reduced to a placeholder line. A pure module with no `@jupyterlab/*` dependency, so it's unit-tested directly. |
 | `src/jupyter/errors.ts` | The closed `ErrorCode` union, the `ToolError` exception type, and `normalizeError`, which reduces any thrown value to a plain `{error, message, ...}` object. |
 | `src/webmcp/schemas.ts` | The JSON Schema for every tool's input, keyed by tool name. |
 | `src/webmcp/tools.ts` | Builds all 22 `IToolDefinition`s (21 without an output-selection tracker): argument parsing/validation, then a call into `src/jupyter/*` or `src/review/*`, then a plain JSON payload. |
@@ -131,6 +132,10 @@ reader/writer of exactly the same model, exposed outward through
 | `src/access/commands.ts` | `jupyterlite-webmcp:cycle-cell-access`, the only way a cell's access ever changes, plus its cell context-menu entry — a human control with no WebMCP dependency. Also `jupyterlite-webmcp:cycle-notebook-access` and its file-browser context-menu entry on notebooks: the only way a notebook's access ever changes (live model when open, straight to the file when closed). |
 | `src/access/markers.ts` | Purely cosmetic: toggles a CSS class and a native tooltip (access state, plus provenance when known) on cell DOM nodes whose agent access is restricted. |
 | `src/selection/visible.ts` | Filters the output-selection tracker's record through agent access control before the `jupyter_get_output_selection` tool sees it: a selection inside a `'none'` cell or notebook — or one the current notebook cannot verify — reads as `null`, so the tool can never leak a hidden cell's id, text, or output fingerprint. |
+| `src/propose/store.ts` | `ProposeStore`: the human-only Direct/Propose mode toggle and the pending-proposal state machine — one pending proposal per cell, `accept`/`deny`/`abort`, each settling the `Promise` the tool call is waiting on. No WebMCP tool can read or change the mode. |
+| `src/propose/tools.ts` | `proposeUpdateCell`: the Propose-mode branch of `jupyter_update_cell` — validates the write (access + `sourceHash`) before staging a proposal, waits on `ProposeStore`, and re-validates the `sourceHash` on accept before calling the same `updateCell` Direct mode uses. |
+| `src/propose/commands.ts` | `jupyterlite-webmcp:toggle-propose-mode` / `:set-propose-mode`, reachable from the Agent panel's mode toggle and the command palette — a human control with no WebMCP dependency. |
+| `src/propose/markers.ts` | `ProposalMarkers`: renders the inline accept/deny banner and diff under the targeted cell for a pending proposal; purely presentational, reusing the same before/after diff rendering as the `±N changed` popover. |
 
 ## The plugins
 
@@ -145,8 +150,11 @@ jupyterlite-webmcp:access
 jupyterlite-webmcp:activity
   provides: IActivityLog
 
+jupyterlite-webmcp:propose
+  provides: IProposeStore
+
 jupyterlite-webmcp:panel
-  requires: [INotebookTracker, IReviewStore, IActivityLog]
+  requires: [INotebookTracker, IReviewStore, IActivityLog, IProposeStore]
   optional: [ILayoutRestorer]
 
 jupyterlite-webmcp:output-selection
@@ -155,7 +163,7 @@ jupyterlite-webmcp:output-selection
 
 jupyterlite-webmcp:tools
   requires: [INotebookTracker, IDocumentManager, IReviewStore]
-  optional: [IDefaultFileBrowser, IStatusBar, IActivityLog, IOutputSelectionTracker]
+  optional: [IDefaultFileBrowser, IStatusBar, IActivityLog, IOutputSelectionTracker, IProposeStore]
 ```
 
 Review is its own plugin, independent of WebMCP, because it is a normal
@@ -165,7 +173,7 @@ browser agent involved at all, and that must keep working in a browser with
 no `document.modelContext`. Structuring it this way also means the tools
 plugin doesn't need to know anything about comment storage — it just
 `require`s the `IReviewStore` token the review plugin provides and calls its
-public methods, the same way the panel does. Access, activity and
+public methods, the same way the panel does. Access, activity, propose and
 output-selection follow the same split: plain notebook functionality in
 their own plugins, with only the tools plugin touching
 `document.modelContext`, and the panel plugin owning the one consolidated
@@ -245,6 +253,12 @@ these DOM attributes back as a source of truth.
 | `MAX_SUMMARY_CHARS` | 600 | Length of the one-line output summary returned by `jupyter_run_cells`. |
 | `MAX_CELL_HISTORY_ENTRIES` | 20 | Cap on provenance entries kept per cell. |
 | `HISTORY_COALESCE_WINDOW_MS` | 60,000 (60s) | Consecutive same-actor/same-action provenance entries within this window collapse into one. |
+| `MAX_CELL_SOURCE_WRITE_BYTES` | 256 KiB (256 * 1024) | Cap on a cell `source` accepted by `jupyter_insert_cell`/`jupyter_update_cell`. Deliberately larger than `MAX_CELL_SOURCE_BYTES`, and an oversized write is rejected outright, never truncated — it's real content the human keeps. |
+| `MAX_NAME_BYTES` | 256 | Cap on a notebook/file `name` argument. |
+| `MAX_CELL_IDS_PER_CALL` | 100 | Cap on the number of cell ids accepted in one id-array argument (e.g. `jupyter_run_cells`'s explicit range). |
+| `MAX_EXPORT_BYTES` | 40 KiB (40 * 1024) | Cap on the rendered size of a `jupyter_export_notebook` document. |
+| `MAX_EXPORT_CELLS` | 500 | Cap on the number of cells `jupyter_export_notebook` walks. |
+| `MAX_DENY_REASON_BYTES` | 2 KiB (2 * 1024) | Cap on the human's typed reason when denying a Propose-mode proposal. |
 
 `boundJson` (`src/webmcp/results.ts`) applies `MAX_TOTAL_RESULT_BYTES` as a
 final backstop on the serialized `content` text of every tool result,
