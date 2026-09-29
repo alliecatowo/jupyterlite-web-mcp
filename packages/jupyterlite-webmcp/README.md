@@ -68,8 +68,10 @@ WebMCP is active in your browser.
 
 ## Building from source (contributors)
 
-Installing this package never requires Node.js — it ships prebuilt
-JS/CSS. Node is only needed if you're changing the extension's source:
+Installing a built wheel of this package never requires Node.js — it ships
+prebuilt JS/CSS. The package is not on PyPI yet, though, so today's
+`pip install` from git or a clone builds that wheel for you and needs Node.js
+on your `PATH`. To work on the extension's source:
 
 ```bash
 git clone https://github.com/alliecatowo/jupyterlite-web-mcp.git

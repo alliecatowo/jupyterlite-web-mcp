@@ -2,6 +2,24 @@
 
 <div align="center">
 
+<a href="https://webmcp.devpost.com/project-gallery"><img src="https://img.shields.io/badge/OpenAI%20WebMCP%20Challenge-Winner-d4a017?style=for-the-badge" alt="OpenAI WebMCP Challenge — Winner"></a>
+
+**Your notebook is already in the browser. Now your agent can be too.**
+
+A JupyterLab / JupyterLite extension that lets a browser agent read, edit,
+run and review the notebook you already have open — through
+[WebMCP](https://github.com/webmachinelearning/webmcp), with no server and no
+API keys. Selected as one of the
+[10 winners of the OpenAI WebMCP Challenge](https://webmcp.devpost.com/project-gallery)
+([project page](https://devpost.com/software/jupyterlite-webmcp)).
+
+**[Try the live demo](https://jupyterlite-web-mcp.vercel.app/lab/index.html)** ·
+[60-second walkthrough](#try-it-in-60-seconds) ·
+[Install](#install) ·
+[Open an issue](https://github.com/alliecatowo/jupyterlite-web-mcp/issues)
+
+<br/>
+
 <img src="docs/media/hero.gif" width="800" alt="Agent edits a notebook cell live in JupyterLite; a diff popover shows the exact +/- change before it's kept">
 
 <sub>The agent proposes a one-line fix inline. The diff is reviewable before it sticks — same cell, same kernel, same tab.</sub>
@@ -30,7 +48,6 @@
 ---
 
 > **A portable semantic interface to a browser-native computational workspace.**
-> Your notebook is already in the browser. Now your agent can be too.
 
 **Live demo: <https://jupyterlite-web-mcp.vercel.app/lab/index.html>**
 No sign-in, no server, no configuration — the notebooks, the files and the
@@ -50,6 +67,14 @@ workspace to a compatible browser agent through
 navigate, edit, execute, and *review* the exact notebook the human already
 has open: the same unsaved edits, the same text selection, the same kernel,
 the same outputs, the same review threads.
+
+> [!NOTE]
+> **Project status.** This started as a hackathon prototype, and we're
+> actively turning it into something easier to install, distribute, and
+> build on. More updates are coming soon. In the meantime, please
+> [try the demo](https://jupyterlite-web-mcp.vercel.app/lab/index.html) and
+> **[open an issue](https://github.com/alliecatowo/jupyterlite-web-mcp/issues/new)**
+> for bugs, ideas, integrations, or anything you'd like to see supported.
 
 ---
 
@@ -458,8 +483,10 @@ pip install "git+https://github.com/alliecatowo/jupyterlite-web-mcp.git#subdirec
 jupyter labextension list   # should show jupyterlite-webmcp enabled OK
 ```
 
-Either command installs a *prebuilt* frontend extension — no local Node.js
-build step required. For a JupyterLite deployment, add the same requirement
+Either command installs a *prebuilt* frontend extension into JupyterLab — no
+`jupyter lab build` step. Because there is no published wheel yet, pip
+compiles the frontend bundle during the install, so Node.js needs to be on
+your `PATH` (you never run `npm` yourself). For a JupyterLite deployment, add the same requirement
 to the site's `requirements.txt` and rebuild with
 `jupyter lite build --contents content --output-dir dist`. Full walkthrough,
 including what each platform was independently verified to do:
@@ -474,14 +501,15 @@ cd jupyterlite-web-mcp
 # 1. Python environment (uv is used here; python -m venv also works)
 uv venv --python 3.11 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
+source .venv/bin/activate   # the extension build needs jupyter-builder on PATH
 
 # 2. Build the extension
 npm --prefix packages/jupyterlite-webmcp install
 npm --prefix packages/jupyterlite-webmcp run build:prod
 
 # 3. Build and serve the JupyterLite site
-.venv/bin/jupyter lite build --contents content --output-dir dist
-.venv/bin/jupyter lite serve --output-dir dist      # → http://127.0.0.1:8000
+jupyter lite build --contents content --output-dir dist
+jupyter lite serve --output-dir dist      # → http://127.0.0.1:8000
 ```
 
 `requirements.txt` installs `packages/jupyterlite-webmcp` in editable mode,
@@ -592,13 +620,21 @@ implied:
 ## How this was built
 
 Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/)
-(August 25 – September 3, 2026) by Allison Coleman.
+(August 25 – September 3, 2026) by Allison Coleman and Juan Mendoza, and
+selected as one of the challenge's [10 winning projects](https://webmcp.devpost.com/project-gallery)
+([Devpost entry](https://devpost.com/software/jupyterlite-webmcp)).
 
 The extension, tests and documentation were written in collaboration with
 **Claude Opus 5** via Claude Code — every commit carries a
 `Co-Authored-By: Claude Opus 5` trailer, so the provenance is auditable from
 `git log` rather than asserted. Design, architecture, product boundaries and
-all review decisions are the author's.
+all review decisions are the authors'.
+
+## Feedback and issues
+
+Bug reports, questions, integration ideas and feature requests are all
+welcome — [open an issue](https://github.com/alliecatowo/jupyterlite-web-mcp/issues/new).
+If something in this README doesn't work as written, that's a bug too.
 
 ## License and attribution
 
