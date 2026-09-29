@@ -620,7 +620,9 @@ implied:
 ## How this was built
 
 Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/)
-(August 25 – September 3, 2026) by Allison Coleman and Juan Mendoza, and
+(August 25 – September 3, 2026). Created and maintained by Allison Coleman
+([@alliecatowo](https://github.com/alliecatowo)), with contributions from
+Juan Mendoza ([@mennymendoza](https://github.com/mennymendoza)). It was
 selected as one of the challenge's [10 winning projects](https://webmcp.devpost.com/project-gallery)
 ([Devpost entry](https://devpost.com/software/jupyterlite-webmcp)).
 
