@@ -2,7 +2,10 @@
 
 This is a plain JupyterLab **prebuilt** frontend extension: the wheel ships
 compiled JavaScript/CSS under `share/jupyter/labextensions/jupyterlite-webmcp/`,
-so installing it does not require Node.js, `npm`, or a local build step. It
+so installing *that wheel* does not require Node.js, `npm`, or a local build
+step. Until it is published, though, the only way to get it is to build it
+from source, which does need Node.js — see
+[Install now](#install-now-before-pypi-publication). It
 has no server extension and no Python runtime dependencies
 (`dependencies = []` in `pyproject.toml`).
 
@@ -40,7 +43,9 @@ Both of these build the real wheel locally (via `hatchling` +
 `hatch-jupyter-builder`, which runs `npm install` and the production webpack
 build for you) and install it — functionally identical to what
 `pip install jupyterlite-webmcp` will do once that name is live. The only
-difference is where `pip` fetches the source from.
+difference is where `pip` fetches the source from. Because that build
+happens during the install, **Node.js must be on your `PATH`** for either
+command; you never run `npm` yourself.
 
 Confirm it registered:
 

@@ -15,6 +15,9 @@
   },
   "license": "MIT",
   "author": "Allison Coleman",
+  "contributors": [
+    "Juan Mendoza"
+  ],
   "files": [
     "lib/**/*.{d.ts,js,js.map,json}",
     "style/**/*.{css,js}",
