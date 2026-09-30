@@ -138,29 +138,53 @@ const BASIC_ENTITIES: Record<string, string> = {
  * `<script>`/`<style>` blocks entirely, turns block-ish tags into line/tab
  * breaks, strips all remaining tags, decodes the handful of basic HTML
  * entities, collapses long runs of blank lines, and trims the result.
+ *
+ * This is a single left-to-right scan over the input rather than a chain of
+ * regex replacements. Output is never re-scanned, so fragments left behind by
+ * one removal can't reassemble into a new tag (the classic incomplete
+ * multi-character sanitization bug).
  */
 export function htmlToText(html: string): string {
-  let text = html;
-  // `<script>`/`<style>` blocks, including closing tags with stray whitespace or
-  // attributes (`</script >`, `</script foo>`), which browsers also accept.
-  text = text.replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, '');
-  text = text.replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, '');
-  text = text.replace(/<br\s*\/?>/gi, '\n');
-  text = text.replace(/<\/tr\b[^>]*>/gi, '\n');
-  text = text.replace(/<\/p\b[^>]*>/gi, '\n');
-  text = text.replace(/<\/div\b[^>]*>/gi, '\n');
-  text = text.replace(/<\/td\b[^>]*>/gi, '\t');
-  text = text.replace(/<\/th\b[^>]*>/gi, '\t');
-  // Strip tags until stable, so input like `<<b>script>` cannot reassemble a
-  // tag from the fragments left behind by a single pass.
-  let previous: string;
-  do {
-    previous = text;
-    text = text.replace(/<[^>]*>/g, '');
-  } while (text !== previous);
-  text = text.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&nbsp;/g, m => BASIC_ENTITIES[m]);
-  text = text.replace(/\n{3,}/g, '\n\n');
-  return text.trim();
+  const lower = html.toLowerCase();
+  let out = '';
+  let i = 0;
+  while (i < html.length) {
+    if (html[i] !== '<') {
+      out += html[i++];
+      continue;
+    }
+    const closing = html[i + 1] === '/';
+    let nameEnd = i + (closing ? 2 : 1);
+    while (nameEnd < html.length && /[a-z0-9]/i.test(html[nameEnd])) {
+      nameEnd++;
+    }
+    const name = lower.slice(i + (closing ? 2 : 1), nameEnd);
+    const tagEnd = html.indexOf('>', i);
+    if (tagEnd === -1) {
+      // An unterminated '<' is just text.
+      out += html[i++];
+      continue;
+    }
+    if (!closing && (name === 'script' || name === 'style')) {
+      // Drop the whole block, through the closing tag (`</script >` and
+      // `</script foo>` included); an unclosed block drops the rest.
+      const close = lower.indexOf('</' + name, tagEnd);
+      const closeEnd = close === -1 ? -1 : html.indexOf('>', close);
+      i = closeEnd === -1 ? html.length : closeEnd + 1;
+      continue;
+    }
+    if (name === 'br' && !closing) {
+      out += '\n';
+    } else if (closing && (name === 'tr' || name === 'p' || name === 'div')) {
+      out += '\n';
+    } else if (closing && (name === 'td' || name === 'th')) {
+      out += '\t';
+    }
+    i = tagEnd + 1;
+  }
+  out = out.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&nbsp;/g, m => BASIC_ENTITIES[m]);
+  out = out.replace(/\n{3,}/g, '\n\n');
+  return out.trim();
 }
 
 function joinIfArray(value: unknown): string {
