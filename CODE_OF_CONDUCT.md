@@ -11,5 +11,5 @@ contributors for behavior they judge inappropriate.
 
 Report unacceptable behavior privately to the maintainer via a
 [GitHub private security advisory](https://github.com/alliecatowo/jupyterlite-web-mcp/security/advisories/new)
-or by emailing the address on the maintainer's GitHub profile. Reports are
+or by emailing [me@allisons.dev](mailto:me@allisons.dev). Reports are
 handled confidentially.
