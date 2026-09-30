@@ -13,3 +13,17 @@ updates:
     groups:
       actions-minor-patch:
         update-types: [minor, patch]
+  # The demo site's JupyterLite build pins (requirements.txt).
+  - package-ecosystem: pip
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      pip-minor-patch:
+        update-types: [minor, patch]
+  # Playwright for the browser tests.
+  - package-ecosystem: npm
+    directory: /ui-tests
+    schedule: { interval: weekly }
+    groups:
+      ui-tests-minor-patch:
+        update-types: [minor, patch]
