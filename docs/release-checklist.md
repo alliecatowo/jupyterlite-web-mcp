@@ -42,6 +42,31 @@ action rather than a debugging session.
       and the post-publish (`pip install jupyterlite-webmcp`) install, the
       latter clearly marked as not yet live.
 
+## How releases work (Trusted Publishing, no tokens)
+
+Publishing is automated by `.github/workflows/release.yml` using PyPI
+[Trusted Publishing](https://docs.pypi.org/trusted-publishers/) over OIDC, so
+no API token is stored anywhere.
+
+One-time setup (per index), under *Publishing → Add a new pending publisher*:
+project `jupyterlite-webmcp`, owner `alliecatowo`, repository
+`jupyterlite-web-mcp`, workflow `release.yml`, environment `pypi` (on
+pypi.org) or `testpypi` (on test.pypi.org). A pending publisher does not
+reserve the name until the first successful publish.
+
+- **Dry run:** Actions → Release → *Run workflow*. Builds, smoke-tests the
+  wheel in a fresh venv, and publishes to TestPyPI after you approve the
+  `testpypi` environment.
+- **Release:** bump the version in `pyproject.toml` and `package.json`, merge,
+  then `git tag vX.Y.Z && git push --tags`. The workflow refuses a tag that
+  does not match the package version, and waits for your approval on the
+  `pypi` environment before uploading.
+- Afterwards: `pip install jupyterlite-webmcp` in a throwaway venv, and update
+  `docs/install.md` / the package README from "not yet published".
+
+The sections below are the original manual (token) procedure, kept as a
+fallback.
+
 ## What the repo owner still needs to decide/do
 
 1. **A PyPI account** (pypi.org) with two-factor auth enabled (PyPI has
