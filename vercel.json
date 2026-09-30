@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "echo skip",
+  "installCommand": "npm --prefix packages/jupyterlite-webmcp ci",
   "buildCommand": "python3 -m venv .build-venv && PYTHON=$PWD/.build-venv/bin/python ./scripts/build-site.sh",
   "outputDirectory": "dist",
   "headers": [
