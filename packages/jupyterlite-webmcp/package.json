@@ -69,7 +69,7 @@
     "@jupyterlab/statusbar": "^4.6.0",
     "@jupyterlab/ui-components": "^4.6.0",
     "@lumino/coreutils": "^2.2.2",
-    "@lumino/disposable": "^2.1.5",
+    "@lumino/disposable": "^2.1.6",
     "@lumino/signaling": "^2.1.5",
     "@lumino/widgets": "^2.8.0",
     "react": "^18.2.0"
