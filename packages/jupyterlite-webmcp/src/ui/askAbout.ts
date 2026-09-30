@@ -1,5 +1,5 @@
 /**
- * The human-handoff affordances from `docs/agent-collaboration-roadmap.md`:
+ * The human-handoff affordances from the project's agent-collaboration notes:
  * "Ask about selection" and "Ask about this output".
  *
  * WebMCP cannot wake, notify, or interrupt an agent — nothing here pretends

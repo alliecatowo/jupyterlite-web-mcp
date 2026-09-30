@@ -164,6 +164,9 @@ describe('jupyter_run_cells contiguous ranges', () => {
     }
 
     expect(errorCode(caught)).toBe('CELL_NOT_FOUND');
+    // The agent addressed the cell by position, so its real id must not leak.
+    expect(JSON.stringify(caught)).not.toContain('hidden');
+    expect(String((caught as Error).message)).not.toContain('"hidden"');
     expect(execute).not.toHaveBeenCalled();
   });
 

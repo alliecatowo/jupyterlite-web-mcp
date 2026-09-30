@@ -14,7 +14,6 @@ via `requirements.txt`, and JupyterLab/JupyterLite packages depended on by
 - **JupyterLab** (`@jupyterlab/*` packages)
 - **Jupyter Notebook** (`notebook`)
 - **jupyterlite-pyodide-kernel**
-- **ipywidgets**
 
 All of the above are Copyright (c) Project Jupyter Contributors, licensed
 under the BSD 3-Clause License reproduced at the end of this file.
@@ -27,8 +26,7 @@ under the BSD 3-Clause License reproduced at the end of this file.
 
 The overall repository layout for building and deploying a JupyterLite
 site — the `content/` directory convention, the `requirements.txt` package
-pins, the `jupyter-lite.json` configuration, and the GitHub Pages build
-workflow in `.github/workflows/deploy.yml` — follows the official
+pins and the `jupyter-lite.json` configuration — follows the official
 [`jupyterlite/demo`](https://github.com/jupyterlite/jupyterlite-demo)
 repository/template. `jupyterlite/demo` is Copyright (c) Project Jupyter
 Contributors, licensed under the BSD 3-Clause License reproduced below.
@@ -60,7 +58,7 @@ Contributors, licensed under the BSD 3-Clause License reproduced below.
 
 The following license text applies to the Project Jupyter works listed
 above (JupyterLite, JupyterLab, Jupyter Notebook,
-jupyterlite-pyodide-kernel, ipywidgets, and `jupyterlite/demo`) and to
+jupyterlite-pyodide-kernel, and `jupyterlite/demo`) and to
 `jupyterlab-ai-commands` and `jupyterlab-commenting`, each under their own
 copyright:
 

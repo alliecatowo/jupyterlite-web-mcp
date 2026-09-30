@@ -1,0 +1,84 @@
+name: Release
+
+# Publishes jupyterlite-webmcp to PyPI with Trusted Publishing (OIDC): no API
+# tokens or secrets. Setup lives on PyPI/TestPyPI ("pending publisher" with this
+# workflow filename and the environment names below).
+#
+#   - Manual run (workflow_dispatch): build + smoke test, then publish to TestPyPI.
+#   - Push a tag like v0.1.0: build + smoke test, then publish to PyPI.
+# Both publish jobs wait for approval on their GitHub environment.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check the tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          pkg="$(python -c "import tomllib;print(tomllib.load(open('packages/jupyterlite-webmcp/pyproject.toml','rb'))['project']['version'])")"
+          test "v$pkg" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != pyproject version v$pkg"; exit 1; }
+
+      - name: Build sdist and wheel
+        working-directory: packages/jupyterlite-webmcp
+        run: |
+          python -m pip install build
+          python -m build --outdir dist .
+
+      - name: Smoke-test the built wheel in a fresh venv
+        working-directory: packages/jupyterlite-webmcp
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install dist/*.whl "jupyterlab>=4,<5"
+          /tmp/smoke/bin/jupyter labextension list 2>&1 | tee /tmp/labext.txt
+          grep -q "jupyterlite-webmcp.*enabled.*OK" /tmp/labext.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: packages/jupyterlite-webmcp/dist/
+
+  publish-testpypi:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-pypi:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

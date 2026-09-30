@@ -10,7 +10,21 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
-python="${PYTHON:-python3}"
+# Use the caller's interpreter if PYTHON is set; otherwise build in a project
+# virtualenv (created here, with uv when available) so this works the same on a
+# laptop, in CI, and on Vercel, none of which let you pip-install system-wide.
+if [ -z "${PYTHON:-}" ]; then
+  if [ ! -x .venv/bin/python ]; then
+    echo "==> creating .venv"
+    if command -v uv >/dev/null 2>&1; then
+      uv venv .venv
+    else
+      python3 -m venv .venv
+    fi
+  fi
+  PYTHON="$root/.venv/bin/python"
+fi
+python="$PYTHON"
 
 # jupyter-builder is installed alongside the selected interpreter, not
 # necessarily alongside the shell's default Python. Honour PYTHON completely:
@@ -41,6 +55,11 @@ have() { "$python" -c "import $1" >/dev/null 2>&1; }
 echo "==> installing the extension build toolchain"
 have jupyterlab || install "jupyterlab~=4.6.0"
 
+if [ ! -d packages/jupyterlite-webmcp/node_modules ]; then
+  echo "==> installing npm dependencies"
+  npm --prefix packages/jupyterlite-webmcp ci
+fi
+
 echo "==> building the frontend extension"
 npm --prefix packages/jupyterlite-webmcp run build:prod
 
@@ -66,8 +85,5 @@ echo "==> building the JupyterLite site"
 rm -rf dist .jupyterlite.doit.db
 "$python" -m jupyterlite_core.app build --contents content --output-dir dist
 
-# The deployment headers travel with the built site, so a prebuilt deploy of
-# dist/ is cross-origin isolated exactly like a Git-integration build.
-cp vercel.json dist/vercel.json
 
 echo "==> done: dist/"
