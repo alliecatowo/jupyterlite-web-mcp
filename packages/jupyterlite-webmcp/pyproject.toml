@@ -1,15 +1,17 @@
 [build-system]
-requires = ["hatchling>=1.5.0", "jupyterlab>=4.0.0,<5", "hatch-nodejs-version>=0.3.2"]
+requires = ["hatchling>=1.27", "jupyterlab>=4.0.0,<5", "hatch-nodejs-version>=0.3.2"]
 build-backend = "hatchling.build"
 
 [project]
 name = "jupyterlite_webmcp"
-version = "0.1.0"
+# The version is single-sourced from package.json (see [tool.hatch.version]).
+dynamic = ["version"]
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
-# PEP 621 has no "contributors" field; Juan Mendoza is credited in package.json,
-# the README and CONTRIBUTORS on GitHub.
+# PEP 621 has no "contributors" field; Juan Mendoza is credited in package.json
+# and the README.
 authors = [{ name = "Allison Coleman", email = "me@allisons.dev" }]
 maintainers = [{ name = "Allison Coleman", email = "me@allisons.dev" }]
 description = "Expose the live JupyterLite workspace to a compatible browser agent through WebMCP."
@@ -20,7 +22,6 @@ classifiers = [
   "Framework :: Jupyter :: JupyterLab :: 4",
   "Framework :: Jupyter :: JupyterLab :: Extensions",
   "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Intended Audience :: Developers",
@@ -35,6 +36,14 @@ Homepage = "https://github.com/alliecatowo/jupyterlite-web-mcp"
 Repository = "https://github.com/alliecatowo/jupyterlite-web-mcp"
 Issues = "https://github.com/alliecatowo/jupyterlite-web-mcp/issues"
 Documentation = "https://github.com/alliecatowo/jupyterlite-web-mcp#readme"
+Changelog = "https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/CHANGELOG.md"
+Demo = "https://jupyterlite-web-mcp.vercel.app/lab/index.html"
+
+[tool.hatch.version]
+source = "nodejs"
+
+[tool.hatch.build.hooks.version]
+path = "jupyterlite_webmcp/_version.py"
 
 [tool.hatch.build.targets.sdist]
 artifacts = ["jupyterlite_webmcp/labextension"]
