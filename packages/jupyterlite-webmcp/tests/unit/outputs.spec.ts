@@ -79,6 +79,20 @@ describe('htmlToText', () => {
     expect(text).toContain('after');
   });
 
+  it('strips <script>/<style> blocks whose closing tag has stray whitespace or attributes', () => {
+    const text = htmlToText(
+      'a<script>evil()</script >b<style>.x{}</style foo="1">c<SCRIPT>evil2()</SCRIPT\n>d'
+    );
+    expect(text).toBe('abcd');
+  });
+
+  it('does not reassemble a tag from overlapping fragments', () => {
+    const text = htmlToText('x<<b>script>alert(1)<</b>/script>y<<i>i>z');
+    expect(text).not.toMatch(/<[a-z/]/i);
+    expect(text).toContain('x');
+    expect(text).toContain('y');
+  });
+
   it('decodes basic HTML entities', () => {
     const html = '<p>Tom &amp; Jerry &lt;3 &nbsp;friends&gt;</p>';
     const text = htmlToText(html);
