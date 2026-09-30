@@ -4,7 +4,7 @@
 # Core modules (mandatory)
 jupyterlite-core==0.8.5
 jupyterlab~=4.6.4
-notebook~=7.6.0
+notebook~=7.6.3
 
 # Python kernel (in-browser, via Pyodide)
 jupyterlite-pyodide-kernel==0.8.6
