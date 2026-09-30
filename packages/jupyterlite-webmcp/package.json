@@ -72,7 +72,7 @@
     "@lumino/disposable": "^2.1.6",
     "@lumino/signaling": "^2.1.6",
     "@lumino/widgets": "^2.9.0",
-    "react": "^19.3.0"
+    "react": "^18.2.0"
   },
   "overrides": {
     "@jupyter/builder": {
@@ -87,7 +87,7 @@
     "@eslint/js": "^10.0.1",
     "@jupyter/builder": "^1.2.3",
     "@types/jest": "^30.0.0",
-    "@types/react": "^19.3.0",
+    "@types/react": "^18.2.0",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",

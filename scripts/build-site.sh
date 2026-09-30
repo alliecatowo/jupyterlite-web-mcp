@@ -86,6 +86,18 @@ if [ -d "$built" ] && [ -e "$installed" ] && [ ! -L "$installed" ]; then
   echo "    refreshed $installed"
 fi
 
+# JupyterLab refuses an extension whose shared dependencies (React, Lumino, ...)
+# don't match the versions it provides, and reports it as "not compatible".
+# Catch that here, so a dependency bump can never ship an extension users can't load.
+echo "==> checking the extension is compatible with the installed JupyterLab"
+labext="$(jupyter labextension list 2>&1)"
+echo "$labext" | grep -i "jupyterlite-webmcp"
+if echo "$labext" | grep -q "is not compatible"; then
+  echo "ERROR: JupyterLab reports the extension as incompatible:" >&2
+  echo "$labext" >&2
+  exit 1
+fi
+
 echo "==> building the JupyterLite site"
 rm -rf dist .jupyterlite.doit.db
 "$python" -m jupyterlite_core.app build --contents content --output-dir dist
