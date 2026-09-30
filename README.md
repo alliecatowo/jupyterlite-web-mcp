@@ -16,7 +16,8 @@ API keys. Selected as one of the
 **[Try the live demo](https://jupyterlite-web-mcp.vercel.app/lab/index.html)** ·
 [60-second walkthrough](#try-it-in-60-seconds) ·
 [Install](#install) ·
-[Open an issue](https://github.com/alliecatowo/jupyterlite-web-mcp/issues)
+[Open an issue](https://github.com/alliecatowo/jupyterlite-web-mcp/issues) ·
+[Sponsor](https://github.com/sponsors/alliecatowo)
 
 <br/>
 
