@@ -518,12 +518,11 @@ jupyter lite serve --output-dir dist      # → http://127.0.0.1:8000
 `requirements.txt` installs `packages/jupyterlite-webmcp` in editable mode,
 so the extension is picked up automatically.
 
-**One-command reproduction of the exact deployed artifact** (this is the
-script the production deploy is built from; Vercel's Git integration is
-now configured in `vercel.json`, so every push to `main` deploys):
+**One-command reproduction of the deployed artifact** (this is exactly what
+Vercel runs on every push to `main`, configured in `vercel.json`):
 
 ```bash
-PYTHON="$PWD/.venv/bin/python" ./scripts/build-site.sh   # → dist/
+./scripts/build-site.sh   # creates .venv, installs deps, builds dist/
 ```
 
 ## Testing it
