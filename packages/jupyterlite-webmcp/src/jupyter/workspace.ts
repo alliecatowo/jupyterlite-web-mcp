@@ -7,7 +7,7 @@ import { Contents } from '@jupyterlab/services';
 import { LIMITS } from '../limits';
 import { notebookAccessOf } from '../access/notebook';
 import { toolError } from './errors';
-import { validatePath } from './paths';
+import { isNotebookPath, validatePath } from './paths';
 
 /**
  * Everything the semantic Jupyter operations need from the running
@@ -105,7 +105,7 @@ async function isHiddenNotebook(
   env: IJupyterEnv,
   entry: IWorkspaceEntry
 ): Promise<boolean> {
-  if (entry.type !== 'notebook' && !entry.path.endsWith('.ipynb')) {
+  if (entry.type !== 'notebook' && !isNotebookPath(entry.path)) {
     return false;
   }
   return (await notebookAccessOf(env, entry.path)) === 'none';

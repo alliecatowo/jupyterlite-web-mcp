@@ -1,10 +1,8 @@
 /**
  * Keeps purely cosmetic presence markers in sync on notebook cell (and
- * output) widgets — the interaction language from `docs/agent-collaboration-
- * roadmap.md`'s "Presence and visual feedback" section: a targeted-cell
- * halo while a tool call looks in flight, a small inline cell-state
- * indicator, a before/after diff affordance for agent source edits, and an
- * output-provenance line. Nothing here affects tool correctness; it only
+ * output) widgets: a targeted-cell halo while a tool call looks in flight, a
+ * small inline cell-state indicator, a before/after diff affordance for agent
+ * source edits, and an output-provenance line. Nothing here affects tool correctness; it only
  * decorates the DOM, never throws past its own boundary, and is a no-op
  * once its target cell/output/panel is disposed or gone.
  */

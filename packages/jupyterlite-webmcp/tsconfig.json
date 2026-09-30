@@ -19,7 +19,7 @@
     "strict": true,
     "strictNullChecks": true,
     "target": "ES2018",
-    "types": ["node", "webmcp-types"]
+    "types": ["webmcp-types"]
   },
   "include": ["src/**/*"],
   "exclude": ["tests", "lib", "node_modules"]

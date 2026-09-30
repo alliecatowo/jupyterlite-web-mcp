@@ -8,9 +8,8 @@
  * `src/ui/askAbout.ts`). Selecting output text on its own never contacts,
  * notifies, or summons anything.
  *
- * Capture rules (exactly as the roadmap specifies): a selection is recorded
- * only when it is non-empty and lies *wholly inside one output wrapper*
- * (`.jp-OutputArea-child`). It is `null` when the selection crosses cells or
+ * Capture rules: a selection is recorded only when it is non-empty and lies
+ * *wholly inside one output wrapper* (`.jp-OutputArea-child`). It is `null` when the selection crosses cells or
  * outputs, includes notebook chrome, sits inside a rich, non-text widget
  * (an image, canvas, SVG, iframe, or similar), or exceeds the bounded text
  * size.
@@ -34,8 +33,7 @@ const OUTPUT_WRAPPER_SELECTOR = '.jp-OutputArea-child';
 const RICH_OUTPUT_SELECTOR = 'canvas, svg, img, iframe, video, audio, object, embed';
 
 /**
- * A captured, bounded selection inside one notebook output. Mirrors the
- * roadmap's `IOutputSelection` exactly.
+ * A captured, bounded selection inside one notebook output.
  */
 export interface IOutputSelection {
   /** Id of the cell whose output was selected. */

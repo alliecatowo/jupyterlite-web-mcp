@@ -846,6 +846,3 @@ export function buildTools(
 
   return tools;
 }
-
-/** Exported for the unit tests: the tool names this extension registers. */
-export const TOOL_NAMES = Object.keys(SCHEMAS);
