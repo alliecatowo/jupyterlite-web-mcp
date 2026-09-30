@@ -21,6 +21,7 @@ import { JupyterFrontEnd } from '@jupyterlab/application';
 import { IDefaultFileBrowser } from '@jupyterlab/filebrowser';
 import { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
 
+import { isNotebookPath } from '../jupyter/paths';
 import { cellAccess, IMetadataCell, setCellAccess } from './guard';
 import { accessLabel, accessShortLabel, nextAccess } from './model';
 import {
@@ -115,7 +116,7 @@ function registerNotebookAccessCommand(options: IAccessCommandOptions): void {
     try {
       const items = fileBrowser ? Array.from(fileBrowser.selectedItems()) : [];
       const notebooks = items.filter(
-        item => item.type === 'notebook' || item.path.endsWith('.ipynb')
+        item => item.type === 'notebook' || isNotebookPath(item.path)
       );
       if (notebooks.length === 1) {
         return notebooks[0].path;
