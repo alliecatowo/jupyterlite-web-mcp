@@ -151,6 +151,8 @@ export function htmlToText(html: string): string {
   text = text.replace(/<\/th>/gi, '\t');
   text = text.replace(/<[^>]+>/g, '');
   text = text.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&nbsp;/g, m => BASIC_ENTITIES[m]);
+  text = text.replace(/<\s*\/?\s*script\b/gi, '');
+  text = text.replace(/<\s*\/?\s*style\b/gi, '');
   text = text.replace(/\n{3,}/g, '\n\n');
   return text.trim();
 }
