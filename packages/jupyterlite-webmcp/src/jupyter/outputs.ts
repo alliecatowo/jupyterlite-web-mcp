@@ -141,21 +141,28 @@ const BASIC_ENTITIES: Record<string, string> = {
  */
 export function htmlToText(html: string): string {
   let text = html;
-  // `<script>`/`<style>` blocks, including closing tags with stray whitespace or
-  // attributes (`</script >`, `</script foo>`), which browsers also accept.
-  text = text.replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, '');
-  text = text.replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, '');
-  text = text.replace(/<br\s*\/?>/gi, '\n');
-  text = text.replace(/<\/tr\b[^>]*>/gi, '\n');
-  text = text.replace(/<\/p\b[^>]*>/gi, '\n');
-  text = text.replace(/<\/div\b[^>]*>/gi, '\n');
-  text = text.replace(/<\/td\b[^>]*>/gi, '\t');
-  text = text.replace(/<\/th\b[^>]*>/gi, '\t');
-  // Strip tags until stable, so input like `<<b>script>` cannot reassemble a
-  // tag from the fragments left behind by a single pass.
   let previous: string;
+  // Each stage runs until the text stops changing, so input like
+  // `<scr<script></script>ipt>` cannot reassemble a tag from the fragments a
+  // single pass leaves behind.
+  //
+  // Stage 1: `<script>`/`<style>` blocks, including closing tags with stray
+  // whitespace or attributes (`</script >`, `</script foo>`), which browsers
+  // also accept.
   do {
     previous = text;
+    text = text.replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, '');
+    text = text.replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, '');
+  } while (text !== previous);
+  // Stage 2: block-ish tags become line/tab breaks, then every remaining tag goes.
+  do {
+    previous = text;
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    text = text.replace(/<\/tr\b[^>]*>/gi, '\n');
+    text = text.replace(/<\/p\b[^>]*>/gi, '\n');
+    text = text.replace(/<\/div\b[^>]*>/gi, '\n');
+    text = text.replace(/<\/td\b[^>]*>/gi, '\t');
+    text = text.replace(/<\/th\b[^>]*>/gi, '\t');
     text = text.replace(/<[^>]*>/g, '');
   } while (text !== previous);
   text = text.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&nbsp;/g, m => BASIC_ENTITIES[m]);

@@ -86,6 +86,10 @@ describe('htmlToText', () => {
     expect(text).toBe('abcd');
   });
 
+  it('removes a script block that only forms after an inner tag is stripped', () => {
+    expect(htmlToText('a<scr<script></script>ipt>evil()</script>b')).toBe('ab');
+  });
+
   it('does not reassemble a tag from overlapping fragments', () => {
     const text = htmlToText('x<<b>script>alert(1)<</b>/script>y<<i>i>z');
     expect(text).not.toMatch(/<[a-z/]/i);
