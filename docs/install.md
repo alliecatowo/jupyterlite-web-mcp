@@ -2,30 +2,19 @@
 
 This is a plain JupyterLab **prebuilt** frontend extension: the wheel ships
 compiled JavaScript/CSS under `share/jupyter/labextensions/jupyterlite-webmcp/`,
-so installing *that wheel* does not require Node.js, `npm`, or a local build
-step. Until it is published, though, the only way to get it is to build it
-from source, which does need Node.js — see
-[Install now](#install-now-before-pypi-publication). It
-has no server extension and no Python runtime dependencies
+so installing it from PyPI does not require Node.js, `npm`, or a local build
+step. It has no server extension and no Python runtime dependencies
 (`dependencies = []` in `pyproject.toml`).
 
 ## JupyterLab (or Notebook 7)
 
-### Target install: `pip install jupyterlite-webmcp`
+### Install from PyPI
 
 ```bash
 pip install jupyterlite-webmcp
 ```
 
-**This is not live yet.** The package is not currently published to PyPI —
-`pip install jupyterlite-webmcp` will 404 until then. It is shown first
-because it's the intended, permanent way to install this extension once
-published, not because it works today. See
-[`docs/release-checklist.md`](release-checklist.md) for exactly what
-remains before that command works, and use the install-now instructions
-below in the meantime.
-
-### Install now, before PyPI publication
+### Install from source (development, or unreleased changes)
 
 From a clone of this repository:
 
@@ -39,13 +28,9 @@ Or directly from git, no clone needed:
 pip install "git+https://github.com/alliecatowo/jupyterlite-web-mcp.git#subdirectory=packages/jupyterlite-webmcp"
 ```
 
-Both of these build the real wheel locally (via `hatchling` +
-`hatch-jupyter-builder`, which runs `npm install` and the production webpack
-build for you) and install it — functionally identical to what
-`pip install jupyterlite-webmcp` will do once that name is live. The only
-difference is where `pip` fetches the source from. Because that build
-happens during the install, **Node.js must be on your `PATH`** for either
-command; you never run `npm` yourself.
+Building from source runs `npm install` and the production webpack build via
+`hatch-jupyter-builder`, so **Node.js must be on your `PATH`**; you never run
+`npm` yourself.
 
 Confirm it registered:
 
@@ -88,15 +73,13 @@ the one it was built against — every real user would have hit a red `X`
 
 JupyterLite deployments are built from a `requirements.txt` (or equivalent
 lockfile) listing the Python packages to bundle into the static site's
-in-browser environment. Once published, `jupyterlite-webmcp` (unpinned or
-version-pinned, same as any other requirement) is the entry to add; for now,
-before publication, use one of the same two install targets already shown
-above:
+in-browser environment. Add `jupyterlite-webmcp` (unpinned or version-pinned,
+same as any other requirement):
 
 ```text
+jupyterlite-webmcp
+# or, to build from this repository instead:
 -e ./packages/jupyterlite-webmcp
-# or, from git:
-git+https://github.com/alliecatowo/jupyterlite-web-mcp.git#subdirectory=packages/jupyterlite-webmcp
 ```
 
 then rebuild the site:

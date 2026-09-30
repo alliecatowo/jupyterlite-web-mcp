@@ -1,5 +1,9 @@
 # Release checklist: publishing `jupyterlite-webmcp` to PyPI
 
+> **Status: v0.1.0 is published** (https://pypi.org/project/jupyterlite-webmcp/) via the
+> Trusted Publishing workflow below. The rest of this file is the record of how
+> it was verified, plus the fallback manual procedure.
+
 This is a plain checklist of what remains before `pip install jupyterlite-webmcp`
 can be true. It is **not yet run** — publishing to PyPI claims a real,
 essentially irreversible public package name, so the actual `twine upload` /
