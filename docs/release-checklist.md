@@ -61,10 +61,13 @@ reserve the name until the first successful publish.
 - **Dry run:** Actions → Release → *Run workflow*. Builds, smoke-tests the
   wheel in a fresh venv, and publishes to TestPyPI after you approve the
   `testpypi` environment.
-- **Release:** bump the version in `pyproject.toml` and `package.json`, merge,
-  then `git tag vX.Y.Z && git push --tags`. The workflow refuses a tag that
-  does not match the package version, and waits for your approval on the
-  `pypi` environment before uploading.
+- **Release:** bump `version` in `packages/jupyterlite-webmcp/package.json`
+  (the Python package reads its version from there), add the release to
+  `CHANGELOG.md`, merge, then `git tag vX.Y.Z && git push origin vX.Y.Z`. The
+  workflow refuses a tag that does not match the `package.json` version, waits
+  for your approval on the `pypi` environment before uploading, and then
+  creates the GitHub Release for the tag with generated notes and the built
+  wheel and sdist attached.
 - Afterwards: `pip install jupyterlite-webmcp` in a throwaway venv, and update
   `docs/install.md` / the package README from "not yet published".
 
