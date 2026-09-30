@@ -520,7 +520,7 @@ so the extension is picked up automatically.
 
 **One-command reproduction of the exact deployed artifact** (this is the
 script the production deploy is built from; Vercel's Git integration is
-turned off and `scripts/deploy-vercel.sh` ships the result):
+now configured in `vercel.json`, so every push to `main` deploys):
 
 ```bash
 PYTHON="$PWD/.venv/bin/python" ./scripts/build-site.sh   # → dist/
