@@ -315,7 +315,7 @@ export class ActivityMarkers implements IDisposable {
 
   private _applyOutputMarkerAndProvenance(widget: { node: HTMLElement }, cellId: string, event: IActivityEvent): void {
     const outputIndex = event.outputIndex;
-    let outputNodes: NodeListOf<Element> | null = null;
+    let outputNodes: NodeListOf<Element> | null;
     try {
       outputNodes = widget.node.querySelectorAll('.jp-OutputArea-child');
     } catch {
@@ -446,7 +446,7 @@ export class ActivityMarkers implements IDisposable {
       if (!change || !change.sourceChange) {
         return;
       }
-      let after = '';
+      let after: string;
       try {
         after = cell.sharedModel.getSource();
       } catch {

@@ -113,7 +113,7 @@ function findOwningCell(panel: NotebookPanel, wrapper: Element): IOwningCell | n
     if (!widget || widget.isDisposed) {
       continue;
     }
-    let contains = false;
+    let contains: boolean;
     try {
       contains = typeof widget.node.contains === 'function' && widget.node.contains(wrapper);
     } catch {

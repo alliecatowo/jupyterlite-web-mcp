@@ -370,14 +370,14 @@ export function deriveActivity(facts: IInvocationFacts): Omit<IActivityEvent, 'i
   const durationMs =
     typeof source.durationMs === 'number' && isFinite(source.durationMs) ? source.durationMs : 0;
 
-  let cellIds: string[] = [];
+  let cellIds: string[];
   try {
     cellIds = collectCellIds(payload, input);
   } catch {
     cellIds = [];
   }
 
-  let notebookPath: string | null = null;
+  let notebookPath: string | null;
   try {
     notebookPath = extractNotebookPath(payload, input);
   } catch {
