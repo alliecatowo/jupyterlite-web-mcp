@@ -81,7 +81,8 @@
     "@lumino/coreutils": "$@lumino/coreutils",
     "@lumino/disposable": "$@lumino/disposable",
     "@lumino/signaling": "$@lumino/signaling",
-    "@lumino/widgets": "$@lumino/widgets"
+    "@lumino/widgets": "$@lumino/widgets",
+    "sanitize-html": "^2.17.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
