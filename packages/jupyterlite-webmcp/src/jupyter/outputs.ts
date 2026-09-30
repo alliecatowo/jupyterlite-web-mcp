@@ -151,8 +151,8 @@ export function htmlToText(html: string): string {
   };
 
   let text = html;
-  text = replaceUntilStable(text, /<script[\s\S]*?<\/script>/gi, '');
-  text = replaceUntilStable(text, /<style[\s\S]*?<\/style>/gi, '');
+  text = replaceUntilStable(text, /<script[\s\S]*?<\/script\s*>/gi, '');
+  text = replaceUntilStable(text, /<style[\s\S]*?<\/style\s*>/gi, '');
   text = text.replace(/<br\s*\/?>/gi, '\n');
   text = text.replace(/<\/tr>/gi, '\n');
   text = text.replace(/<\/p>/gi, '\n');
