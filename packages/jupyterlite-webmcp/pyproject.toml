@@ -7,7 +7,7 @@ name = "jupyterlite_webmcp"
 version = "0.1.0"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 # PEP 621 has no "contributors" field; Juan Mendoza is credited in package.json,
 # the README and CONTRIBUTORS on GitHub.
 authors = [{ name = "Allison Coleman", email = "me@allisons.dev" }]
