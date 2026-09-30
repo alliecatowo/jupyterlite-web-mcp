@@ -23,6 +23,16 @@ relevant reports:
 - Tool inputs that escape their bounds or leak notebook content the owner did
   not expose.
 
+## What access levels are (and aren't)
+
+Access levels are a guardrail for the agent's registered tools, not a sandbox.
+Known, documented limits — reports about these alone aren't vulnerabilities:
+code an agent runs in a visible cell can read what the kernel can reach (e.g.
+the saved `.ipynb`); access metadata is editable by anyone with file access;
+and an unreadable access level fails open to `write`. See the README's
+[Threat model](README.md#threat-model-what-access-levels-do-and-dont-guarantee).
+Bypasses of the tool-level guard are in scope.
+
 ## Supported versions
 
 Only the latest release / `main` receives fixes while the project is pre-1.0.

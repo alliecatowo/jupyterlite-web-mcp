@@ -37,7 +37,7 @@ function makeEnv(): IJupyterEnv {
     throw new Error(`no file at ${path}`);
   });
   return {
-    docManager: { services: { contents: { get } } }
+    docManager: { findWidget: () => undefined, services: { contents: { get } } }
   } as unknown as IJupyterEnv;
 }
 

@@ -173,6 +173,28 @@ export function assertCellAccessible(
 }
 
 /**
+ * {@link assertCellAccessible} for a cell the agent addressed by position
+ * (an index range, or "the active cell") rather than by id. The agent never
+ * supplied this cell's id, so a `'none'` cell must not echo it back — neither
+ * in the message nor in the error details.
+ */
+export function assertPositionalCellAccessible(
+  cellId: string,
+  notebookPath: string,
+  access: CellAccess,
+  intent: AccessIntent
+): void {
+  if (access === 'none') {
+    throw toolError(
+      'CELL_NOT_FOUND',
+      `The requested cell selection includes a cell that is not available to agents in "${notebookPath}".`,
+      { notebookPath }
+    );
+  }
+  assertCellAccessible(cellId, notebookPath, access, intent);
+}
+
+/**
  * Resolves a cell's index by id against a notebook panel, applying
  * {@link assertCellAccessible}. A raw structural scan (not
  * `findCellIndexById`, to avoid a circular import with `src/jupyter/cells.ts`,

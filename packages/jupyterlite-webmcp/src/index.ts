@@ -185,7 +185,7 @@ const panelPlugin: JupyterFrontEndPlugin<void> = {
  * Output-selection tracking and the human-handoff "Ask about..." commands.
  *
  * WebMCP cannot wake, notify, or interrupt an agent (see
- * `docs/agent-collaboration-roadmap.md`). This plugin only ever prepares
+ * the project's agent-collaboration notes). This plugin only ever prepares
  * bounded context — a captured output selection — for an explicit human
  * handoff, and works exactly the same with no agent connected.
  */
