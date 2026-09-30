@@ -472,28 +472,31 @@ Key invariants:
 
 ## Install
 
-Not yet published to PyPI or npm — install from source or directly from git.
-Requires JupyterLab 4.6 (also works in Notebook 7, which ships on the same
-codebase, and in JupyterLite).
+Published on PyPI as [`jupyterlite-webmcp`](https://pypi.org/project/jupyterlite-webmcp/).
+Requires JupyterLab 4.6 (also works in Notebook 7 and JupyterLite). No Node.js
+and no `jupyter lab build` step: it ships as a prebuilt extension.
+
+**JupyterLab / Notebook 7**
 
 ```bash
-# From a clone
-pip install ./packages/jupyterlite-webmcp
-
-# Or directly from git, no clone needed
-pip install "git+https://github.com/alliecatowo/jupyterlite-web-mcp.git#subdirectory=packages/jupyterlite-webmcp"
-
+pip install jupyterlite-webmcp
 jupyter labextension list   # should show jupyterlite-webmcp enabled OK
+jupyter lab
 ```
 
-Either command installs a *prebuilt* frontend extension into JupyterLab — no
-`jupyter lab build` step. Because there is no published wheel yet, pip
-compiles the frontend bundle during the install, so Node.js needs to be on
-your `PATH` (you never run `npm` yourself). For a JupyterLite deployment, add the same requirement
-to the site's `requirements.txt` and rebuild with
-`jupyter lite build --contents content --output-dir dist`. Full walkthrough,
-including what each platform was independently verified to do:
-[`docs/install.md`](docs/install.md).
+**JupyterLite** (a static, browser-only site)
+
+```bash
+pip install jupyterlite-core jupyterlite-pyodide-kernel jupyterlite-webmcp
+jupyter lite build --contents content --output-dir dist
+jupyter lite serve --output-dir dist      # → http://127.0.0.1:8000
+```
+
+Or add `jupyterlite-webmcp` to your site's `requirements.txt`. The extension
+only does anything in a browser that exposes `document.modelContext` (WebMCP);
+elsewhere it stays out of the way. To install from source instead:
+`pip install "git+https://github.com/alliecatowo/jupyterlite-web-mcp.git#subdirectory=packages/jupyterlite-webmcp"`
+(needs Node.js). Full walkthrough: [`docs/install.md`](docs/install.md).
 
 ## Running it locally
 

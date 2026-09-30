@@ -30,10 +30,9 @@ JupyterLab 4.6, Notebook 7, and JupyterLite.
 pip install jupyterlite-webmcp
 ```
 
-> This is the target install once the package is published to PyPI. **It is
-> not live yet.** Until then, install from a clone or directly from git —
-> see [`docs/install.md`](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/docs/install.md)
-> in the repository for the exact command and how to verify it.
+Installs a prebuilt extension: no Node.js and no `jupyter lab build`. For
+JupyterLite, add it to your site's requirements and run `jupyter lite build`;
+see [`docs/install.md`](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/docs/install.md).
 
 Once installed, confirm it registered:
 
