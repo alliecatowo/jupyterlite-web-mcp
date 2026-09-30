@@ -33,3 +33,4 @@ ui-tests/playwright-report/
 dist-shim/
 .vercel
 .env*
+.build-venv/
