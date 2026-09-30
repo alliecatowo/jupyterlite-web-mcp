@@ -26,6 +26,10 @@ if [ -z "${PYTHON:-}" ]; then
 fi
 python="$PYTHON"
 
+# A host-provided PYTHONPATH (Vercel installs requirements.txt into its own
+# directory) must not make `have` think deps are installed in our venv.
+unset PYTHONPATH
+
 # jupyter-builder is installed alongside the selected interpreter, not
 # necessarily alongside the shell's default Python. Honour PYTHON completely:
 # without this, `PYTHON=.venv/bin/python ./scripts/build-site.sh` builds TypeScript
@@ -50,7 +54,7 @@ install() {
 }
 
 # Skip an install that would be a no-op, so a local rebuild is fast.
-have() { "$python" -c "import $1" >/dev/null 2>&1; }
+have() { "$python" -I -c "import $1" >/dev/null 2>&1; }
 
 echo "==> installing the extension build toolchain"
 have jupyterlab || install "jupyterlab~=4.6.0"
@@ -85,5 +89,14 @@ echo "==> building the JupyterLite site"
 rm -rf dist .jupyterlite.doit.db
 "$python" -m jupyterlite_core.app build --contents content --output-dir dist
 
+
+# Fail the build, instead of deploying a site with no extensions, if the
+# frontend extension or the Pyodide kernel did not make it into dist/.
+for ext in jupyterlite-webmcp @jupyterlite/pyodide-kernel-extension; do
+  if [ ! -f "dist/extensions/$ext/package.json" ]; then
+    echo "ERROR: dist/extensions/$ext is missing; the site would ship without it" >&2
+    exit 1
+  fi
+done
 
 echo "==> done: dist/"
