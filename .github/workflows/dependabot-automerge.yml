@@ -1,7 +1,8 @@
 name: Bot PR auto-merge
 
-# Approves PRs opened by our maintenance bots (Dependabot, and Copilot's
-# CodeQL autofixes) and enables auto-merge. GitHub then merges each one only
+# Enables auto-merge on PRs opened by our maintenance bots (Dependabot, and
+# Copilot's CodeQL autofixes). No approval is involved: the `main` ruleset lets
+# those bots bypass the required human review. GitHub then merges each one only
 # once the required checks (build, test, analyze) pass, so a change that breaks
 # the build or tests is never merged.
 #
@@ -26,10 +27,8 @@ jobs:
        github.event.pull_request.user.login == 'Copilot')
     runs-on: ubuntu-24.04
     steps:
-      - name: Approve and enable auto-merge
-        run: |
-          gh pr review --approve "$PR_URL"
-          gh pr merge --auto --merge "$PR_URL"
+      - name: Enable auto-merge
+        run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
