@@ -79,6 +79,16 @@ describe('htmlToText', () => {
     expect(text).toContain('after');
   });
 
+  it('strips a <script> block when the closing tag contains trailing whitespace/attributes', () => {
+    const html =
+      '<div>before<script>alert("should not appear")</script foo="bar">after</div>';
+    const text = htmlToText(html);
+    expect(text).not.toContain('alert');
+    expect(text).not.toContain('should not appear');
+    expect(text).toContain('before');
+    expect(text).toContain('after');
+  });
+
   it('decodes basic HTML entities', () => {
     const html = '<p>Tom &amp; Jerry &lt;3 &nbsp;friends&gt;</p>';
     const text = htmlToText(html);
