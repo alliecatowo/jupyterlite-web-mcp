@@ -1,3 +1,4 @@
 [tools]
-node = "22"
+node = "latest"
 uv = "latest"
+"npm:vercel" = "latest"

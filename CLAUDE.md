@@ -23,6 +23,13 @@ Owner and maintainer: @alliecatowo. Contributor: @mennymendoza (Juan Mendoza).
   `scripts/build-site.sh` (the site build Vercel and CI both run) and
   `ui-tests/make-shim-site.sh`.
 
+## Tooling
+
+`mise.toml` tracks the latest Node and uv and installs the Vercel CLI globally
+(`npm:vercel`), so run `mise install` and use plain `vercel`. CI uses the latest
+Node too (`engines` only sets a floor of 22). Vercel itself is capped at its own
+Node 24.x setting.
+
 ## Checks (all required on `main`: `build`, `test`, `analyze`)
 
 ```bash
@@ -38,8 +45,12 @@ npm ci && npm run typecheck && npx jest && npm run lint:check && npm run build:p
   required checks pass. The `main` ruleset lets those bots bypass the human
   review; everyone else needs 1 review. A bump that breaks the build just stays
   open: fix it on its branch or `@dependabot ignore` it.
-- Vercel skips builds for `dependabot/*` and `copilot/*` branches (free-tier
-  build rate limit).
+- **Vercel previews are opt-in** (free-tier limit: ~100 deployments/day, and a
+  blown limit blocks production deploys). `vercel.json`'s `ignoreCommand` builds
+  only `main` and branches named `preview/*`; every other branch, including all
+  bot PRs, is skipped. Only push a `preview/...` branch when you actually need a
+  live preview of a change, and delete it afterwards. The Vercel check is never
+  a required check; `build`/`test`/`analyze` are.
 - After any merge that touches the build, confirm the live demo:
   `/jupyter-lite.json` lists `jupyterlite-webmcp`, and
   `/extensions/jupyterlite-webmcp/package.json` returns 200.
