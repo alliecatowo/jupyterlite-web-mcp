@@ -30,10 +30,9 @@ JupyterLab 4.6, Notebook 7, and JupyterLite.
 pip install jupyterlite-webmcp
 ```
 
-> This is the target install once the package is published to PyPI. **It is
-> not live yet.** Until then, install from a clone or directly from git —
-> see [`docs/install.md`](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/docs/install.md)
-> in the repository for the exact command and how to verify it.
+Installs a prebuilt extension: no Node.js and no `jupyter lab build`. For
+JupyterLite, add it to your site's requirements and run `jupyter lite build`;
+see [`docs/install.md`](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/docs/install.md).
 
 Once installed, confirm it registered:
 
@@ -51,14 +50,17 @@ pip uninstall jupyterlite_webmcp
 
 ## What it contributes
 
-Two frontend plugins, both `autoStart: true`:
+Seven frontend plugins, all `autoStart: true`; the two you'll notice first:
 
-- **`jupyterlite-webmcp:review`** — a notebook review/comments panel.
-  Threaded comments on a cell, a text range, or an output, stored in the
-  notebook's own metadata. Works whether or not the browser supports WebMCP.
 - **`jupyterlite-webmcp:tools`** — registers the WebMCP tool surface
   (22 tools) when `document.modelContext` is present; otherwise a no-op
   beyond an optional status-bar indicator.
+- **`jupyterlite-webmcp:review`** — a notebook review/comments panel.
+  Threaded comments on a cell, a text range, or an output, stored in the
+  notebook's own metadata. Works whether or not the browser supports WebMCP.
+
+The rest provide the access-control panel and cell menu, the activity/presence
+layer, Propose mode, the Agent panel and output selection.
 
 See the [tool reference](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/docs/webmcp-tools.md)
 for the full list of tools and their schemas, and

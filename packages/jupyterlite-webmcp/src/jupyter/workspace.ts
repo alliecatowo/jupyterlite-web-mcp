@@ -5,7 +5,7 @@ import { INotebookTracker } from '@jupyterlab/notebook';
 import { Contents } from '@jupyterlab/services';
 
 import { LIMITS } from '../limits';
-import { notebookAccessOfContent } from '../access/notebook';
+import { notebookAccessOf } from '../access/notebook';
 import { toolError } from './errors';
 import { validatePath } from './paths';
 
@@ -94,27 +94,21 @@ function toEntry(model: Contents.IModel): IWorkspaceEntry {
 
 /**
  * Whether a workspace entry is a notebook the owner hid from the agent
- * (`notebookAccess: 'none'`). Reads the file's own saved metadata; anything
- * unreadable degrades to visible, so lockdown can never brick a listing.
+ * (`notebookAccess: 'none'`). Uses the live model when the notebook is open
+ * (so a not-yet-saved owner change applies immediately) and the saved file
+ * otherwise; anything unreadable degrades to visible, so lockdown can never
+ * brick a listing.
  * Only `.ipynb`/notebook entries are ever checked — anything else is
  * trivially visible.
  */
 async function isHiddenNotebook(
-  contents: Contents.IManager,
+  env: IJupyterEnv,
   entry: IWorkspaceEntry
 ): Promise<boolean> {
   if (entry.type !== 'notebook' && !entry.path.endsWith('.ipynb')) {
     return false;
   }
-  try {
-    const model = await contents.get(entry.path, { content: true });
-    if (model.type !== 'notebook') {
-      return false;
-    }
-    return notebookAccessOfContent(model.content) === 'none';
-  } catch {
-    return false;
-  }
+  return (await notebookAccessOf(env, entry.path)) === 'none';
 }
 
 /**
@@ -186,7 +180,7 @@ export async function listWorkspace(
       // Hidden check first: a notebook the owner hid must never be listed
       // *or counted*, not even inside `omittedCount` once the limit is
       // reached — otherwise the count itself leaks that something exists.
-      if (await isHiddenNotebook(contents, entry)) {
+      if (await isHiddenNotebook(env, entry)) {
         continue;
       }
       if (entries.length >= limit) {

@@ -14,7 +14,7 @@ jupyterlite-pyodide-kernel==0.8.0
 # so `import ipywidgets` in the in-browser kernel depends on a CDN fetch that
 # does not reliably resolve on this deployment. Rather than ship a demo cell
 # that sometimes renders a dead output area, the fixture has no widgets and
-# the frontend widget manager is not installed. See docs/audit-verdict.md.
+# the frontend widget manager is not installed.
 
 # The extension under development (frontend-only, JupyterLite compatible)
 -e ./packages/jupyterlite-webmcp
