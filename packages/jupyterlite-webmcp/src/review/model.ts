@@ -113,33 +113,29 @@ export const HUMAN_AUTHOR: IAuthor = { kind: 'human', name: null };
 export const AGENT_AUTHOR: IAuthor = { kind: 'agent', name: 'Browser agent' };
 
 const MAX_BODY_CHARS = 8192;
+let fallbackIdCounter = 0;
 
 /**
  * Generates a new unique id, using `crypto.randomUUID()` when available and
- * falling back to an RFC4122-v4-shaped id built from `Math.random()`
- * otherwise.
+ * falling back to `crypto.getRandomValues()` and finally a deterministic id
+ * when Web Crypto is unavailable.
  */
 export function newId(): string {
-  const g = globalThis as unknown as { crypto?: { randomUUID?: () => string } };
+  const g = globalThis as unknown as {
+    crypto?: { randomUUID?: () => string; getRandomValues?: (arr: Uint8Array) => Uint8Array };
+  };
   if (g.crypto && typeof g.crypto.randomUUID === 'function') {
     return g.crypto.randomUUID();
   }
-  let uuid = '';
-  for (let i = 0; i < 32; i++) {
-    if (i === 8 || i === 12 || i === 16 || i === 20) {
-      uuid += '-';
-    }
-    let digit: number;
-    if (i === 12) {
-      digit = 4;
-    } else if (i === 16) {
-      digit = 8 + Math.floor(Math.random() * 4);
-    } else {
-      digit = Math.floor(Math.random() * 16);
-    }
-    uuid += digit.toString(16);
+  if (g.crypto && typeof g.crypto.getRandomValues === 'function') {
+    const bytes = g.crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
-  return uuid;
+  fallbackIdCounter = (fallbackIdCounter + 1) >>> 0;
+  return `fallback-${Date.now().toString(16)}-${fallbackIdCounter.toString(16).padStart(8, '0')}`;
 }
 
 /**
