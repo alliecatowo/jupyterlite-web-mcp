@@ -9,6 +9,7 @@
 #
 #   ./scripts/deploy-vercel.sh            # production
 #   ./scripts/deploy-vercel.sh --preview  # a shareable preview URL
+#   SKIP_BUILD=1 ./scripts/deploy-vercel.sh  # reuse an already-fresh dist/
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -19,8 +20,10 @@ if [ "${1:-}" = "--preview" ]; then
   target=""
 fi
 
-if [ ! -d dist ]; then
-  echo "dist/ does not exist; building it first" >&2
+# Always rebuild: a stale dist/ silently ships an old site. Set SKIP_BUILD=1
+# only when you have just built dist/ yourself.
+if [ "${SKIP_BUILD:-0}" != "1" ]; then
+  echo "==> building the site"
   ./scripts/build-site.sh
 fi
 
@@ -69,4 +72,4 @@ print("wrote .vercel/output/config.json")
 PY
 
 echo "==> deploying"
-npx --yes vercel@latest deploy --prebuilt --yes $target
+npx --yes vercel@${VERCEL_CLI_VERSION:-62.0.0} deploy --prebuilt --yes $target

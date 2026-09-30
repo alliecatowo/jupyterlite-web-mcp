@@ -1,7 +1,7 @@
 /**
  * Captures a bounded, precisely-scoped record of the human's text selection
  * inside one notebook output — the "output-selection handoff" design in
- * `docs/agent-collaboration-roadmap.md`.
+ * the project's agent-collaboration notes.
  *
  * WebMCP cannot wake an agent, and this module never pretends otherwise: it
  * only ever prepares context for an explicit human handoff (see
