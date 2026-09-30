@@ -31,3 +31,4 @@ ui-tests/playwright-report/
 dist-shim/
 .vercel
 .env*
+.claude/worktrees/
