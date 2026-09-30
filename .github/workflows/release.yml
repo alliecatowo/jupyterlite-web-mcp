@@ -26,7 +26,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: 'latest'
 
       - name: Check the tag matches the package version
         if: startsWith(github.ref, 'refs/tags/v')
