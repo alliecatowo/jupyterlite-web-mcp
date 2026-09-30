@@ -141,7 +141,11 @@ const BASIC_ENTITIES: Record<string, string> = {
  */
 export function htmlToText(html: string): string {
   let text = html;
-  text = text.replace(/<script[\s\S]*?<\/script>/gi, '');
+  let previous: string;
+  do {
+    previous = text;
+    text = text.replace(/<script[\s\S]*?<\/script>/gi, '');
+  } while (text !== previous);
   text = text.replace(/<style[\s\S]*?<\/style>/gi, '');
   text = text.replace(/<br\s*\/?>/gi, '\n');
   text = text.replace(/<\/tr>/gi, '\n');

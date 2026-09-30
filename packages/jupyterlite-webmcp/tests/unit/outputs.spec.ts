@@ -79,6 +79,12 @@ describe('htmlToText', () => {
     expect(text).toContain('after');
   });
 
+  it('repeatedly strips script tags until no nested overlap remains', () => {
+    const html = '<scrip<script>alert("x")</script>t>safe';
+    const text = htmlToText(html);
+    expect(text).toBe('safe');
+  });
+
   it('decodes basic HTML entities', () => {
     const html = '<p>Tom &amp; Jerry &lt;3 &nbsp;friends&gt;</p>';
     const text = htmlToText(html);
