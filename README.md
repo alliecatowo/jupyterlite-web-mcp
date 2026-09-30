@@ -69,10 +69,10 @@ has open: the same unsaved edits, the same text selection, the same kernel,
 the same outputs, the same review threads.
 
 > [!NOTE]
-> **Project status.** This started as a hackathon prototype, and we're
-> actively turning it into something easier to install, distribute, and
-> build on. More updates are coming soon. In the meantime, please
-> [try the demo](https://jupyterlite-web-mcp.vercel.app/lab/index.html) and
+> **Project status.** Early (0.x): installable from PyPI, but the tool
+> surface may still change between minor versions. See the
+> [changelog](CHANGELOG.md),
+> [try the demo](https://jupyterlite-web-mcp.vercel.app/lab/index.html), and
 > **[open an issue](https://github.com/alliecatowo/jupyterlite-web-mcp/issues/new)**
 > for bugs, ideas, integrations, or anything you'd like to see supported.
 
@@ -318,7 +318,8 @@ Then do the half that has nothing to do with prompting:
 
 Other seeded notebooks: **`needs-review.ipynb`** (deliberate problems — hand
 it to an agent and ask for a review) and **`reviewed-analysis.ipynb`** (a
-finished human-and-agent session, review threads included).
+finished human-and-agent session, review threads included). `scratch.ipynb`
+is a nearly empty notebook to try things in.
 
 ---
 
@@ -684,3 +685,7 @@ third-party attribution: [`NOTICE.md`](NOTICE.md).
 | [`docs/webmcp-compatibility.md`](docs/webmcp-compatibility.md) | Which WebMCP API, Chrome's calling convention, annotation choices. |
 | [`docs/multiplayer.md`](docs/multiplayer.md) | What happens behind `jupyter-collaboration`, verified; and what is deliberately not shipped. |
 | [`docs/install.md`](docs/install.md) | Per-platform install and verification. |
+| [`docs/release-checklist.md`](docs/release-checklist.md) | How releases are built, verified and published. |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Development setup, tests, and how to open a PR. |
+| [`SECURITY.md`](SECURITY.md) | Supported versions and how to report a vulnerability. |

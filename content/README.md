@@ -26,6 +26,8 @@ server anywhere — everything you see and run here stays on this page.
   a question, and a handful of review comments already in it. Open the
   **Agent** panel in the right sidebar (Comments tab) to read the
   conversation.
+- **`scratch.ipynb`** — a nearly empty notebook to try things in without
+  touching the others.
 
 If your browser has a WebMCP-compatible agent installed, the same live
 notebook — including unsaved edits, your current selection, outputs, and

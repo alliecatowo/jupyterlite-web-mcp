@@ -35,4 +35,10 @@ Bypasses of the tool-level guard are in scope.
 
 ## Supported versions
 
-Only the latest release / `main` receives fixes while the project is pre-1.0.
+While the project is pre-1.0, only the latest release line receives security
+fixes. Fixes land on `main` and ship in the next patch release.
+
+| Version | Supported |
+| --- | --- |
+| 0.1.x (latest) | Yes |
+| Older | No |

@@ -38,7 +38,7 @@ Once installed, confirm it registered:
 
 ```bash
 jupyter labextension list
-# jupyterlite-webmcp v0.1.0 enabled OK (python, jupyterlite_webmcp)
+# jupyterlite-webmcp vX.Y.Z enabled OK (python, jupyterlite_webmcp)
 ```
 
 Then start `jupyter lab` or `jupyter notebook` as usual — no configuration
@@ -55,11 +55,13 @@ Seven frontend plugins, all `autoStart: true`; the two you'll notice first:
 - **`jupyterlite-webmcp:tools`** — registers the WebMCP tool surface
   (22 tools) when `document.modelContext` is present; otherwise a no-op
   beyond an optional status-bar indicator.
-- **`jupyterlite-webmcp:review`** — a notebook review/comments panel.
-  Threaded comments on a cell, a text range, or an output, stored in the
-  notebook's own metadata. Works whether or not the browser supports WebMCP.
+- **`jupyterlite-webmcp:review`** — the review-comment store, commands and
+  cell markers: threaded comments on a cell, a text range, or an output,
+  stored in the notebook's own metadata. Works whether or not the browser
+  supports WebMCP. The comments are shown in the Agent panel (`:panel`,
+  Comments tab).
 
-The rest provide the access-control panel and cell menu, the activity/presence
+The rest provide the access controls and cell menu, the activity/presence
 layer, Propose mode, the Agent panel and output selection.
 
 See the [tool reference](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/docs/webmcp-tools.md)
@@ -70,21 +72,26 @@ WebMCP is active in your browser.
 
 ## Building from source (contributors)
 
-Installing a built wheel of this package never requires Node.js — it ships
-prebuilt JS/CSS. The package is not on PyPI yet, though, so today's
-`pip install` from git or a clone builds that wheel for you and needs Node.js
-on your `PATH`. To work on the extension's source:
+Installing the published wheel never requires Node.js; it ships prebuilt
+JS/CSS. Building from a clone does: the labextension build uses
+`jupyter-builder` from the `jupyterlab` Python package, so install that
+first (Node.js 22+ must be on your `PATH`):
 
 ```bash
 git clone https://github.com/alliecatowo/jupyterlite-web-mcp.git
 cd jupyterlite-web-mcp/packages/jupyterlite-webmcp
-npm install
+python -m venv .venv && source .venv/bin/activate
+pip install "jupyterlab~=4.6.0"
+npm ci
 npm run build:prod
 pip install -e .
 ```
 
 Other useful scripts (see `package.json`): `npm run build` (development
-build), `npm run watch`, `npm test` (Jest unit tests), `npm run typecheck`.
+build), `npm test` (Jest unit tests), `npm run typecheck`, `npm run
+lint:check`. See
+[CONTRIBUTING.md](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/CONTRIBUTING.md)
+for the development loop and browser tests.
 
 ## License
 
