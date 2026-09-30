@@ -144,7 +144,7 @@ export function htmlToText(html: string): string {
   let previous: string;
   do {
     previous = text;
-    text = text.replace(/<script[\s\S]*?<\/script\s*>/gi, '');
+    text = text.replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, '');
   } while (text !== previous);
   text = text.replace(/<style[\s\S]*?<\/style>/gi, '');
   text = text.replace(/<br\s*\/?>/gi, '\n');
