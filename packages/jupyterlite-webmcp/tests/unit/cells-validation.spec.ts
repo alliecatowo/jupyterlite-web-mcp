@@ -2,7 +2,7 @@
  * Regression coverage for the live-tested contract-hardening defect: a
  * handler must reject an out-of-range argument rather than silently
  * clamping it, even though the advertised JSON schema declares `minimum: 0`
- * (see `docs/agent-collaboration-roadmap.md`, "Contract hardening", and
+ * (see the project's agent-collaboration notes, "Contract hardening", and
  * `docs/webmcp-tools.md`). See `tests/unit/derive.spec.ts` for why
  * `@jupyterlab/cells`/`@jupyterlab/notebook` are mocked rather than imported
  * for real.

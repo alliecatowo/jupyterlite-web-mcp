@@ -1,7 +1,7 @@
 import { CodeCell, ICodeCellModel, MarkdownCell } from '@jupyterlab/cells';
 import { NotebookPanel } from '@jupyterlab/notebook';
 
-import { assertCellAccessible, cellAccess, IMetadataCell, recordCellHistory } from '../access/guard';
+import { assertPositionalCellAccessible, cellAccess, IMetadataCell, recordCellHistory } from '../access/guard';
 import { LIMITS } from '../limits';
 import { toolError } from './errors';
 import { INotebookInfo, kernelInfo, notebookInfo, resolveNotebook } from './notebook';
@@ -167,7 +167,7 @@ export async function runCells(
     const boundedEnd = Math.min(end, model.cells.length);
     for (let index = start; index < boundedEnd; index++) {
       const cell = model.cells.get(index) as unknown as IMetadataCell;
-      assertCellAccessible(
+      assertPositionalCellAccessible(
         cell.id,
         panel.context.path,
         cellAccess(cell),
@@ -187,7 +187,7 @@ export async function runCells(
     // restricted as running any other cell by id: run the same centralized
     // check `requireCellIndex` applies.
     const activeCell = model.cells.get(active) as unknown as IMetadataCell;
-    assertCellAccessible(
+    assertPositionalCellAccessible(
       activeCell.id,
       panel.context.path,
       cellAccess(activeCell),

@@ -1,5 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm --prefix packages/jupyterlite-webmcp ci",
+  "buildCommand": "./scripts/build-site.sh",
+  "outputDirectory": "dist",
   "headers": [
     {
       "source": "/(.*)",

@@ -234,8 +234,10 @@ pretends otherwise, and the UI says so out loud.
   same threads — and the whole conversation is stored in the `.ipynb` file you
   download, not in a chat log that dies with the tab.
 - **Decide what the agent may touch.** Per cell and per notebook: `write`,
-  `read`, or `none` (hidden — indistinguishable from a cell or file that does
-  not exist). Human-only; no tool can read or change it.
+  `read`, or `none` (hidden — looked up by id, it is indistinguishable from a
+  cell or file that does not exist). Human-only; no tool can change it. This is
+  a guardrail for the agent's tools, not a sandbox: see
+  [Threat model](#threat-model-what-access-levels-do-and-dont-guarantee).
 - **Review before it sticks, if you want to.** Switch the Agent panel to
   **Propose mode** and `jupyter_update_cell` stops applying immediately —
   it waits, inline, for you to Accept or Deny. See below.
@@ -309,8 +311,8 @@ Then do the half that has nothing to do with prompting:
 - **Highlight `eligible_sessions`** with your mouse and ask the agent what
   you just selected — it reads the exact substring.
 - **Right-click any cell → Agent Access → Hidden**, then ask the agent to
-  read it. The cell becomes indistinguishable from one that does not exist,
-  while you can still see and edit it perfectly.
+  read it. Looked up by id, the cell is indistinguishable from one that does
+  not exist, while you can still see and edit it perfectly.
 - **Edit a cell by hand without saving**, then ask the agent to rewrite it.
   The write is refused and your text is untouched.
 
@@ -455,7 +457,8 @@ Key invariants:
   `.ipynb` and ride along on Yjs when a real Jupyter Server has
   `jupyter-collaboration` installed ([verified](docs/multiplayer.md)).
 - **No hidden execution path.** There is no "run this string" tool and no
-  kernel-introspection tool, by design.
+  kernel-introspection tool, by design: anything the agent runs is a visible
+  cell in your notebook.
 - **Presentation never affects correctness.** The whole presence layer only
   decorates the DOM, swallows its own errors, and is a no-op once its target
   is disposed. Nothing in it can change a tool result.
@@ -469,28 +472,31 @@ Key invariants:
 
 ## Install
 
-Not yet published to PyPI or npm — install from source or directly from git.
-Requires JupyterLab 4.6 (also works in Notebook 7, which ships on the same
-codebase, and in JupyterLite).
+Published on PyPI as [`jupyterlite-webmcp`](https://pypi.org/project/jupyterlite-webmcp/).
+Requires JupyterLab 4.6 (also works in Notebook 7 and JupyterLite). No Node.js
+and no `jupyter lab build` step: it ships as a prebuilt extension.
+
+**JupyterLab / Notebook 7**
 
 ```bash
-# From a clone
-pip install ./packages/jupyterlite-webmcp
-
-# Or directly from git, no clone needed
-pip install "git+https://github.com/alliecatowo/jupyterlite-web-mcp.git#subdirectory=packages/jupyterlite-webmcp"
-
+pip install jupyterlite-webmcp
 jupyter labextension list   # should show jupyterlite-webmcp enabled OK
+jupyter lab
 ```
 
-Either command installs a *prebuilt* frontend extension into JupyterLab — no
-`jupyter lab build` step. Because there is no published wheel yet, pip
-compiles the frontend bundle during the install, so Node.js needs to be on
-your `PATH` (you never run `npm` yourself). For a JupyterLite deployment, add the same requirement
-to the site's `requirements.txt` and rebuild with
-`jupyter lite build --contents content --output-dir dist`. Full walkthrough,
-including what each platform was independently verified to do:
-[`docs/install.md`](docs/install.md).
+**JupyterLite** (a static, browser-only site)
+
+```bash
+pip install jupyterlite-core jupyterlite-pyodide-kernel jupyterlite-webmcp
+jupyter lite build --contents content --output-dir dist
+jupyter lite serve --output-dir dist      # → http://127.0.0.1:8000
+```
+
+Or add `jupyterlite-webmcp` to your site's `requirements.txt`. The extension
+only does anything in a browser that exposes `document.modelContext` (WebMCP);
+elsewhere it stays out of the way. To install from source instead:
+`pip install "git+https://github.com/alliecatowo/jupyterlite-web-mcp.git#subdirectory=packages/jupyterlite-webmcp"`
+(needs Node.js). Full walkthrough: [`docs/install.md`](docs/install.md).
 
 ## Running it locally
 
@@ -515,11 +521,11 @@ jupyter lite serve --output-dir dist      # → http://127.0.0.1:8000
 `requirements.txt` installs `packages/jupyterlite-webmcp` in editable mode,
 so the extension is picked up automatically.
 
-**One-command reproduction of the exact deployed artifact** (this is the
-script Vercel runs):
+**One-command reproduction of the deployed artifact** (this is exactly what
+Vercel runs on every push to `main`, configured in `vercel.json`):
 
 ```bash
-PYTHON="$PWD/.venv/bin/python" ./scripts/build-site.sh   # → dist/
+./scripts/build-site.sh   # creates .venv, installs deps, builds dist/
 ```
 
 ## Testing it
@@ -620,15 +626,34 @@ implied:
 ## How this was built
 
 Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/)
-(August 25 – September 3, 2026) by Allison Coleman and Juan Mendoza, and
+(August 25 – September 3, 2026). Created and maintained by Allison Coleman
+([@alliecatowo](https://github.com/alliecatowo)), with contributions from
+Juan Mendoza ([@mennymendoza](https://github.com/mennymendoza)). It was
 selected as one of the challenge's [10 winning projects](https://webmcp.devpost.com/project-gallery)
 ([Devpost entry](https://devpost.com/software/jupyterlite-webmcp)).
 
-The extension, tests and documentation were written in collaboration with
-**Claude Opus 5** via Claude Code — every commit carries a
-`Co-Authored-By: Claude Opus 5` trailer, so the provenance is auditable from
-`git log` rather than asserted. Design, architecture, product boundaries and
-all review decisions are the authors'.
+## Threat model: what access levels do and don't guarantee
+
+Cell and notebook access levels (`write` / `read` / `none`) are enforced in
+every tool the extension registers, from a single checkpoint. They are a
+guardrail against the *agent's tools*, not a sandbox:
+
+- **Code the agent runs is not restricted by them.** An agent allowed to
+  insert and run a cell can run Python, and that code can read whatever the
+  kernel can reach — including the saved `.ipynb` file (in JupyterLite, the
+  browser workspace is mounted in the kernel). If a notebook contains secrets
+  you must keep from the agent, keep it `read`-only and don't let the agent
+  run cells in it, or keep the secrets out of the workspace.
+- **Metadata is editable.** Access levels live in notebook and cell
+  metadata, so a collaborator or anyone hand-editing the `.ipynb` can change
+  them.
+- **It fails open.** If an access level can't be read, it degrades to
+  `write` rather than locking the workspace.
+- **Hidden cells are not invisible in aggregate.** Range reads report a
+  `hiddenCellCount`; only by-id lookups are indistinguishable from a missing
+  cell.
+
+Found something that contradicts this? See [`SECURITY.md`](SECURITY.md).
 
 ## Feedback and issues
 
