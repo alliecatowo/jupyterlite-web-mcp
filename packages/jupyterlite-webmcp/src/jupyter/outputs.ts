@@ -140,9 +140,19 @@ const BASIC_ENTITIES: Record<string, string> = {
  * entities, collapses long runs of blank lines, and trims the result.
  */
 export function htmlToText(html: string): string {
+  const replaceUntilStable = (input: string, pattern: RegExp, replacement: string): string => {
+    let previous = input;
+    let next = input.replace(pattern, replacement);
+    while (next !== previous) {
+      previous = next;
+      next = next.replace(pattern, replacement);
+    }
+    return next;
+  };
+
   let text = html;
-  text = text.replace(/<script[\s\S]*?<\/script>/gi, '');
-  text = text.replace(/<style[\s\S]*?<\/style>/gi, '');
+  text = replaceUntilStable(text, /<script[\s\S]*?<\/script>/gi, '');
+  text = replaceUntilStable(text, /<style[\s\S]*?<\/style>/gi, '');
   text = text.replace(/<br\s*\/?>/gi, '\n');
   text = text.replace(/<\/tr>/gi, '\n');
   text = text.replace(/<\/p>/gi, '\n');

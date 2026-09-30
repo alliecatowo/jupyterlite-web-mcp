@@ -79,6 +79,14 @@ describe('htmlToText', () => {
     expect(text).toContain('after');
   });
 
+  it('repeatedly strips overlapping <style> blocks until none remain', () => {
+    const html = '<div>safe<s<style>tyled{color:red}</style>text</div>';
+    const text = htmlToText(html);
+    expect(text).not.toContain('<style');
+    expect(text).toContain('safe');
+    expect(text).toContain('text');
+  });
+
   it('decodes basic HTML entities', () => {
     const html = '<p>Tom &amp; Jerry &lt;3 &nbsp;friends&gt;</p>';
     const text = htmlToText(html);
