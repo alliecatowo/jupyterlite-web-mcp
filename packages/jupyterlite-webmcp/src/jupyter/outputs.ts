@@ -149,7 +149,11 @@ export function htmlToText(html: string): string {
   text = text.replace(/<\/div>/gi, '\n');
   text = text.replace(/<\/td>/gi, '\t');
   text = text.replace(/<\/th>/gi, '\t');
-  text = text.replace(/<[^>]+>/g, '');
+  let previous: string;
+  do {
+    previous = text;
+    text = text.replace(/<[^>]+>/g, '');
+  } while (text !== previous);
   text = text.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&nbsp;/g, m => BASIC_ENTITIES[m]);
   text = text.replace(/\n{3,}/g, '\n\n');
   return text.trim();

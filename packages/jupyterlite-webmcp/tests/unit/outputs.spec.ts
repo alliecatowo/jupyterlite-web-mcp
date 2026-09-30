@@ -86,6 +86,12 @@ describe('htmlToText', () => {
     expect(text).toContain('<3');
     expect(text).toContain('friends>');
   });
+
+  it('repeatedly strips malformed overlapping tags', () => {
+    const html = '<scrip<script>ignored</script>t>alert(123)</script>';
+    const text = htmlToText(html);
+    expect(text).not.toMatch(/<[^>]+>/);
+  });
 });
 
 describe('serializeOutput', () => {
