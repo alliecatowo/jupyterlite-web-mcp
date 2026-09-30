@@ -2,12 +2,12 @@
 # Versions follow the official jupyterlite/demo repository.
 
 # Core modules (mandatory)
-jupyterlite-core==0.8.0
+jupyterlite-core==0.8.5
 jupyterlab~=4.6.0
 notebook~=7.6.0
 
 # Python kernel (in-browser, via Pyodide)
-jupyterlite-pyodide-kernel==0.8.0
+jupyterlite-pyodide-kernel==0.8.6
 
 # No ipywidgets. `ipywidgets` itself is not among the wheels bundled by
 # jupyterlite-pyodide-kernel (only `widgetsnbextension`, the frontend shim),
