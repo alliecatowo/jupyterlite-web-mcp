@@ -35,6 +35,9 @@
     "type": "git",
     "url": "https://github.com/alliecatowo/jupyterlite-web-mcp.git"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "npm run build:lib && npm run build:labextension:dev",
     "build:prod": "npm run clean && npm run build:lib:prod && npm run build:labextension",

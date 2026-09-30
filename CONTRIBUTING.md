@@ -6,7 +6,7 @@ shape before you spend time on it.
 
 ## Setup
 
-Requires Node 20+ and Python 3.11+. See [`docs/install.md`](docs/install.md) and
+Requires Node 22+ and Python 3.11+. See [`docs/install.md`](docs/install.md) and
 [`docs/architecture.md`](docs/architecture.md) for the layout.
 
 ```bash

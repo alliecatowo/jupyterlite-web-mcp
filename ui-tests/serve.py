@@ -33,6 +33,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         # Keep caching out of the way so a rebuilt site is picked up.
         self.send_header("Cache-Control", "no-store")
+        # Match the production headers (vercel.json), so the tests exercise the
+        # same cross-origin-isolated configuration that users get.
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "credentialless")
         super().end_headers()
 
     def log_message(self, fmt, *args):
@@ -49,7 +53,7 @@ def main():
     if not os.path.isdir(directory):
         raise SystemExit(
             f"{directory} does not exist. Build the site first:\n"
-            "  jupyter lite build --contents content --output-dir dist"
+            "  ./scripts/build-site.sh"
         )
 
     handler = functools.partial(Handler, directory=directory)

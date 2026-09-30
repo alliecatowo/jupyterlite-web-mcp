@@ -14,7 +14,7 @@ port="${2:-8766}"
 
 if [ ! -d "$root/dist" ]; then
   echo "dist/ does not exist. Build it first:" >&2
-  echo "  jupyter lite build --contents content --output-dir dist" >&2
+  echo "  ./scripts/build-site.sh" >&2
   exit 1
 fi
 
