@@ -85,6 +85,12 @@ describe('htmlToText', () => {
     expect(text).toBe('safe');
   });
 
+  it('strips script tags even when closing tag has trailing whitespace', () => {
+    const html = '<script>alert("x")</script >safe';
+    const text = htmlToText(html);
+    expect(text).toBe('safe');
+  });
+
   it('decodes basic HTML entities', () => {
     const html = '<p>Tom &amp; Jerry &lt;3 &nbsp;friends&gt;</p>';
     const text = htmlToText(html);
