@@ -27,7 +27,7 @@ fi
 python="$PYTHON"
 
 # A host-provided PYTHONPATH (Vercel installs requirements.txt into its own
-# directory) must not make `have` think deps are installed in our venv.
+# directory) must not leak into our venv's view of what is installed.
 unset PYTHONPATH
 
 # jupyter-builder is installed alongside the selected interpreter, not
@@ -53,16 +53,20 @@ install() {
   fi
 }
 
-# Skip an install that would be a no-op, so a local rebuild is fast.
-have() { "$python" -I -c "import $1" >/dev/null 2>&1; }
-
 echo "==> installing the extension build toolchain"
-have jupyterlab || install "jupyterlab~=4.6.0"
+install "jupyterlab~=4.6.0"
 
 if [ ! -d packages/jupyterlite-webmcp/node_modules ]; then
   echo "==> installing npm dependencies"
   npm --prefix packages/jupyterlite-webmcp ci
 fi
+
+# Always install requirements.txt: pip and uv make this a no-op when every pin
+# is already satisfied, and it means a pin bump takes effect even in a reused
+# (or build-cached) virtualenv. It includes the editable install of the
+# extension, whose build hook needs jupyterlab and node_modules from above.
+echo "==> installing the JupyterLite build dependencies"
+install -r requirements.txt
 
 echo "==> building the frontend extension"
 npm --prefix packages/jupyterlite-webmcp run build:prod
@@ -82,13 +86,9 @@ if [ -d "$built" ] && [ -e "$installed" ] && [ ! -L "$installed" ]; then
   echo "    refreshed $installed"
 fi
 
-echo "==> installing the JupyterLite build dependencies"
-have jupyterlite_core || install -r requirements.txt
-
 echo "==> building the JupyterLite site"
 rm -rf dist .jupyterlite.doit.db
 "$python" -m jupyterlite_core.app build --contents content --output-dir dist
-
 
 # Fail the build, instead of deploying a site with no extensions, if the
 # frontend extension or the Pyodide kernel did not make it into dist/.
