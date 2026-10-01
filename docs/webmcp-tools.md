@@ -91,16 +91,16 @@ the code was removed rather than left declared but permanently dead.
 
 ### AbortSignal behavior
 
-Only `jupyter_run_cells` accepts and acts on an `AbortSignal` (passed through
-by the WebMCP runtime as `options.signal`). If the signal is already aborted
+`jupyter_run_cells` accepts and acts on an `AbortSignal` (passed through by the
+WebMCP runtime as `options.signal`). In Propose mode `jupyter_update_cell`
+honors it too: an aborted call cancels its pending proposal. If the signal is already aborted
 when the tool starts, it throws `ABORTED` immediately. If it fires while a
 cell this invocation started is executing, the tool sends a kernel
 **interrupt** — but only while that invocation's own execution is in
 flight; it never interrupts execution the human (or another tool call)
 started, because the kernel is shared. Cells not yet started when an abort
 fires are reported with `status: "abort"` and are not run. Every other tool
-runs to completion or throws normally; there is nothing else in the
-extension for an abort to usefully interrupt.
+runs to completion or throws normally.
 
 ### Per-cell agent access control and provenance
 
@@ -315,7 +315,7 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   | `directory` | string or null | workspace root |
   | `kernel` | string or null | application default kernel |
 - **Output:** `{ path: string; notebook: INotebookInfo; kernel: IKernelInfo }`
-- **Bounds:** none.
+- **Bounds:** `name` is limited to `MAX_NAME_BYTES` (256); a longer name is rejected with `INVALID_ARGUMENT`.
 - **Errors:** `INVALID_ARGUMENT` if `name` is empty/blank; `PATH_EXISTS` if
   a file already exists at the target path (nothing is overwritten);
   `INTERNAL_ERROR` in the (expected never to occur) case the created file
@@ -430,7 +430,7 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   | `activate` | boolean | `true` |
 - **Output:** `{ notebook: INotebookInfo; cell: ICellSnapshot }` (cell
   snapshot always includes source).
-- **Bounds:** none beyond the standard cell snapshot bounds.
+- **Bounds:** `source` over `MAX_CELL_SOURCE_WRITE_BYTES` (256 KiB) is rejected with `INVALID_ARGUMENT`, never truncated; the returned cell follows the standard cell snapshot bounds.
 - **Errors:** `INVALID_CELL_TYPE` for an unsupported `cellType`;
   `INVALID_ARGUMENT` for an unsupported `position`; `CELL_NOT_FOUND` if
   `referenceCellId` is given but doesn't exist.
@@ -469,7 +469,7 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   ```
   `reason` is the human's free-text explanation typed into the inline deny
   control, or `null` when they left it blank.
-- **Bounds:** standard cell-snapshot bounds on the returned cell;
+- **Bounds:** `source` over `MAX_CELL_SOURCE_WRITE_BYTES` (256 KiB) is rejected with `INVALID_ARGUMENT`, never truncated; standard cell-snapshot bounds on the returned cell;
   `MAX_DENY_REASON_BYTES` (2KB) on the human's deny reason.
 - **Errors:** `INVALID_ARGUMENT` if `source` isn't a string or
   `expectedSourceHash` is missing (a missing `source` is refused, never

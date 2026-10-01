@@ -154,6 +154,7 @@ jupyterlite-webmcp:review
 
 jupyterlite-webmcp:access
   requires: [INotebookTracker]
+  optional: [IDefaultFileBrowser]
 
 jupyterlite-webmcp:activity
   provides: IActivityLog

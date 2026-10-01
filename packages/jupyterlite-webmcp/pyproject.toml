@@ -35,7 +35,7 @@ dependencies = []
 Homepage = "https://github.com/alliecatowo/jupyterlite-web-mcp"
 Repository = "https://github.com/alliecatowo/jupyterlite-web-mcp"
 Issues = "https://github.com/alliecatowo/jupyterlite-web-mcp/issues"
-Documentation = "https://github.com/alliecatowo/jupyterlite-web-mcp#readme"
+Documentation = "https://alliecatowo.github.io/jupyterlite-web-mcp/"
 Changelog = "https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/CHANGELOG.md"
 Demo = "https://jupyterlite-web-mcp.vercel.app/lab/index.html"
 

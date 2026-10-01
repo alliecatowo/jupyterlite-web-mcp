@@ -96,6 +96,6 @@ document.modelContext && typeof document.modelContext.registerTool === 'function
 If that is `false`, the extension registers nothing, and the notebook —
 including the Agent panel — works exactly as it otherwise would. If it is
 `true` and this extension is installed, all 22 tools register (see
-`docs/webmcp-tools.md`) and the status bar reflects that an agent is
-connected. See `docs/webmcp-compatibility.md` for how to enable WebMCP in a
+[tool reference](/webmcp-tools)) and the status bar reads `WebMCP ready`. See
+[compatibility](/webmcp-compatibility) for how to enable WebMCP in a
 Chromium build that has the trial, and its calling convention once enabled.
