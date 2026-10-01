@@ -14,14 +14,34 @@ import { NotebookPanel } from '@jupyterlab/notebook';
 
 import { updateCell } from '../../src/jupyter/cells';
 import { ToolError } from '../../src/jupyter/errors';
+import { fingerprintOutput } from '../../src/jupyter/outputs';
 import type { IJupyterEnv } from '../../src/jupyter/workspace';
 import type { IOutputSelection } from '../../src/selection/capture';
 import { visibleOutputSelection } from '../../src/selection/visible';
 
-function makeCell(id: string, access?: string): unknown {
+const RAW_OUTPUT = {
+  output_type: 'execute_result',
+  data: { 'text/plain': '42' },
+  metadata: {},
+  execution_count: 1
+};
+
+function makeOutputs(raw: unknown[]): unknown {
+  return {
+    length: raw.length,
+    get: (index: number) => ({ toJSON: () => raw[index] })
+  };
+}
+
+function makeCell(
+  id: string,
+  access?: string,
+  outputs = [RAW_OUTPUT]
+): unknown {
   return {
     id,
     type: 'code',
+    outputs: makeOutputs(outputs),
     sharedModel: {
       getSource: () => 'source',
       getMetadata: (key: string) =>
@@ -64,7 +84,7 @@ function makeRecord(cellId: string): IOutputSelection {
     cellId,
     outputIndex: 0,
     text: '42',
-    outputFingerprint: 'fp',
+    outputFingerprint: fingerprintOutput(RAW_OUTPUT),
     capturedAt: new Date().toISOString()
   };
 }
@@ -111,6 +131,23 @@ describe('visibleOutputSelection', () => {
   it('returns null when there is no record', () => {
     const env = makeEnv(makePanel({ cells: [makeCell('a')] }));
     expect(visibleOutputSelection(env, null)).toBeNull();
+  });
+
+  it('returns null when the selected output has been replaced', () => {
+    const replaced = {
+      ...RAW_OUTPUT,
+      data: { 'text/plain': '43' },
+      execution_count: 2
+    };
+    const env = makeEnv(
+      makePanel({ cells: [makeCell('a', undefined, [replaced])] })
+    );
+    expect(visibleOutputSelection(env, makeRecord('a'))).toBeNull();
+  });
+
+  it('returns null when the selected output has been removed', () => {
+    const env = makeEnv(makePanel({ cells: [makeCell('a', undefined, [])] }));
+    expect(visibleOutputSelection(env, makeRecord('a'))).toBeNull();
   });
 });
 

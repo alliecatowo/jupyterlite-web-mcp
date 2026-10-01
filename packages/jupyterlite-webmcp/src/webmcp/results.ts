@@ -5,6 +5,7 @@
  */
 import { LIMITS } from '../limits';
 import type { IStructuredError } from '../jupyter/errors';
+import { truncateUtf8, utf8Length } from '../utf8';
 
 /**
  * One block of a tool result's `content` array. Only plain text blocks are
@@ -26,77 +27,142 @@ export interface IToolResult {
   isError?: boolean;
 }
 
-function utf8Length(str: string): number {
-  let bytes = 0;
-  for (let i = 0; i < str.length; i++) {
-    const code = str.charCodeAt(i);
-    if (code >= 0xd800 && code <= 0xdbff && i + 1 < str.length) {
-      const next = str.charCodeAt(i + 1);
-      if (next >= 0xdc00 && next <= 0xdfff) {
-        bytes += 4;
-        i++;
-        continue;
-      }
-    }
-    if (code < 0x80) {
-      bytes += 1;
-    } else if (code < 0x800) {
-      bytes += 2;
-    } else {
-      bytes += 3;
-    }
-  }
-  return bytes;
+type JsonObject = Record<string, unknown>;
+
+function isPlainObject(value: unknown): value is JsonObject {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function slicePartial(json: string, maxBytes: number): string {
-  let bytes = 0;
-  let result = '';
-  let i = 0;
-  while (i < json.length) {
-    const code = json.charCodeAt(i);
-    let charLen = 1;
-    let byteLen: number;
-    if (code >= 0xd800 && code <= 0xdbff && i + 1 < json.length) {
-      const next = json.charCodeAt(i + 1);
-      if (next >= 0xdc00 && next <= 0xdfff) {
-        charLen = 2;
-        byteLen = 4;
-      } else {
-        byteLen = 3;
+/** One array in a payload that may be trimmed, with the object holding it. */
+interface ITrimCandidate {
+  parent: JsonObject;
+  key: string;
+  bytes: number;
+}
+
+/**
+ * Every non-empty array of objects held by a plain-object property anywhere
+ * in `value`. Arrays of strings or numbers (such as an nbformat
+ * `text: string[]`) are never candidates: trimming them would silently change
+ * content rather than drop whole items.
+ */
+function trimCandidates(
+  value: unknown,
+  out: ITrimCandidate[] = []
+): ITrimCandidate[] {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      trimCandidates(value[i], out);
+    }
+  } else if (isPlainObject(value)) {
+    for (const key of Object.keys(value)) {
+      const child = value[key];
+      if (
+        Array.isArray(child) &&
+        child.length > 0 &&
+        child.every(item => isPlainObject(item))
+      ) {
+        out.push({
+          parent: value,
+          key,
+          bytes: utf8Length(JSON.stringify(child))
+        });
       }
-    } else if (code < 0x80) {
-      byteLen = 1;
-    } else if (code < 0x800) {
-      byteLen = 2;
-    } else {
-      byteLen = 3;
+      trimCandidates(child, out);
     }
-    if (bytes + byteLen > maxBytes) {
-      break;
-    }
-    bytes += byteLen;
-    result += json.substr(i, charLen);
-    i += charLen;
   }
-  return result;
+  return out;
+}
+
+/**
+ * Tries to make `root` fit in `maxBytes` by dropping trailing items of its
+ * largest arrays of objects, one array at a time. The object holding a
+ * trimmed array gets `truncated: true` and its `omittedCount` increased by
+ * the number of items dropped (an existing count is added to, never
+ * overwritten); the root also gets `truncated: true`. Mutates `root`, and
+ * returns its serialized form when it fits, otherwise `null`.
+ */
+function trimToFit(root: JsonObject, maxBytes: number): string | null {
+  const done = new Set<unknown>();
+  for (let round = 0; round < 8; round++) {
+    const candidates = trimCandidates(root).filter(
+      c => !done.has(c.parent[c.key])
+    );
+    if (candidates.length === 0) {
+      return null;
+    }
+    candidates.sort((a, b) => b.bytes - a.bytes);
+    const { parent, key } = candidates[0];
+    const items = parent[key] as unknown[];
+    const baseOmitted =
+      typeof parent.omittedCount === 'number' ? parent.omittedCount : 0;
+    const apply = (keep: number): string => {
+      const kept = items.slice(0, keep);
+      parent[key] = kept;
+      done.add(kept);
+      parent.truncated = true;
+      parent.omittedCount = baseOmitted + (items.length - keep);
+      root.truncated = true;
+      return JSON.stringify(root);
+    };
+    // The largest number of leading items that fits, by binary search. The
+    // whole array is known not to fit (the current state does not).
+    let lo = 0;
+    let hi = items.length - 1;
+    let best = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (utf8Length(apply(mid)) <= maxBytes) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    const text = apply(best === -1 ? 0 : best);
+    if (best !== -1) {
+      return text;
+    }
+    // Even an empty array does not fit: something else is large too, so
+    // move on to the next largest array.
+  }
+  return null;
 }
 
 /**
  * Serializes `value` to compact JSON, bounding the result to at most
  * `maxBytes` of UTF-8 (defaulting to {@link LIMITS.MAX_TOTAL_RESULT_BYTES}).
- * When the serialized value fits, returns it unchanged. Otherwise returns a
- * small JSON envelope describing the truncation, containing only the first
- * `maxBytes - 300` UTF-8 bytes of the original JSON (cut at a character
- * boundary) as `partial`. The returned `text` is always valid JSON.
+ *
+ * When the serialized value fits, returns it unchanged. Otherwise, for an
+ * object payload, it first degrades gracefully: trailing items of the
+ * largest arrays of objects are dropped until the result fits, and the
+ * trimmed copy is returned as `value` alongside its JSON `text`. The agent
+ * still gets well-formed, structured items (with their ids and hashes), plus
+ * `truncated: true` and an `omittedCount` on the object that held the
+ * trimmed array. The caller's `value` is never mutated.
+ *
+ * Only when that is impossible (no trimmable array, or what remains is still
+ * too large) does it fall back to a small JSON envelope carrying the first
+ * `maxBytes - 300` UTF-8 bytes of the original JSON as an opaque `partial`
+ * string, with no `value`. The returned `text` is always valid JSON.
  */
-export function boundJson(value: unknown, maxBytes: number = LIMITS.MAX_TOTAL_RESULT_BYTES): { text: string; truncated: boolean } {
+export function boundJson(
+  value: unknown,
+  maxBytes: number = LIMITS.MAX_TOTAL_RESULT_BYTES
+): { text: string; truncated: boolean; value?: unknown } {
   const json = JSON.stringify(value);
   if (utf8Length(json) <= maxBytes) {
     return { text: json, truncated: false };
   }
+  if (isPlainObject(value)) {
+    const copy = JSON.parse(json) as JsonObject;
+    const text = trimToFit(copy, maxBytes);
+    if (text !== null) {
+      return { text, truncated: true, value: copy };
+    }
+  }
   const partialBudget = Math.max(0, maxBytes - 300);
-  const partial = slicePartial(json, partialBudget);
+  const partial = truncateUtf8(json, partialBudget);
   const envelope = {
     truncated: true,
     reason: 'Result exceeded the maximum tool result size.',
@@ -108,8 +174,8 @@ export function boundJson(value: unknown, maxBytes: number = LIMITS.MAX_TOTAL_RE
 
 /**
  * Builds a successful tool result for `payload`: a single bounded-JSON text
- * block plus the same payload as `structuredContent` when it fitted inside
- * the bound (see below).
+ * block plus the same payload (or its trimmed copy) as `structuredContent`
+ * whenever it is still well-formed (see below).
  */
 export function okResult(payload: unknown): IToolResult {
   const bounded = boundJson(payload);
@@ -117,11 +183,14 @@ export function okResult(payload: unknown): IToolResult {
     content: [{ type: 'text', text: bounded.text }]
   };
   // `structuredContent` is a convenience copy of the same payload. When the
-  // payload is too large to serialize whole, the text content already carries
-  // the truncation notice, so attaching the unbounded original here would
-  // reintroduce exactly the size the bound exists to prevent.
+  // payload had to be trimmed to fit, it is the trimmed copy (identical to
+  // the text). When it could only be reduced to an opaque `partial` notice,
+  // it is omitted: attaching the unbounded original here would reintroduce
+  // exactly the size the bound exists to prevent.
   if (!bounded.truncated) {
     result.structuredContent = payload;
+  } else if (bounded.value !== undefined) {
+    result.structuredContent = bounded.value;
   }
   return result;
 }

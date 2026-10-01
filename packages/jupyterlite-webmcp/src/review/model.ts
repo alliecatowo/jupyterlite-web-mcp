@@ -4,6 +4,7 @@
  * edited, come from an old schema version, or be outright malformed), so
  * {@link normalizeReview} is deliberately defensive and never throws.
  */
+import { utf8Length } from '../utf8';
 
 /**
  * The notebook metadata key under which review data is stored.
@@ -392,4 +393,43 @@ export function countOpen(data: IReviewData): number {
  */
 export function threadsForCell(data: IReviewData, cellId: string): IThread[] {
   return data.threads.filter(t => t.anchor.cellId === cellId);
+}
+
+/**
+ * A thread as returned to an agent: at most `maxMessages` messages and at
+ * most about `maxBytes` of serialized messages. The first message (the
+ * original comment) is always kept, then as many of the most recent messages
+ * as fit, in their original order, so a reply or resolution the agent just
+ * wrote is not the one dropped. `omittedMessages` counts the messages left
+ * out; they sit between the first message and the kept recent ones.
+ */
+export function capThreadMessages(
+  thread: IThread,
+  maxMessages: number,
+  maxBytes: number
+): { thread: IThread; omittedMessages: number } {
+  const all = thread.messages;
+  if (all.length === 0) {
+    return { thread, omittedMessages: 0 };
+  }
+  const first = all[0];
+  let used = utf8Length(JSON.stringify(first));
+  const recent: IMessage[] = [];
+  for (
+    let i = all.length - 1;
+    i >= 1 && recent.length + 1 < maxMessages;
+    i--
+  ) {
+    const bytes = utf8Length(JSON.stringify(all[i]));
+    if (used + bytes > maxBytes) {
+      break;
+    }
+    used += bytes;
+    recent.unshift(all[i]);
+  }
+  const messages = [first, ...recent];
+  return {
+    thread: { ...thread, messages },
+    omittedMessages: all.length - messages.length
+  };
 }
