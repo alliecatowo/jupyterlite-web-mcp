@@ -798,8 +798,8 @@ message `{ id, author: { kind, name }, createdAt, body }`.
 ### `jupyter_get_comment`
 
 - **Title:** Read a review thread
-- **Description:** "Read one review thread in full: every message, the
-  anchor, whether the anchor still resolves, and the code or output it is
+- **Description:** "Read one review thread: its messages (the first and the
+  most recent when long), the anchor, whether the anchor still resolves, and the code or output it is
   attached to as it exists now."
 - **Read/write:** read-only (`readOnlyHint: true`, `untrustedContentHint: true`)
 - **Inputs:** `{ notebookPath?: string | null; threadId: string }` (`threadId` required)
@@ -815,8 +815,8 @@ message `{ id, author: { kind, name }, createdAt, body }`.
   }
   ```
   For an `output` anchor, `context.cell` includes outputs; for other kinds
-  it includes source only. Despite "every message" in the description, the
-  thread's messages are capped as described above.
+  it includes source only. Long threads keep the first message and the most
+  recent ones, as described above.
 - **Bounds:** the embedded `cell` follows the same bounds as
   `jupyter_get_cells`.
 - **Errors:** `COMMENT_NOT_FOUND` if `threadId` doesn't exist in the
