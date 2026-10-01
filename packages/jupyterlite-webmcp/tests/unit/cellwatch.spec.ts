@@ -174,4 +174,76 @@ describe('ProvenanceTracker', () => {
     }
     provenance.dispose();
   });
+
+  it('records a still-debouncing human edit before an agent edit, never after it', async () => {
+    const tracker = new FakeTracker();
+    const provenance = new ProvenanceTracker(tracker as any);
+    const cell = new FakeCell('c1');
+    tracker.open(new FakePanel('nb.ipynb', [cell]));
+    await flush();
+
+    jest.useFakeTimers();
+    try {
+      cell.edit('typed by a human');
+      jest.advanceTimersByTime(1000);
+      // The agent's write lands inside the debounce window: the human's
+      // entry is recorded right then, ahead of the tool path's own
+      // `'agent'` entry, not 2s later on top of it.
+      withAgentAttribution(() => cell.edit('written by the agent'));
+      expect(recordCellHistory).toHaveBeenCalledTimes(1);
+      expect((recordCellHistory as jest.Mock).mock.calls[0][0]).toBe(cell);
+      expect((recordCellHistory as jest.Mock).mock.calls[0][1]).toBe('human');
+
+      jest.advanceTimersByTime(5000);
+      expect(recordCellHistory).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+    provenance.dispose();
+  });
+
+  it('carries a still-debouncing human edit over to the new model when the cell is moved', async () => {
+    const tracker = new FakeTracker();
+    const provenance = new ProvenanceTracker(tracker as any);
+    const original = new FakeCell('m');
+    const panel = tracker.open(
+      new FakePanel('nb.ipynb', [new FakeCell('x'), original])
+    );
+    await flush();
+
+    jest.useFakeTimers();
+    try {
+      original.edit('typed by a human');
+      jest.advanceTimersByTime(1000);
+      const moved = panel.cells.move(1, 0);
+      jest.advanceTimersByTime(5000);
+      expect(recordCellHistory).toHaveBeenCalledTimes(1);
+      expect((recordCellHistory as jest.Mock).mock.calls[0][0]).toBe(moved);
+      expect((recordCellHistory as jest.Mock).mock.calls[0][1]).toBe('human');
+    } finally {
+      jest.useRealTimers();
+    }
+    provenance.dispose();
+  });
+
+  it('drops a still-debouncing human edit when the cell is deleted', async () => {
+    const tracker = new FakeTracker();
+    const provenance = new ProvenanceTracker(tracker as any);
+    const cell = new FakeCell('gone');
+    const panel = tracker.open(
+      new FakePanel('nb.ipynb', [new FakeCell('keep'), cell])
+    );
+    await flush();
+
+    jest.useFakeTimers();
+    try {
+      cell.edit('typed by a human');
+      panel.cells.remove(1);
+      jest.advanceTimersByTime(5000);
+      expect(recordCellHistory).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+    provenance.dispose();
+  });
 });

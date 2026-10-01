@@ -15,6 +15,7 @@ import { NotebookCellWatcher } from '../access/cellwatch';
 import { isAgentAttributed } from '../access/guard';
 import { LIMITS } from '../limits';
 import { Popover } from '../ui/popover';
+import { truncateUtf8 } from '../utf8';
 import { diffLines, diffStats, hasDiffChanges, IDiffLine } from './diff';
 import { ActivityKind, ActivityLog, IActivityEvent } from './model';
 
@@ -429,8 +430,7 @@ export class ActivityMarkers implements IDisposable {
   }
 
   private _recordDiff(panel: NotebookPanel, cell: ICellModel, before: string, after: string): void {
-    const bounded = (s: string): string =>
-      s.length > LIMITS.MAX_CELL_SOURCE_BYTES ? s.slice(0, LIMITS.MAX_CELL_SOURCE_BYTES) : s;
+    const bounded = (s: string): string => truncateUtf8(s, LIMITS.MAX_CELL_SOURCE_BYTES);
     const lines = diffLines(bounded(before), bounded(after));
     if (!hasDiffChanges(lines)) {
       return;

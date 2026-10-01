@@ -49,8 +49,10 @@ export class FakeCellList {
     this._cells.splice(index, 0, cell);
     this.changed.emit({ type: 'add', newValues: [cell], oldValues: [] });
   }
+  /** Like JupyterLab 4, a removed cell's model is disposed before `changed` fires. */
   remove(index: number): void {
-    this._cells.splice(index, 1);
+    const [old] = this._cells.splice(index, 1);
+    old.isDisposed = true;
     this.changed.emit({
       type: 'remove',
       newValues: [],
@@ -60,6 +62,7 @@ export class FakeCellList {
   /** JupyterLab 4 move: delete plus insert of a fresh model with the same id. */
   move(from: number, to: number): FakeCell {
     const [old] = this._cells.splice(from, 1);
+    old.isDisposed = true;
     const clone = new FakeCell(old.id, old.sharedModel.getSource());
     this._cells.splice(to, 0, clone);
     this.changed.emit({
