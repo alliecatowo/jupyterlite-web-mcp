@@ -11,6 +11,7 @@ import { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
 import { IDisposable } from '@lumino/disposable';
 import { Signal } from '@lumino/signaling';
 
+import { NotebookCellWatcher } from '../access/cellwatch';
 import { isAgentAttributed } from '../access/guard';
 import { LIMITS } from '../limits';
 import { Popover } from '../ui/popover';
@@ -92,10 +93,9 @@ export class ActivityMarkers implements IDisposable {
     this._revealActivityPanel = options.revealActivityPanel;
 
     log.changed.connect(this._onChanged, this);
-    tracker.widgetAdded.connect((_, panel) => this._attachDiffWatcher(panel), this);
-    if (tracker.currentWidget) {
-      this._attachDiffWatcher(tracker.currentWidget);
-    }
+    this._cellWatcher = new NotebookCellWatcher<NotebookPanel>(tracker, (cell, panel) =>
+      this._attachCellDiffWatcher(cell, panel)
+    );
   }
 
   /** Whether {@link dispose} has been called. */
@@ -119,14 +119,7 @@ export class ActivityMarkers implements IDisposable {
       }
     }
     this._popovers.clear();
-    for (const detach of this._cellDetach.values()) {
-      try {
-        detach();
-      } catch {
-        // Best-effort cleanup only.
-      }
-    }
-    this._cellDetach.clear();
+    this._cellWatcher.dispose();
     Signal.clearData(this);
   }
 
@@ -403,47 +396,17 @@ export class ActivityMarkers implements IDisposable {
   // activity log's bounded, JSON-shaped event payloads do not carry.
   // ---------------------------------------------------------------------
 
-  private _attachDiffWatcher(panel: NotebookPanel): void {
-    if (this._attachedPanels.has(panel)) {
-      return;
-    }
-    this._attachedPanels.add(panel);
-    panel.context.ready
-      .then(() => {
-        if (this._isDisposed || panel.isDisposed) {
-          return;
-        }
-        const model = panel.context.model;
-        for (let i = 0; i < model.cells.length; i++) {
-          this._attachCellDiffWatcher(model.cells.get(i));
-        }
-        model.cells.changed.connect((_, change) => {
-          if (change.type === 'add') {
-            for (const cell of change.newValues as ICellModel[]) {
-              this._attachCellDiffWatcher(cell);
-            }
-          } else if (change.type === 'remove') {
-            for (const cell of change.oldValues as ICellModel[]) {
-              this._detachCellDiffWatcher(cell);
-            }
-          }
-        }, this);
-      })
-      .catch(() => undefined);
-  }
-
-  private _attachCellDiffWatcher(cell: ICellModel): void {
-    const key = cell.id;
-    if (this._cellDetach.has(key)) {
-      return;
-    }
+  private _attachCellDiffWatcher(cell: ICellModel, panel: NotebookPanel): () => void {
+    // The last-seen source lives in this closure, so it is released with
+    // the listener when the cell or its panel goes away.
+    let known: string;
     try {
-      this._knownSource.set(key, cell.sharedModel.getSource());
+      known = cell.sharedModel.getSource();
     } catch {
-      this._knownSource.set(key, '');
+      known = '';
     }
     const onChange = (_: unknown, change: { sourceChange?: unknown }): void => {
-      if (!change || !change.sourceChange) {
+      if (this._isDisposed || !change || !change.sourceChange) {
         return;
       }
       let after: string;
@@ -452,30 +415,20 @@ export class ActivityMarkers implements IDisposable {
       } catch {
         after = '';
       }
-      const before = this._knownSource.get(key) ?? '';
-      this._knownSource.set(key, after);
+      const before = known;
+      known = after;
       if (!isAgentAttributed() || cell.isDisposed) {
         return;
       }
-      this._recordDiff(key, before, after);
+      this._recordDiff(panel, cell, before, after);
     };
     cell.sharedModel.changed.connect(onChange);
-    this._cellDetach.set(key, () => {
+    return () => {
       cell.sharedModel.changed.disconnect(onChange);
-    });
+    };
   }
 
-  private _detachCellDiffWatcher(cell: ICellModel): void {
-    const key = cell.id;
-    const detach = this._cellDetach.get(key);
-    if (detach) {
-      detach();
-      this._cellDetach.delete(key);
-    }
-    this._knownSource.delete(key);
-  }
-
-  private _recordDiff(cellId: string, before: string, after: string): void {
+  private _recordDiff(panel: NotebookPanel, cell: ICellModel, before: string, after: string): void {
     const bounded = (s: string): string =>
       s.length > LIMITS.MAX_CELL_SOURCE_BYTES ? s.slice(0, LIMITS.MAX_CELL_SOURCE_BYTES) : s;
     const lines = diffLines(bounded(before), bounded(after));
@@ -483,15 +436,16 @@ export class ActivityMarkers implements IDisposable {
       return;
     }
 
-    const panel = this._tracker.currentWidget;
-    if (!panel || panel.isDisposed) {
+    if (panel.isDisposed) {
       return;
     }
-    const widget = this._findCellWidget(panel, cellId);
+    // Look the widget up by model on the panel that owns the cell, not by id
+    // on whichever notebook is current: another open notebook may share ids.
+    const widget = panel.content.widgets.find(w => !w.isDisposed && w.model === cell);
     if (!widget || widget.isDisposed) {
       return;
     }
-    this._renderDiffToggle(widget.node, cellId, lines);
+    this._renderDiffToggle(widget.node, cell.id, lines);
   }
 
   private _renderDiffToggle(cellNode: HTMLElement, cellId: string, lines: IDiffLine[]): void {
@@ -558,9 +512,7 @@ export class ActivityMarkers implements IDisposable {
   private _isDisposed = false;
   private _timers = new Map<string, ReturnType<typeof setTimeout>>();
   private _popovers = new Map<HTMLElement, Popover>();
-  private _cellDetach = new Map<string, () => void>();
-  private _knownSource = new Map<string, string>();
-  private _attachedPanels = new WeakSet<NotebookPanel>();
+  private _cellWatcher: NotebookCellWatcher<NotebookPanel>;
   private _tracker: INotebookTracker;
   private _log: ActivityLog;
   private _revealActivityPanel?: () => void;

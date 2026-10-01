@@ -108,6 +108,52 @@ function flush(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 0));
 }
 
+describe('proposeUpdateCell source size and auto-deny', () => {
+  it('rejects an oversized source up front with INVALID_ARGUMENT, creating no proposal', async () => {
+    const cellId = 'cell-1';
+    const source = 'print(1)';
+    const { env } = makeEnv([makeCell(cellId, 'code', source)]);
+    const store = new ProposeStore();
+    const huge = 'x'.repeat(256 * 1024 + 1);
+
+    await expect(
+      proposeUpdateCell(env, store, {
+        cellId,
+        source: huge,
+        expectedSourceHash: hashCellSource('code', source)
+      })
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { length: huge.length }
+    });
+    expect(store.pending).toHaveLength(0);
+    expect(store.proposals).toHaveLength(0);
+  });
+
+  it('resolves an auto-denied proposal as a non-error PROPOSAL_DENIED result carrying the reason', async () => {
+    const cellId = 'cell-1';
+    const source = 'print(1)';
+    const { env } = makeEnv([makeCell(cellId, 'code', source)]);
+    const store = new ProposeStore();
+    const call = proposeUpdateCell(env, store, {
+      cellId,
+      source: 'print(2)',
+      expectedSourceHash: hashCellSource('code', source)
+    });
+    await flush();
+    const pending = store.pendingFor({
+      notebookPath: 'notebook.ipynb',
+      cellId
+    });
+    expect(store.autoDeny(pending!.id, 'cell gone')).toBe(true);
+    await expect(call).resolves.toMatchObject({
+      status: 'denied',
+      code: 'PROPOSAL_DENIED',
+      reason: 'cell gone'
+    });
+  });
+});
+
 describe('proposeUpdateCell', () => {
   it('does not apply the write until the human accepts, then applies it through updateCell', async () => {
     const cellId = 'cell-1';
