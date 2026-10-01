@@ -21,8 +21,9 @@ Python runtime dependencies (`dependencies = []`). Works unmodified in
 JupyterLab 4.6, Notebook 7, and JupyterLite.
 
 **Live demo:** <https://jupyterlite-web-mcp.vercel.app/lab/index.html>
-**Full project README, design rationale, and the 22-tool reference:**
-<https://github.com/alliecatowo/jupyterlite-web-mcp>
+**Documentation, quickstart and the 22-tool reference:**
+<https://alliecatowo.github.io/jupyterlite-web-mcp/>
+**Source and issues:** <https://github.com/alliecatowo/jupyterlite-web-mcp>
 
 ## Install
 

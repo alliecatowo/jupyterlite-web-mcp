@@ -10,8 +10,7 @@ The current imperative API, and nothing else:
 
 ```js
 document.modelContext.registerTool(
-  { name, title, description, inputSchema, execute, annotations },
-  { signal }
+  { name, title, description, inputSchema, execute, annotations }
 );
 ```
 
@@ -39,7 +38,7 @@ comment feature — works exactly as it otherwise would. The extension never
 defines `document.modelContext` itself; it ships no polyfill.
 
 Verified on the public deployment in Chrome 150 with WebMCP off:
-`document.modelContext` is `undefined`, both plugins still activate, the
+`document.modelContext` is `undefined`, all seven plugins still activate, the
 `jupyterlite-webmcp:add-comment` command is present, and the status bar reads
 `WebMCP unavailable`.
 
@@ -47,7 +46,7 @@ To turn it on in a Chromium-based browser that has the trial, enable
 **Experimental Web Platform features** at `chrome://flags` and restart. Verified
 on the public deployment in Chrome 150 with the flag on: `document.modelContext`
 is an object, `getTools()` returns all 22 tools with their annotations intact,
-and the status bar reflects that the agent is connected.
+and the status bar reads `WebMCP ready`.
 
 ## Calling convention, as Chrome actually implements it
 
@@ -145,12 +144,13 @@ the only file that has to change.
 
 ## Cancellation
 
-Every tool's `execute` receives `options.signal`. `jupyter_run_cells` is the only
-tool that does anything with it, because it is the only one that can run long
-enough to be worth cancelling. When the signal aborts mid-execution it makes a
+Every tool's `execute` receives `options.signal`. `jupyter_run_cells` does the most with it,
+because it can run long enough to be worth cancelling; in Propose mode
+`jupyter_update_cell` also honors it, cancelling a proposal that is waiting on
+the human. When the signal aborts mid-execution it makes a
 best-effort kernel interrupt, and only for work that invocation itself started —
 the kernel is shared with the human, so an abort must never stop something they
-kicked off by hand. The remaining tools complete in single-digit milliseconds.
+kicked off by hand. The remaining tools complete almost immediately.
 
 ## What WebMCP cannot do
 

@@ -6,6 +6,24 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Replaced an insecure random-ID fallback.
+- Rewrote the HTML-to-text conversion for output export as a single-pass
+  scanner (fixes CodeQL multi-character sanitization alerts).
+
+### Fixed
+
+- React is held at 18 so the extension shares JupyterLab's copy; a guard
+  fails the build if it drifts.
+- Documentation corrections: console examples, Propose-mode abort behaviour,
+  status-bar wording and broken links.
+
+### Added
+
+- A documentation site (quickstart, concepts, tool reference, roadmap) at
+  https://alliecatowo.github.io/jupyterlite-web-mcp/.
+
 ### Changed
 
 - Dependency updates, including `@jupyterlab/cells` 4.6.4 and

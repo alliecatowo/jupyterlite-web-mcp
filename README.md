@@ -274,9 +274,7 @@ decide:
 
 This currently covers `jupyter_update_cell`; `jupyter_insert_cell`,
 `jupyter_delete_cell` and `jupyter_run_cells` still apply directly in both
-modes — see [`docs/propose-mode.md`](docs/propose-mode.md) for the full
-design, the reasoning behind each choice above, and why that scope stops
-where it does.
+modes. See [`docs/propose-mode.md`](docs/propose-mode.md).
 
 ---
 
@@ -536,7 +534,7 @@ Vercel runs on every push to `main`, configured in `vercel.json`):
 ### Automated
 
 ```bash
-npm --prefix packages/jupyterlite-webmcp test          # 385 unit tests (jest)
+npm --prefix packages/jupyterlite-webmcp test          # unit tests (jest)
 npm --prefix packages/jupyterlite-webmcp run lint:check
 npm --prefix packages/jupyterlite-webmcp run typecheck
 cd ui-tests && npm install && npm test                 # 52 browser tests
@@ -556,13 +554,15 @@ WebMCP enabled), on the live demo or a local build, open the devtools
 console:
 
 ```js
-document.modelContext.getTools().map(t => t.name);            // → 22 names
-await document.modelContext.executeTool('jupyter_get_context', {});
-await document.modelContext.executeTool('jupyter_list_workspace', { path: '' });
+const tools = await document.modelContext.getTools();
+tools.map(t => t.name);                                        // 22 names
+const ctx = tools.find(t => t.name === 'jupyter_get_context');
+JSON.parse(await document.modelContext.executeTool(ctx, '{}'));
 ```
 
-Every result is a `{ content, structuredContent, isError }` envelope whose
-text payload is JSON.
+Chrome passes arguments and results as JSON strings (see
+[compatibility](docs/webmcp-compatibility.md)); each result parses to a
+`{ content, structuredContent, isError }` envelope whose text payload is JSON.
 
 **Without one** — useful, because as of this writing no browser ships
 `document.modelContext` by default — serve a shim-injected copy of the built

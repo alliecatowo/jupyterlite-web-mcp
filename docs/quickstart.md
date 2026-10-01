@@ -34,7 +34,7 @@ review thread show up in the **Agent** panel.
 
 Other seeded notebooks: `needs-review.ipynb` (deliberate problems, good for a
 review task) and `reviewed-analysis.ipynb` (a finished human-and-agent session
-with review threads). `scratch.ipynb` is empty, for experiments.
+with review threads). `scratch.ipynb` is nearly empty, for experiments.
 
 ## Add it to your own notebooks
 
@@ -53,9 +53,12 @@ The [install guide](/install) covers each platform and how to verify it.
 In a WebMCP-capable browser, open the devtools console:
 
 ```js
-document.modelContext.getTools().map(t => t.name);            // 22 names
-await document.modelContext.executeTool('jupyter_get_context', {});
+const tools = await document.modelContext.getTools();
+tools.map(t => t.name);                                        // 22 names
+const ctx = tools.find(t => t.name === 'jupyter_get_context');
+JSON.parse(await document.modelContext.executeTool(ctx, '{}'));
 ```
 
-Every result is a `{ content, structuredContent, isError }` envelope. The
+Chrome passes arguments and results as JSON strings; each result parses to a
+`{ content, structuredContent, isError }` envelope. The
 [tool reference](/webmcp-tools) lists inputs, outputs, bounds and error codes.
