@@ -20,7 +20,9 @@
  *    one; see `docs/propose-mode.md` for why this rejects rather than
  *    queuing), each with a `decision` promise that settles only when the
  *    human calls {@link ProposeStore.accept} or {@link ProposeStore.deny},
- *    or the caller's `AbortSignal` fires.
+ *    or the caller's `AbortSignal` fires, or the proposal becomes
+ *    unreviewable (its cell or notebook is gone) and is auto-denied via
+ *    {@link ProposeStore.autoDeny} (see `src/propose/lifecycle.ts`).
  *
  * Deliberately **not** persisted in notebook metadata like review threads:
  * a pending proposal is mid-flight tool-call state, not a durable record —
@@ -88,8 +90,39 @@ function targetKey(target: IProposalTarget): string {
   return `${target.notebookPath}\u0000${target.cellId}`;
 }
 
-/** Bounded history of resolved proposals kept for the Activity-style UI. */
-const MAX_PROPOSALS = 100;
+/**
+ * How many *settled* proposals are kept (newest first) after they resolve.
+ * Pending proposals are never evicted, whatever their number: dropping one
+ * would leave its tool call waiting on a decision no UI can make. Each entry
+ * holds full before/after sources (up to `MAX_CELL_SOURCE_WRITE_BYTES`
+ * each), so this stays small.
+ */
+export const MAX_SETTLED_PROPOSALS = 20;
+
+/**
+ * Maximum UTF-8 byte length of a deny reason handed back to the agent. The
+ * banner's input and {@link ProposeStore.deny} both apply it.
+ */
+export const MAX_DENY_REASON_BYTES = 2 * 1024;
+
+/**
+ * Truncates `text` to at most `maxBytes` UTF-8 bytes without splitting a
+ * code point (so never half a surrogate pair).
+ */
+export function truncateUtf8(text: string, maxBytes: number = MAX_DENY_REASON_BYTES): string {
+  let bytes = 0;
+  let end = 0;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0) ?? 0;
+    const size = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+    if (bytes + size > maxBytes) {
+      break;
+    }
+    bytes += size;
+    end += ch.length;
+  }
+  return end === text.length ? text : text.slice(0, end);
+}
 
 export class ProposeStore {
   /** Emitted whenever the mode changes, or a proposal is created/settled. */
@@ -116,9 +149,17 @@ export class ProposeStore {
     this.setMode(this._mode === 'direct' ? 'propose' : 'direct');
   }
 
-  /** Every proposal, newest first, bounded to the last {@link MAX_PROPOSALS}. */
+  /**
+   * Every pending proposal plus the last {@link MAX_SETTLED_PROPOSALS}
+   * settled ones, newest first.
+   */
   get proposals(): readonly IProposal[] {
     return this._proposals;
+  }
+
+  /** Every pending proposal, newest first. Never truncated. */
+  get pending(): readonly IProposal[] {
+    return this._proposals.filter(p => p.status === 'pending');
   }
 
   /** The pending proposal for `target`, if any. */
@@ -167,7 +208,8 @@ export class ProposeStore {
     };
     this._byId.set(id, proposal);
     this._pendingByTarget.set(targetKey(target), id);
-    this._proposals = [proposal, ...this._proposals].slice(0, MAX_PROPOSALS);
+    this._proposals = [proposal, ...this._proposals];
+    this._trim();
 
     const decision = new Promise<IProposalDecision>((resolve, reject) => {
       this._waits.set(id, { resolve, reject });
@@ -206,14 +248,32 @@ export class ProposeStore {
    * the agent's next turn can see why, not just that it was denied.
    */
   deny(id: string, reason?: string): IProposal {
+    const bounded = reason === undefined ? undefined : truncateUtf8(reason);
     return this._settle(
       id,
       'denied',
       proposal => {
-        this._waits.get(proposal.id)?.resolve({ status: 'denied', reason });
+        this._waits.get(proposal.id)?.resolve({ status: 'denied', reason: bounded });
       },
-      reason
+      bounded
     );
+  }
+
+  /**
+   * Denies `id` on the human's behalf because it can no longer be reviewed
+   * (its cell was deleted, its notebook closed or renamed). Settles the tool
+   * call with the same non-error `PROPOSAL_DENIED` result a human deny
+   * gives, carrying `reason`. Returns `false` (and does nothing) when the
+   * proposal is unknown or already settled, so it is safe to race with a
+   * human click or an abort.
+   */
+  autoDeny(id: string, reason: string): boolean {
+    const proposal = this._byId.get(id);
+    if (!proposal || proposal.status !== 'pending') {
+      return false;
+    }
+    this.deny(id, reason);
+    return true;
   }
 
   private _settle(
@@ -237,6 +297,7 @@ export class ProposeStore {
     this._clearPending(proposal);
     settle(proposal);
     this._cleanupWait(id);
+    this._trim();
     this._changed.emit();
     return proposal;
   }
@@ -253,7 +314,24 @@ export class ProposeStore {
       .get(id)
       ?.reject(toolError('ABORTED', 'The proposal was aborted before a decision was made.', { proposalId: id }));
     this._cleanupWait(id);
+    this._trim();
     this._changed.emit();
+  }
+
+  /** Keeps every pending proposal and the newest settled ones; forgets the rest. */
+  private _trim(): void {
+    let settled = 0;
+    this._proposals = this._proposals.filter(p => {
+      if (p.status === 'pending') {
+        return true;
+      }
+      if (settled < MAX_SETTLED_PROPOSALS) {
+        settled++;
+        return true;
+      }
+      this._byId.delete(p.id);
+      return false;
+    });
   }
 
   private _clearPending(proposal: IProposal): void {

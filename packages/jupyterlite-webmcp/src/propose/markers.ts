@@ -13,16 +13,19 @@
  * that must not be able to vanish by an incidental click elsewhere — see
  * `docs/propose-mode.md`.
  *
- * Presentation only: nothing about `ProposeStore`'s state machine or the
- * tool call's Promise depends on this class existing. It swallows its own
- * DOM errors, and is a no-op once its target cell/panel is disposed.
+ * The DOM work is presentation only: it swallows its own errors, and is a
+ * no-op once its target cell/panel is disposed. Because this banner is the
+ * only way to decide a proposal, this class also owns a
+ * {@link ProposalLifecycle}, which auto-denies proposals whose cell or
+ * notebook disappears so their tool calls never hang with no UI.
  */
 import { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
 import { IDisposable } from '@lumino/disposable';
 
 import { diffLines, IDiffLine } from '../activity/diff';
 import { LIMITS } from '../limits';
-import { IProposal, ProposeStore } from './store';
+import { ProposalLifecycle } from './lifecycle';
+import { IProposal, MAX_DENY_REASON_BYTES, ProposeStore, truncateUtf8 } from './store';
 
 function findCellWidget(panel: NotebookPanel, cellId: string) {
   const widgets = panel.content.widgets;
@@ -45,6 +48,7 @@ export class ProposalMarkers implements IDisposable {
   constructor(tracker: INotebookTracker, store: ProposeStore) {
     this._tracker = tracker;
     this._store = store;
+    this._lifecycle = new ProposalLifecycle<NotebookPanel>(tracker, store);
 
     store.changed.connect(this._onChanged, this);
     tracker.currentChanged.connect(this._onChanged, this);
@@ -60,6 +64,7 @@ export class ProposalMarkers implements IDisposable {
       return;
     }
     this._isDisposed = true;
+    this._lifecycle.dispose();
     this._store.changed.disconnect(this._onChanged, this);
     this._tracker.currentChanged.disconnect(this._onChanged, this);
     for (const banner of this._banners.values()) {
@@ -96,9 +101,7 @@ export class ProposalMarkers implements IDisposable {
       return;
     }
 
-    const pending = this._store.proposals.filter(
-      p => p.status === 'pending' && p.notebookPath === panel.context.path
-    );
+    const pending = this._store.pending.filter(p => p.notebookPath === panel.context.path);
     const pendingByCell = new Map(pending.map(p => [p.cellId, p]));
 
     for (const [cellId, banner] of Array.from(this._banners.entries())) {
@@ -179,7 +182,9 @@ export class ProposalMarkers implements IDisposable {
     reasonInput.type = 'text';
     reasonInput.className = 'jp-webmcp-proposal-reason';
     reasonInput.placeholder = 'Reason for the agent (optional)';
-    reasonInput.maxLength = 500;
+    // `maxLength` counts UTF-16 code units, each at least one UTF-8 byte, so
+    // this is a loose upper bound; the byte-exact cap is applied on Deny.
+    reasonInput.maxLength = MAX_DENY_REASON_BYTES;
     actions.appendChild(reasonInput);
 
     const denyButton = document.createElement('button');
@@ -187,7 +192,7 @@ export class ProposalMarkers implements IDisposable {
     denyButton.textContent = 'Deny';
     denyButton.onclick = () => {
       try {
-        const reason = reasonInput.value.trim();
+        const reason = truncateUtf8(reasonInput.value.trim(), MAX_DENY_REASON_BYTES);
         this._store.deny(proposal.id, reason.length > 0 ? reason : undefined);
       } catch (err) {
         console.warn('[jupyterlite-webmcp]', err);
@@ -203,4 +208,5 @@ export class ProposalMarkers implements IDisposable {
   private _renderedPanel: NotebookPanel | null | undefined = undefined;
   private _tracker: INotebookTracker;
   private _store: ProposeStore;
+  private _lifecycle: ProposalLifecycle<NotebookPanel>;
 }
