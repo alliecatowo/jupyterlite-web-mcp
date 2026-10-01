@@ -66,10 +66,7 @@ function optionalStringArray(input: Input, key: string): string[] | null {
     return null;
   }
   if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) {
-    throw toolError(
-      'INVALID_ARGUMENT',
-      `"${key}" must be an array of strings.`
-    );
+    throw toolError('INVALID_ARGUMENT', `"${key}" must be an array of strings.`);
   }
   return value as string[];
 }
@@ -133,11 +130,7 @@ function utf8Bytes(value: string): number {
  * note on `jupyter_get_cells({ startIndex: -1 })`), and silently truncating
  * real content a human will keep is worse than refusing it.
  */
-function boundedText(
-  input: Input,
-  key: string,
-  maxBytes: number
-): string | null {
+function boundedText(input: Input, key: string, maxBytes: number): string | null {
   const value = optionalString(input, key);
   if (value === null) {
     return null;
@@ -153,11 +146,7 @@ function boundedText(
 }
 
 /** Like {@link boundedText}, but the argument is required and non-empty. */
-function requiredBoundedText(
-  input: Input,
-  key: string,
-  maxBytes: number
-): string {
+function requiredBoundedText(input: Input, key: string, maxBytes: number): string {
   const value = requiredString(input, key);
   if (utf8Bytes(value) > maxBytes) {
     throw toolError(
@@ -180,9 +169,7 @@ function boundedInteger(
     return null;
   }
   if (!Number.isInteger(value)) {
-    throw toolError('INVALID_ARGUMENT', `"${key}" must be an integer.`, {
-      [key]: value
-    });
+    throw toolError('INVALID_ARGUMENT', `"${key}" must be an integer.`, { [key]: value });
   }
   if (opts.min !== undefined && value < opts.min) {
     throw toolError(
@@ -202,11 +189,7 @@ function boundedInteger(
 }
 
 /** Validates a required string argument is one of a closed set of values. */
-function requiredEnum<T extends string>(
-  input: Input,
-  key: string,
-  allowed: readonly T[]
-): T {
+function requiredEnum<T extends string>(input: Input, key: string, allowed: readonly T[]): T {
   const value = requiredString(input, key);
   if ((allowed as readonly string[]).indexOf(value) === -1) {
     throw toolError(
@@ -219,11 +202,7 @@ function requiredEnum<T extends string>(
 }
 
 /** Like {@link requiredEnum}, but the argument is optional. */
-function optionalEnum<T extends string>(
-  input: Input,
-  key: string,
-  allowed: readonly T[]
-): T | null {
+function optionalEnum<T extends string>(input: Input, key: string, allowed: readonly T[]): T | null {
   const value = optionalString(input, key);
   if (value === null) {
     return null;
@@ -249,6 +228,7 @@ const COMMENT_SCOPES = ['notebook', 'current-cell'] as const;
 
 /** Closed set of `jupyter_create_comment` anchor `kind` values. */
 const ANCHOR_KINDS = ['cell', 'source-range', 'output'] as const;
+
 
 /** Bounded summary of a thread, used by the list tool. */
 function threadSummary(
@@ -348,10 +328,8 @@ export function buildTools(
           path: optionalString(input, 'path'),
           recursive: optionalBoolean(input, 'recursive') === true,
           limit:
-            boundedInteger(input, 'limit', {
-              min: 1,
-              max: LIMITS.MAX_WORKSPACE_ROWS
-            }) ?? undefined
+            boundedInteger(input, 'limit', { min: 1, max: LIMITS.MAX_WORKSPACE_ROWS }) ??
+            undefined
         })
     },
 
@@ -531,7 +509,9 @@ export function buildTools(
           notebookPath: optionalString(input, 'notebookPath'),
           cellId: requiredString(input, 'cellId'),
           cursor: readRange(
-            input.cursor ? { start: input.cursor, end: input.cursor } : null,
+            input.cursor
+              ? { start: input.cursor, end: input.cursor }
+              : null,
             'cursor'
           )?.start,
           selection: readRange(input.selection, 'selection')
@@ -575,15 +555,12 @@ export function buildTools(
           env,
           optionalString(input, 'notebookPath')
         );
-        const scope =
-          optionalEnum(input, 'scope', COMMENT_SCOPES) ?? 'notebook';
+        const scope = optionalEnum(input, 'scope', COMMENT_SCOPES) ?? 'notebook';
         const status = (optionalEnum(input, 'status', COMMENT_STATUSES) ??
           'open') as ThreadStatus | 'all';
         const limit =
-          boundedInteger(input, 'limit', {
-            min: 1,
-            max: LIMITS.MAX_COMMENTS_RETURNED
-          }) ?? LIMITS.MAX_COMMENTS_RETURNED;
+          boundedInteger(input, 'limit', { min: 1, max: LIMITS.MAX_COMMENTS_RETURNED }) ??
+          LIMITS.MAX_COMMENTS_RETURNED;
         const cellId =
           scope === 'current-cell'
             ? (panel.content.activeCell?.model.id ?? null)
@@ -678,11 +655,7 @@ export function buildTools(
           { intent: 'write' }
         );
         const rawAnchor = (input.anchor ?? {}) as Input;
-        const kind = requiredEnum(
-          rawAnchor,
-          'kind',
-          ANCHOR_KINDS
-        ) as AnchorKind;
+        const kind = requiredEnum(rawAnchor, 'kind', ANCHOR_KINDS) as AnchorKind;
         const cellId = requiredString(rawAnchor, 'cellId');
         // Check before inspecting source or an output to construct an
         // anchor. This reuses the central cell resolver, so a `none` cell
@@ -706,11 +679,7 @@ export function buildTools(
             }
           }
           const explicit = readRange(rawAnchor.selection, 'anchor.selection');
-          const text = boundedText(
-            rawAnchor,
-            'text',
-            LIMITS.MAX_SELECTED_TEXT_BYTES
-          );
+          const text = boundedText(rawAnchor, 'text', LIMITS.MAX_SELECTED_TEXT_BYTES);
           let range: ISourceRange;
           if (explicit) {
             range = explicit;
@@ -794,11 +763,7 @@ export function buildTools(
           panel,
           requiredString(input, 'threadId'),
           'resolved',
-          boundedText(
-            input,
-            'resolutionMessage',
-            LIMITS.MAX_COMMENT_BODY_BYTES
-          ),
+          boundedText(input, 'resolutionMessage', LIMITS.MAX_COMMENT_BODY_BYTES),
           AGENT_AUTHOR
         );
         return { notebookPath: panel.context.path, ...agentThread(thread) };
