@@ -3,17 +3,26 @@ import { NotebookPanel } from '@jupyterlab/notebook';
 
 import { assertPositionalCellAccessible, cellAccess, IMetadataCell, recordCellHistory } from '../access/guard';
 import { LIMITS } from '../limits';
-import { toolError } from './errors';
+import { ToolError, toolError } from './errors';
 import { INotebookInfo, kernelInfo, notebookInfo, resolveNotebook } from './notebook';
 import { serializeOutputs, summarizeOutputs } from './outputs';
-import { requireCellIndex } from './cells';
+import { findCellIndexById, requireCellIndex } from './cells';
 import { IJupyterEnv } from './workspace';
+
+/** Summary of a target that was deleted or hidden before it could run. */
+const UNAVAILABLE_SUMMARY = '(not run: the cell is no longer available)';
 
 /** Outcome of executing a single cell. */
 export interface ICellExecutionResult {
-  /** Stable id of the executed cell. */
+  /**
+   * Stable id of the executed cell. Empty for a target addressed by position
+   * that was deleted or hidden before it could run.
+   */
   cellId: string;
-  /** Position of the cell at execution time. */
+  /**
+   * Position of the cell at execution time, or `-1` for a target that was
+   * deleted or hidden before it could run.
+   */
   index: number;
   /** `ok`, `error`, `abort` or `no-op`. */
   status: string;
@@ -85,7 +94,11 @@ export async function runCells(
   const model = panel.context.model;
   const stopOnError = params.stopOnError !== false;
 
-  const indices: number[] = [];
+  // Targets are kept as stable cell ids, never as indices: the human can
+  // insert, delete or re-restrict cells while this call awaits the session
+  // and each execution, so every target is re-resolved (and re-checked for
+  // write access) right before it runs.
+  const targets: string[] = [];
   const cellIds = params.cellIds;
   const hasCellIds = cellIds !== undefined && cellIds !== null;
   const hasStartIndex =
@@ -126,7 +139,8 @@ export async function runCells(
       );
     }
     for (let i = 0; i < cellIds.length; i++) {
-      indices.push(requireCellIndex(panel, cellIds[i], 'write'));
+      requireCellIndex(panel, cellIds[i], 'write');
+      targets.push(cellIds[i]);
     }
   } else if (hasStartIndex && hasEndIndex) {
     const start = params.startIndex as number;
@@ -173,7 +187,7 @@ export async function runCells(
         cellAccess(cell),
         'write'
       );
-      indices.push(index);
+      targets.push(cell.id);
     }
   } else {
     const active = panel.content.activeCellIndex;
@@ -193,13 +207,14 @@ export async function runCells(
       cellAccess(activeCell),
       'write'
     );
-    indices.push(active);
+    targets.push(activeCell.id);
   }
 
   await panel.sessionContext.ready;
-  const hasCodeCell = indices.some(
-    index => model.cells.get(index).type === 'code'
-  );
+  const hasCodeCell = targets.some(id => {
+    const index = findCellIndexById(model, id);
+    return index !== -1 && model.cells.get(index).type === 'code';
+  });
   if (hasCodeCell && !panel.sessionContext.session?.kernel) {
     throw toolError(
       'KERNEL_UNAVAILABLE',
@@ -231,9 +246,42 @@ export async function runCells(
   const results: ICellExecutionResult[] = [];
   let overall = 'ok';
 
+  // A target that vanished or was hidden (`access: "none"`) since the call
+  // started is reported identically either way, so a hidden cell is
+  // indistinguishable from a deleted one: no current index, and no id unless
+  // the agent supplied that id itself (positional selectors never echo one).
+  const unavailable = (id: string): ICellExecutionResult => ({
+    cellId: hasCellIds ? id : '',
+    index: -1,
+    status: 'no-op',
+    outputSummary: UNAVAILABLE_SUMMARY
+  });
+
   try {
-    for (let i = 0; i < indices.length; i++) {
-      const index = indices[i];
+    for (let i = 0; i < targets.length; i++) {
+      const id = targets[i];
+      // Re-resolve right before running; there is no await between here and
+      // `CodeCell.execute`, so the index and widget cannot go stale.
+      let index: number;
+      try {
+        index = requireCellIndex(panel, id, 'write');
+      } catch (error) {
+        if (error instanceof ToolError && error.code === 'CELL_ACCESS_DENIED') {
+          // The agent could already see this cell; it only lost write access.
+          results.push({
+            cellId: id,
+            index: findCellIndexById(model, id),
+            status: 'no-op',
+            outputSummary: '(not run: the cell is now read-only for agents)'
+          });
+          continue;
+        }
+        if (error instanceof ToolError && error.code === 'CELL_NOT_FOUND') {
+          results.push(unavailable(id));
+          continue;
+        }
+        throw error;
+      }
       const cellModel = model.cells.get(index);
       if (aborted) {
         results.push({
@@ -247,12 +295,11 @@ export async function runCells(
       }
 
       const widget = panel.content.widgets[index];
-      if (!widget) {
-        throw toolError(
-          'CELL_NOT_FOUND',
-          `Cell "${cellModel.id}" has no widget in the notebook.`,
-          { cellId: cellModel.id }
-        );
+      if (!widget || widget.model.id !== cellModel.id) {
+        // The view has not caught up with the model; never run a different
+        // cell than the one that was resolved.
+        results.push(unavailable(id));
+        continue;
       }
 
       if (widget instanceof MarkdownCell) {
@@ -323,6 +370,22 @@ export async function runCells(
         inFlight = false;
       }
 
+      if (status !== 'abort') {
+        recordCellHistory(
+          codeModel as unknown as IMetadataCell,
+          'agent',
+          'ran',
+          'jupyter_run_cells'
+        );
+      }
+
+      if (cellAccess(codeModel as unknown as IMetadataCell) === 'none') {
+        // Hidden while it ran: return nothing about it, exactly as if it had
+        // vanished, and do not let its outcome shape the overall status.
+        results.push(unavailable(id));
+        continue;
+      }
+
       const outputs = rawOutputs(codeModel);
       if (status === 'ok') {
         const outputError = errorFromOutputs(outputs);
@@ -360,23 +423,18 @@ export async function runCells(
         result.traceback = failure.traceback;
       }
       results.push(result);
-      if (status !== 'abort') {
-        recordCellHistory(
-          codeModel as unknown as IMetadataCell,
-          'agent',
-          'ran',
-          'jupyter_run_cells'
-        );
-      }
 
+      // When the signal fired, an interrupted cell usually comes back as an
+      // `error` (KeyboardInterrupt). Do not stop there: keep looping so every
+      // remaining target is reported as `abort` by the check above.
       if (status === 'error') {
         overall = 'error';
-        if (stopOnError) {
+        if (stopOnError && !aborted) {
           break;
         }
       } else if (status === 'abort') {
         overall = 'aborted';
-        if (stopOnError) {
+        if (stopOnError && !aborted) {
           break;
         }
       }
@@ -387,7 +445,9 @@ export async function runCells(
     }
   }
 
-  if (aborted && overall === 'ok') {
+  // An abort always wins: the call as a whole was aborted, whatever the
+  // interrupted cell itself reported.
+  if (aborted) {
     overall = 'aborted';
   }
   return { status: overall, notebook: notebookInfo(panel), results };

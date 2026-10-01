@@ -67,7 +67,12 @@ function makeCodeWidget(model: IFakeCell): { model: IFakeCell } {
 function makeEnv(
   cells: IFakeCell[],
   activeCellIndex = 0
-): { env: IJupyterEnv; execute: jest.Mock } {
+): {
+  env: IJupyterEnv;
+  execute: jest.Mock;
+  widgets: { model: IFakeCell }[];
+  interrupt: jest.Mock;
+} {
   const model = {
     dirty: false,
     cells: {
@@ -78,12 +83,13 @@ function makeEnv(
     }
   };
   const widgets = cells.map(makeCodeWidget);
+  const interrupt = jest.fn().mockResolvedValue(undefined);
   const panel = {
     context: { ready: Promise.resolve(), path: '/notebook.ipynb', model },
     content: { activeCellIndex, widgets },
     sessionContext: {
       ready: Promise.resolve(),
-      session: { kernel: {} }
+      session: { kernel: { interrupt } }
     }
   };
   const execute = jest.fn().mockResolvedValue({ content: { status: 'ok' } });
@@ -94,7 +100,7 @@ function makeEnv(
     tracker: { currentWidget: panel as unknown },
     fileBrowser: null
   } as unknown as IJupyterEnv;
-  return { env, execute };
+  return { env, execute, widgets, interrupt };
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -187,5 +193,155 @@ describe('jupyter_run_cells contiguous ranges', () => {
       caught = error;
     }
     expect(errorCode(caught)).toBe(expected);
+  });
+});
+
+describe('jupyter_run_cells re-resolves targets by id while running', () => {
+  function insertHiddenAbove(
+    cells: IFakeCell[],
+    widgets: { model: IFakeCell }[]
+  ): void {
+    const hidden = makeCell('hidden', 'leak = "SECRET"', {
+      jupyterlite_webmcp: { access: 'none' }
+    });
+    cells.splice(0, 0, hidden);
+    widgets.splice(0, 0, makeCodeWidget(hidden));
+  }
+
+  it('runs the right cell when the human inserts a hidden cell above mid-run', async () => {
+    const cells = [
+      makeCell('first', 'print(1)'),
+      makeCell('second', 'print(2)')
+    ];
+    const { env, execute, widgets } = makeEnv(cells);
+    execute.mockImplementationOnce(async () => {
+      insertHiddenAbove(cells, widgets);
+      return { content: { status: 'ok' } };
+    });
+
+    const result = await runCells(env, { cellIds: ['first', 'second'] });
+
+    expect(execute.mock.calls.map(call => call[0].model.id)).toEqual([
+      'first',
+      'second'
+    ]);
+    expect(result.results.map(r => [r.cellId, r.index])).toEqual([
+      ['first', 0],
+      ['second', 2]
+    ]);
+    expect(JSON.stringify(result)).not.toContain('hidden');
+  });
+
+  it('reports a deleted and a newly hidden target identically, and never runs them', async () => {
+    const cells = [
+      makeCell('first', 'print(1)'),
+      makeCell('doomed', 'print(2)'),
+      makeCell('restricted', 'print(3)')
+    ];
+    const { env, execute, widgets } = makeEnv(cells);
+    execute.mockImplementationOnce(async () => {
+      cells.splice(1, 1);
+      widgets.splice(1, 1);
+      cells[1].sharedModel.setMetadata('jupyterlite_webmcp', {
+        access: 'none'
+      });
+      return { content: { status: 'ok' } };
+    });
+
+    const result = await runCells(env, { startIndex: 0, endIndex: 3 });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('ok');
+    const [, deleted, hidden] = result.results;
+    expect(deleted).toEqual(hidden);
+    expect(deleted.status).toBe('no-op');
+    expect(deleted.index).toBe(-1);
+    // A positional selector never echoes an id the agent did not supply.
+    expect(deleted.cellId).toBe('');
+    expect(JSON.stringify(result)).not.toContain('restricted');
+  });
+
+  it('skips a target that became read-only without running it', async () => {
+    const cells = [
+      makeCell('first', 'print(1)'),
+      makeCell('second', 'print(2)')
+    ];
+    const { env, execute } = makeEnv(cells);
+    execute.mockImplementationOnce(async () => {
+      cells[1].sharedModel.setMetadata('jupyterlite_webmcp', {
+        access: 'read'
+      });
+      return { content: { status: 'ok' } };
+    });
+
+    const result = await runCells(env, { cellIds: ['first', 'second'] });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result.results[1]).toMatchObject({
+      cellId: 'second',
+      index: 1,
+      status: 'no-op'
+    });
+  });
+
+  it('returns nothing about a cell hidden while it was running', async () => {
+    const cells = [makeCell('first', 'print(1)')];
+    const { env, execute } = makeEnv(cells);
+    execute.mockImplementationOnce(async () => {
+      cells[0].sharedModel.setMetadata('jupyterlite_webmcp', {
+        access: 'none'
+      });
+      return {
+        content: {
+          status: 'error',
+          ename: 'E',
+          evalue: 'SECRET',
+          traceback: []
+        }
+      };
+    });
+
+    const result = await runCells(env, { cellIds: ['first'] });
+
+    expect(result.results[0]).toMatchObject({ index: -1, status: 'no-op' });
+    expect(JSON.stringify(result)).not.toContain('SECRET');
+  });
+});
+
+describe('jupyter_run_cells abort handling', () => {
+  it('reports aborted overall and abort entries for unrun cells even when the interrupted cell errors', async () => {
+    const cells = [
+      makeCell('first', 'print(1)'),
+      makeCell('second', 'print(2)'),
+      makeCell('third', 'print(3)')
+    ];
+    const { env, execute, interrupt } = makeEnv(cells);
+    const controller = new AbortController();
+    execute.mockImplementationOnce(async () => {
+      controller.abort();
+      return {
+        content: {
+          status: 'error',
+          ename: 'KeyboardInterrupt',
+          evalue: '',
+          traceback: []
+        }
+      };
+    });
+
+    const result = await runCells(
+      env,
+      { cellIds: ['first', 'second', 'third'], stopOnError: true },
+      controller.signal
+    );
+
+    expect(interrupt).toHaveBeenCalled();
+    expect(result.status).toBe('aborted');
+    expect(result.results.map(r => r.status)).toEqual([
+      'error',
+      'abort',
+      'abort'
+    ]);
+    expect(execute).toHaveBeenCalledTimes(1);
   });
 });

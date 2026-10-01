@@ -1,6 +1,7 @@
 import { LIMITS } from '../../src/limits';
 import {
   EXPORT_FORMATS,
+  fence,
   IExportCellInput,
   renderNotebookMarkdown
 } from '../../src/jupyter/export';
@@ -116,5 +117,47 @@ describe('renderNotebookMarkdown', () => {
     const result = renderNotebookMarkdown(many, { includeOutputs: false });
     expect(result.cellCount).toBe(LIMITS.MAX_EXPORT_CELLS);
     expect(result.truncated).toBe(true);
+  });
+
+  it('uses a fence longer than any backtick run in a code cell', () => {
+    const source = 'doc = """\n```\nnot the end\n````\n"""';
+    const result = renderNotebookMarkdown([cell({ source })], {
+      includeOutputs: false
+    });
+    expect(result.document).toBe('`````python\n' + source + '\n`````');
+  });
+
+  it('uses a longer fence for outputs containing backticks too', () => {
+    const result = renderNotebookMarkdown(
+      [
+        cell({
+          source: 'print(x)',
+          outputs: [{ output_type: 'stream', name: 'stdout', text: '```\nhi' }]
+        })
+      ],
+      { includeOutputs: true }
+    );
+    expect(result.document).toContain('````\n```\nhi\n````');
+  });
+
+  it('renders a text-like MIME output such as markdown', () => {
+    const result = renderNotebookMarkdown(
+      [
+        cell({
+          source: 'display(md)',
+          outputs: [
+            { output_type: 'display_data', data: { 'text/markdown': '# Hi' } }
+          ]
+        })
+      ],
+      { includeOutputs: true }
+    );
+    expect(result.document).toContain('```\n# Hi\n```');
+  });
+});
+
+describe('fence', () => {
+  it('uses three backticks when the body has none', () => {
+    expect(fence('x', 'text')).toBe('```text\nx\n```');
   });
 });

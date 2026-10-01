@@ -36,18 +36,39 @@ export interface IRenderedExport {
   cellCount: number;
 }
 
+/**
+ * Wraps `body` in a backtick code fence (CommonMark) that is longer than any
+ * run of backticks inside it, so content containing ``` can never close the
+ * block early and break the document's structure.
+ */
+export function fence(body: string, info = ''): string {
+  let longest = 0;
+  const runs = body.match(/`+/g);
+  if (runs) {
+    for (const run of runs) {
+      longest = Math.max(longest, run.length);
+    }
+  }
+  const marker = '`'.repeat(Math.max(3, longest + 1));
+  return marker + info + '\n' + body + '\n' + marker;
+}
+
 function renderOutput(raw: unknown): string | null {
   const serialized = serializeOutput(raw);
   if (serialized.outputType === 'error') {
     const header = `${serialized.ename ?? ''}: ${serialized.evalue ?? ''}`.trim();
     const body = [header, serialized.traceback ?? ''].filter(Boolean).join('\n');
-    return '```\n' + body + '\n```';
+    return fence(body);
   }
   if (serialized.text && serialized.text.trim()) {
-    return '```\n' + serialized.text + '\n```';
+    return fence(serialized.text);
   }
   if (serialized.html && serialized.html.trim()) {
-    return '```\n' + serialized.html + '\n```';
+    return fence(serialized.html);
+  }
+  const textData = serialized.textData?.find(entry => entry.text.trim());
+  if (textData) {
+    return fence(textData.text);
   }
   if (serialized.media && serialized.media.length > 0) {
     return serialized.media
@@ -62,7 +83,7 @@ function renderCell(cell: IExportCellInput, includeOutputs: boolean): string {
     return cell.source;
   }
   const language = cell.type === 'code' ? 'python' : 'text';
-  const parts = ['```' + language + '\n' + cell.source + '\n```'];
+  const parts = [fence(cell.source, language)];
   if (includeOutputs && cell.type === 'code' && cell.outputs.length > 0) {
     for (const raw of cell.outputs) {
       const rendered = renderOutput(raw);
