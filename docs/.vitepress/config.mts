@@ -27,21 +27,35 @@ export default defineConfig({
   ],
   themeConfig: {
     nav: [
-      { text: 'Guide', link: '/install' },
-      { text: 'Tools', link: '/webmcp-tools' },
-      { text: 'Live demo', link: 'https://jupyterlite-web-mcp.vercel.app/lab/index.html' },
-      { text: 'PyPI', link: 'https://pypi.org/project/jupyterlite-webmcp/' }
+      { text: 'Guide', link: '/quickstart', activeMatch: '/(quickstart|install|concepts|faq)' },
+      { text: 'Reference', link: '/webmcp-tools', activeMatch: '/(webmcp-tools|security|propose-mode|multiplayer|architecture|webmcp-compatibility)' },
+      { text: 'Roadmap', link: '/roadmap' },
+      {
+        text: 'Links',
+        items: [
+          { text: 'Live demo', link: 'https://jupyterlite-web-mcp.vercel.app/lab/index.html' },
+          { text: 'PyPI', link: 'https://pypi.org/project/jupyterlite-webmcp/' },
+          { text: 'Discussions', link: `${repo}/discussions` },
+          { text: 'Changelog', link: `${repo}/blob/main/CHANGELOG.md` }
+        ]
+      }
     ],
     sidebar: [
       {
         text: 'Get started',
-        items: [{ text: 'Install', link: '/install' }]
+        items: [
+          { text: 'Quickstart', link: '/quickstart' },
+          { text: 'Install', link: '/install' },
+          { text: 'Concepts', link: '/concepts' },
+          { text: 'FAQ', link: '/faq' }
+        ]
       },
       {
-        text: 'Using it',
+        text: 'Reference',
         items: [
-          { text: 'Tool reference (22 tools)', link: '/webmcp-tools' },
+          { text: 'Tools (22)', link: '/webmcp-tools' },
           { text: 'Propose / Deny mode', link: '/propose-mode' },
+          { text: 'Security model', link: '/security' },
           { text: 'Multiplayer', link: '/multiplayer' }
         ]
       },
@@ -56,9 +70,9 @@ export default defineConfig({
       {
         text: 'Project',
         items: [
+          { text: 'Roadmap', link: '/roadmap' },
           { text: 'Changelog', link: `${repo}/blob/main/CHANGELOG.md` },
-          { text: 'Contributing', link: `${repo}/blob/main/CONTRIBUTING.md` },
-          { text: 'Security', link: `${repo}/blob/main/SECURITY.md` }
+          { text: 'Contributing', link: `${repo}/blob/main/CONTRIBUTING.md` }
         ]
       }
     ],

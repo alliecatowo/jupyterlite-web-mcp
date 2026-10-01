@@ -22,7 +22,7 @@ API keys. Selected as one of the
 
 <br/>
 
-<img src="docs/media/hero.gif" width="800" alt="Agent edits a notebook cell live in JupyterLite; a diff popover shows the exact +/- change before it's kept">
+<img src="docs/public/media/hero.gif" width="800" alt="Agent edits a notebook cell live in JupyterLite; a diff popover shows the exact +/- change before it's kept">
 
 <sub>The agent proposes a one-line fix inline. The diff is reviewable before it sticks — same cell, same kernel, same tab.</sub>
 
@@ -31,15 +31,15 @@ API keys. Selected as one of the
 <table>
 <tr>
 <td width="33%" valign="top">
-<img src="docs/media/screenshot-1-access-control.png" alt="Right-click cell menu showing Agent Access: Editable">
+<img src="docs/public/media/screenshot-1-access-control.png" alt="Right-click cell menu showing Agent Access: Editable">
 <br/><sub><b>Per-cell access control</b> — grant or lock the agent's write access, cell by cell.</sub>
 </td>
 <td width="33%" valign="top">
-<img src="docs/media/screenshot-2-presence.png" alt="Status bar reading Agent - running cell 5">
+<img src="docs/public/media/screenshot-2-presence.png" alt="Status bar reading Agent - running cell 5">
 <br/><sub><b>Live presence</b> — the status bar shows exactly what the agent is doing, as it happens.</sub>
 </td>
 <td width="33%" valign="top">
-<img src="docs/media/screenshot-3-review.png" alt="Add comment dialog attached to a specific expression in a cell">
+<img src="docs/public/media/screenshot-3-review.png" alt="Add comment dialog attached to a specific expression in a cell">
 <br/><sub><b>Inline review</b> — comment on any cell; the agent reads it next turn and replies in the same thread.</sub>
 </td>
 </tr>
