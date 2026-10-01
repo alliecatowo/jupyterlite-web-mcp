@@ -268,6 +268,9 @@ decide:
   the agent's next turn sees *why*, not just that it was told no.
 - Aborting the call (`AbortSignal`) cleanly cancels the pending proposal
   and removes the banner.
+- If the proposal can no longer be reviewed (its cell is deleted, or the
+  notebook is closed or renamed), it is auto-denied with a reason, so the
+  call never hangs.
 - A cell can have at most one pending proposal at a time; a second one is
   refused with `PROPOSAL_ALREADY_PENDING` rather than silently queued or
   replacing the first.

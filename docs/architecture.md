@@ -223,7 +223,7 @@ these DOM attributes back as a source of truth.
 | `MAX_CELLS_RETURNED` | 100 | Hard cap on cells returned by one `jupyter_get_cells` call. |
 | `MAX_WORKSPACE_ROWS` | 100 | Cap on entries returned by `jupyter_list_workspace`. |
 | `MAX_CELL_SOURCE_BYTES` | 25 KiB (25 * 1024) | Cap on one cell's returned source text. |
-| `MAX_TEXT_OUTPUT_BYTES` | 10 KiB (10 * 1024) | Cap on one output's serialized text (stream/result/error). |
+| `MAX_TEXT_OUTPUT_BYTES` | 10 KiB (10 * 1024) | Cap on one output's serialized text (stream/result/error `traceback` and `evalue`), and the shared budget for one output's `textData`. |
 | `MAX_TOTAL_RESULT_BYTES` | 50 KiB (50 * 1024) | Cap on the serialized size of one whole tool result's `content` text. |
 | `MAX_SELECTED_TEXT_BYTES` | 4 KiB (4 * 1024) | Cap on the returned text of the human's current editor selection. |
 | `MAX_COMMENT_BODY_BYTES` | 8 KiB (8 * 1024) | Cap on one comment message body. |
@@ -239,15 +239,29 @@ these DOM attributes back as a source of truth.
 | `MAX_CELL_IDS_PER_CALL` | 100 | Cap on the number of cell ids accepted in one id-array argument (e.g. `jupyter_run_cells`'s explicit range). |
 | `MAX_EXPORT_BYTES` | 40 KiB (40 * 1024) | Cap on the rendered size of a `jupyter_export_notebook` document. |
 | `MAX_EXPORT_CELLS` | 500 | Cap on the number of cells `jupyter_export_notebook` walks. |
-| `MAX_DENY_REASON_BYTES` | 2 KiB (2 * 1024) | Cap on the human's typed reason when denying a Propose-mode proposal. |
+| `MAX_COMMENT_MESSAGES_RETURNED` | 20 | Cap on messages of one review thread returned to an agent: the first message plus the most recent ones, with the rest counted in `omittedMessages`. |
+
+Propose mode keeps two constants of its own in `src/propose/store.ts`:
+`MAX_DENY_REASON_BYTES` (2 KiB), the cap on the human's deny reason (longer
+text is cut on a character boundary, not rejected), and
+`MAX_SETTLED_PROPOSALS` (20), how many decided proposals are remembered.
+Pending proposals are never evicted.
+
+The write-input limits (`MAX_CELL_SOURCE_WRITE_BYTES`, `MAX_NAME_BYTES`,
+`MAX_COMMENT_BODY_BYTES`), the returned-source and output-text bounds, and
+the total result bound count UTF-8 bytes, not JavaScript string length.
 
 `boundJson` (`src/webmcp/results.ts`) applies `MAX_TOTAL_RESULT_BYTES` as a
 final backstop on the serialized `content` text of every tool result,
-independent of whichever per-field limits above already applied; if the
-payload still doesn't fit, it is replaced with a small `{truncated: true,
-reason, maxBytes, partial}` envelope rather than being cut off mid-JSON.
+independent of whichever per-field limits above already applied. If the
+payload doesn't fit, it first drops trailing items from the largest arrays
+of objects (cells, threads, entries) until it does; the object that held a
+trimmed array gets `truncated: true` and its `omittedCount` increased by the
+number dropped, and the root gets `truncated: true`. Only when no trimming
+makes it fit is it replaced by a small `{truncated: true, reason, maxBytes,
+partial}` envelope, with `partial` an opaque prefix of the JSON.
 `structuredContent` is a convenience copy of the same payload for a client
-that can consume structured data directly. It is attached only when the payload
-fitted inside the bound; when it did not, the text content already carries the
-truncation notice, and attaching the original would reintroduce exactly the size
-the bound exists to prevent.
+that can consume structured data directly: the payload itself when it fitted,
+the trimmed copy when it was trimmed, and omitted for the `partial` envelope,
+where attaching the original would reintroduce exactly the size the bound
+exists to prevent.
