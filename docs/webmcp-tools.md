@@ -60,7 +60,7 @@ no stack trace is ever included.
 | `INVALID_PATH` | A path argument was malformed, absolute, escaped the workspace root, or used a backslash; also `jupyter_create_notebook`'s "Could not create a notebook at ..." (see that tool). |
 | `PATH_EXISTS` | `jupyter_create_notebook` would have overwritten an existing file. |
 | `INVALID_CELL_TYPE` | An unsupported cell type was requested for `jupyter_insert_cell` (only `code`/`markdown`/`raw` are valid). |
-| `INVALID_ARGUMENT` | A required argument was missing or the wrong type/shape (also used for an unsupported kernel action or insert `position`). |
+| `INVALID_ARGUMENT` | A required argument was missing or the wrong type/shape (also used for an unsupported kernel action or insert `position`, and for a text input over its size limit, with its UTF-8 length as `bytes` in the details). |
 | `KERNEL_UNAVAILABLE` | The notebook has no kernel attached (needed by `jupyter_run_cells` or `jupyter_kernel_action`). |
 | `EXECUTION_ERROR` | Reserved for execution failures reported through the structured error channel; per-cell execution errors from `jupyter_run_cells` are instead reported inline in that tool's own result (`status: "error"`, `ename`/`evalue`/`traceback`), not as a thrown `ErrorCode`. |
 | `ABORTED` | The tool invocation's `AbortSignal` fired before or during the call. |
@@ -493,7 +493,7 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   current hash and a preview. Does not run or save the cell. When the human
   has switched the notebook to Propose mode, this call does not apply
   immediately: it stages a reviewable diff in the notebook UI and waits for
-  the human: it does not resolve until they accept (applied, same as Direct
+  the human; it does not resolve until they accept (applied, same as Direct
   mode) or deny it (a normal, non-error result carrying their reason, coded
   PROPOSAL_DENIED), or the call is aborted. It is auto-denied the same way,
   with a reason, if the cell is deleted or the notebook is closed or renamed
