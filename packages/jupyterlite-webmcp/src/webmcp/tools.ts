@@ -603,7 +603,7 @@ export function buildTools(
       name: 'jupyter_get_comment',
       title: 'Read a review thread',
       description:
-        'Read one review thread in full: every message, the anchor, whether the anchor still resolves, and the code or output it is attached to as it exists now.',
+        'Read one review thread: its messages (the first and the most recent when long), the anchor, whether the anchor still resolves, and the code or output it is attached to as it exists now.',
       inputSchema: SCHEMAS.jupyter_get_comment,
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       handler: async input => {
