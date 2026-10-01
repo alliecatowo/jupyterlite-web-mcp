@@ -137,10 +137,15 @@ function findOwningCell(panel: NotebookPanel, wrapper: Element): IOwningCell | n
   return null;
 }
 
-/** Reads the raw nbformat output object at `index` on a code cell, or `undefined`. */
-function readRawOutput(widget: Cell, index: number): unknown {
+/**
+ * Reads the raw nbformat output object at `index` of a cell model, or
+ * `undefined` (not a code cell, or no such output). The single source of
+ * output JSON for both capturing a selection and later checking that its
+ * `outputFingerprint` still matches, so the two always agree.
+ */
+export function readModelOutput(cellModel: unknown, index: number): unknown {
   try {
-    const model = widget.model as ICodeCellModel;
+    const model = cellModel as ICodeCellModel;
     const outputs = model && model.outputs;
     if (!outputs || typeof outputs.get !== 'function' || index < 0 || index >= outputs.length) {
       return undefined;
@@ -247,7 +252,7 @@ export function resolveOutputSelection(
       return null;
     }
 
-    const rawOutput = readRawOutput(owner.widget, owner.outputIndex);
+    const rawOutput = readModelOutput(owner.widget.model, owner.outputIndex);
     if (rawOutput === undefined) {
       return null;
     }

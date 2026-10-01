@@ -126,7 +126,7 @@ export class WebMcpPanel extends ReactWidget {
             }
             title={
               this._propose.mode === 'propose'
-                ? 'Propose mode: mutating tool calls wait for you to accept or deny them inline. Click to switch to Direct mode.'
+                ? 'Propose mode: agent edits to existing cells wait for you to accept or deny them inline; other tool calls apply immediately. Click to switch to Direct mode.'
                 : 'Direct mode: mutating tool calls apply immediately. Click to switch to Propose mode.'
             }
             onClick={() => this._propose.toggleMode()}

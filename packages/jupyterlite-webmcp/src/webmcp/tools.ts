@@ -1,4 +1,3 @@
-import { cellAccess, IMetadataCell } from '../access/guard';
 import {
   deleteCell,
   exportNotebook,
@@ -29,12 +28,14 @@ import { scrollOutputIntoView } from '../review/panel';
 import {
   AGENT_AUTHOR,
   AnchorKind,
+  capThreadMessages,
   IAnchor,
   ISourceRange,
   IThread,
   ThreadStatus
 } from '../review/model';
 import { ReviewStore } from '../review/storage';
+import { utf8Length } from '../utf8';
 import { IToolDefinition } from './types';
 import { SCHEMAS } from './schemas';
 
@@ -260,6 +261,23 @@ function threadSummary(
         }
       : null
   };
+}
+
+/**
+ * A thread as returned to an agent: its messages capped to the first one
+ * plus the most recent ones (see {@link capThreadMessages}), with the number
+ * left out reported as `omittedMessages`. Half the total result budget is
+ * left for the rest of the payload (such as the anchored cell).
+ */
+function agentThread(thread: IThread): {
+  thread: IThread;
+  omittedMessages: number;
+} {
+  return capThreadMessages(
+    thread,
+    LIMITS.MAX_COMMENT_MESSAGES_RETURNED,
+    LIMITS.MAX_TOTAL_RESULT_BYTES / 2
+  );
 }
 
 /**
@@ -556,15 +574,27 @@ export function buildTools(
         const all = review
           .listThreads(panel, { status, cellId })
           .filter(thread => review.isThreadVisibleToAgent(panel, thread));
-        const threads = all.slice(0, limit);
+        // Build summaries within a byte budget (leaving headroom for the
+        // envelope), so a long list stops cleanly with an `omittedCount`
+        // instead of overflowing the total result bound.
+        const budget = LIMITS.MAX_TOTAL_RESULT_BYTES - 2048;
+        let used = 0;
+        const summaries: Record<string, unknown>[] = [];
+        for (let i = 0; i < all.length && summaries.length < limit; i++) {
+          const summary = threadSummary(review, panel, all[i]);
+          const bytes = utf8Length(JSON.stringify(summary)) + 1;
+          if (used + bytes > budget) {
+            break;
+          }
+          used += bytes;
+          summaries.push(summary);
+        }
         return {
           notebookPath: panel.context.path,
           counts: counts(panel),
-          threads: threads.map(thread =>
-            threadSummary(review, panel, thread)
-          ),
-          truncated: all.length > threads.length,
-          omittedCount: all.length - threads.length
+          threads: summaries,
+          truncated: all.length > summaries.length,
+          omittedCount: all.length - summaries.length
         };
       }
     },
@@ -581,39 +611,32 @@ export function buildTools(
           env,
           optionalString(input, 'notebookPath')
         );
-        const thread = review.requireThread(
+        // A thread on a cell hidden from the agent fails exactly like an
+        // unknown thread, so past this point the anchor cell (if it still
+        // exists) is visible.
+        const thread = review.requireAgentThread(
           panel,
           requiredString(input, 'threadId')
         );
-        review.assertThreadAccessible(panel, thread);
         const status = review.anchorStatus(panel, thread);
         const context: Record<string, unknown> = {};
-        let hiddenCellCount = 0;
         if (status.cellIndex !== null) {
-          const cellModel = panel.context.model.cells.get(
-            status.cellIndex
-          ) as unknown as IMetadataCell;
-          if (cellAccess(cellModel) === 'none') {
-            // Same rule as `jupyter_get_cells`: a cell the notebook owner
-            // hid from the agent is omitted, never silently — the omission
-            // is reported instead of leaking its source/outputs here.
-            hiddenCellCount = 1;
-          } else {
-            const cells = await getCells(env, {
-              notebookPath: panel.context.path,
-              cellIds: [thread.anchor.cellId],
-              includeSource: true,
-              includeOutputs: thread.anchor.kind === 'output'
-            });
-            context.cell = cells.cells[0];
-          }
+          const cells = await getCells(env, {
+            notebookPath: panel.context.path,
+            cellIds: [thread.anchor.cellId],
+            includeSource: true,
+            includeOutputs: thread.anchor.kind === 'output'
+          });
+          context.cell = cells.cells[0];
         }
         return {
           notebookPath: panel.context.path,
-          thread,
+          ...agentThread(thread),
           anchorStatus: status,
           context,
-          hiddenCellCount
+          // Kept for result-shape compatibility: a thread on a hidden cell
+          // is now reported as COMMENT_NOT_FOUND, so this is always 0.
+          hiddenCellCount: 0
         };
       }
     },
@@ -622,7 +645,7 @@ export function buildTools(
       name: 'jupyter_create_comment',
       title: 'Create a review comment',
       description:
-        'Create a review thread anchored to a whole cell, to an exact range of a cell’s source, or to one of a cell’s outputs. This is the same kind of comment the user creates from the Review panel, so use it to leave observations without editing their notebook.',
+        'Create a review thread anchored to a whole cell, to an exact range of a cell’s source, or to one of a cell’s outputs. This is the same kind of comment the user creates from the Comments tab of the Agent panel, so use it to leave observations without editing their notebook.',
       inputSchema: SCHEMAS.jupyter_create_comment,
       annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input => {
@@ -694,7 +717,7 @@ export function buildTools(
         );
         return {
           notebookPath: panel.context.path,
-          thread,
+          ...agentThread(thread),
           counts: counts(panel)
         };
       }
@@ -704,7 +727,7 @@ export function buildTools(
       name: 'jupyter_reply_comment',
       title: 'Reply to a review thread',
       description:
-        'Append a message to an existing review thread. The user sees it in the Review panel next to their own messages.',
+        'Append a message to an existing review thread. The user sees it in the Comments tab of the Agent panel next to their own messages.',
       inputSchema: SCHEMAS.jupyter_reply_comment,
       annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input => {
@@ -719,7 +742,7 @@ export function buildTools(
           requiredBoundedText(input, 'message', LIMITS.MAX_COMMENT_BODY_BYTES),
           AGENT_AUTHOR
         );
-        return { notebookPath: panel.context.path, thread };
+        return { notebookPath: panel.context.path, ...agentThread(thread) };
       }
     },
 
@@ -743,7 +766,7 @@ export function buildTools(
           boundedText(input, 'resolutionMessage', LIMITS.MAX_COMMENT_BODY_BYTES),
           AGENT_AUTHOR
         );
-        return { notebookPath: panel.context.path, thread };
+        return { notebookPath: panel.context.path, ...agentThread(thread) };
       }
     },
 
@@ -766,7 +789,7 @@ export function buildTools(
           undefined,
           AGENT_AUTHOR
         );
-        return { notebookPath: panel.context.path, thread };
+        return { notebookPath: panel.context.path, ...agentThread(thread) };
       }
     },
 
@@ -778,16 +801,17 @@ export function buildTools(
       inputSchema: SCHEMAS.jupyter_focus_comment,
       annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input => {
+        // Check the thread is visible to the agent (and still anchored)
+        // before bringing the notebook to the front, so a hidden, unknown
+        // or stale thread changes nothing on screen.
         const panel = await resolveNotebook(
           env,
-          optionalString(input, 'notebookPath'),
-          { activate: true }
+          optionalString(input, 'notebookPath')
         );
-        const thread = review.requireThread(
+        const thread = review.requireAgentThread(
           panel,
           requiredString(input, 'threadId')
         );
-        review.assertThreadAccessible(panel, thread);
         const status = review.anchorStatus(panel, thread);
         if (status.cellIndex === null) {
           throw toolError(
@@ -796,6 +820,7 @@ export function buildTools(
             { threadId: thread.id }
           );
         }
+        env.app.shell.activateById(panel.id);
         const cell = await revealCell(panel, status.cellIndex);
         if (cell?.editor && status.range) {
           cell.editor.focus();

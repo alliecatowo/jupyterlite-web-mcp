@@ -8,9 +8,10 @@ import {
   IMetadataCell
 } from '../access/guard';
 import { findCellIndexById } from '../jupyter/cells';
-import { toolError } from '../jupyter/errors';
+import { ToolError, toolError } from '../jupyter/errors';
 import { fingerprintOutput } from '../jupyter/outputs';
 import { LIMITS } from '../limits';
+import { truncateUtf8 } from '../utf8';
 import { resolveSourceAnchor } from './anchors';
 import {
   AnchorKind,
@@ -69,6 +70,18 @@ function mimeTypeForOutput(output: unknown): string | undefined {
     return keys[0];
   }
   return undefined;
+}
+
+/**
+ * The error for a thread an agent cannot see, whether it does not exist or
+ * is anchored to a cell hidden from the agent: both must look the same.
+ */
+function commentNotFound(panel: NotebookPanel, threadId: string): ToolError {
+  return toolError(
+    'COMMENT_NOT_FOUND',
+    `No review thread with id "${threadId}" in "${panel.context.path}".`,
+    { threadId, notebookPath: panel.context.path }
+  );
 }
 
 /** Minimal shape of the shared notebook metadata API we rely on. */
@@ -176,11 +189,7 @@ export class ReviewStore {
   requireThread(panel: NotebookPanel, threadId: string): IThread {
     const thread = this.getThread(panel, threadId);
     if (!thread) {
-      throw toolError(
-        'COMMENT_NOT_FOUND',
-        `No review thread with id "${threadId}" in "${panel.context.path}".`,
-        { threadId, notebookPath: panel.context.path }
-      );
+      throw commentNotFound(panel, threadId);
     }
     return thread;
   }
@@ -191,38 +200,52 @@ export class ReviewStore {
    * thread anchored to a live `none` cell must disappear with that cell.
    */
   isThreadVisibleToAgent(panel: NotebookPanel, thread: IThread): boolean {
-    const index = findCellIndexById(panel.context.model, thread.anchor.cellId);
-    if (index === -1) {
-      return true;
-    }
-    const cell = panel.context.model.cells.get(index) as unknown as IMetadataCell;
-    return cellAccess(cell) !== 'none';
+    return this._anchorAccess(panel, thread) !== 'none';
   }
 
   /**
-   * Applies the same central access rule to an existing review thread as to
-   * every other agent-facing cell path. In particular, a `none` cell gives
-   * `CELL_NOT_FOUND`, never a comment-specific signal that could reveal a
-   * hidden anchor or its discussion. Reading a visible thread uses the
-   * `'read'` intent; mutating an agent-visible thread (replying, resolving,
-   * or reopening it) passes the stricter `'write'` intent.
+   * Applies the central access rule to an existing review thread for an
+   * agent. A thread anchored to a `none` cell is indistinguishable from a
+   * thread that does not exist: the same `COMMENT_NOT_FOUND` (same message,
+   * same details) that {@link requireThread} gives an unknown id, never
+   * echoing the hidden cell's id. Reading a visible thread uses the `'read'`
+   * intent; mutating one (replying, resolving, or reopening it) passes the
+   * stricter `'write'` intent, so a `read` cell gives `CELL_ACCESS_DENIED`
+   * (that cell is visible, so naming it leaks nothing).
    */
   assertThreadAccessible(
     panel: NotebookPanel,
     thread: IThread,
     intent: AccessIntent = 'read'
   ): void {
-    const index = findCellIndexById(panel.context.model, thread.anchor.cellId);
-    if (index === -1) {
+    const access = this._anchorAccess(panel, thread);
+    if (access === null) {
       return;
     }
-    const cell = panel.context.model.cells.get(index) as unknown as IMetadataCell;
+    if (access === 'none') {
+      throw commentNotFound(panel, thread.id);
+    }
     assertCellAccessible(
       thread.anchor.cellId,
       panel.context.path,
-      cellAccess(cell),
+      access,
       intent
     );
+  }
+
+  /**
+   * Looks up a thread for an agent: {@link requireThread} followed by
+   * {@link assertThreadAccessible}, so an unknown thread and a thread on a
+   * hidden cell fail identically.
+   */
+  requireAgentThread(
+    panel: NotebookPanel,
+    threadId: string,
+    intent: AccessIntent = 'read'
+  ): IThread {
+    const thread = this.requireThread(panel, threadId);
+    this.assertThreadAccessible(panel, thread, intent);
+    return thread;
   }
 
   /** Create a thread anchored to a cell, a source range or an output. */
@@ -389,7 +412,7 @@ export class ReviewStore {
   /**
    * Applies the per-cell agent access check (`src/access/guard.ts`) to a
    * comment thread's anchor cell, but only when `author` is the agent: a
-   * human commenting through the Review panel on their own restricted cell
+   * human commenting through the Agent panel's Comments tab on their own restricted cell
    * is never blocked by a restriction they set for the agent, so this must
    * never be called for a `HUMAN_AUTHOR` message. A `'none'` cell fails with
    * the same `CELL_NOT_FOUND` an unknown id would (never `CELL_ACCESS_DENIED`),
@@ -470,11 +493,29 @@ export class ReviewStore {
     return outputs[outputIndex];
   }
 
+  /**
+   * Access level of the live cell a thread is anchored to, or `null` when
+   * that cell no longer exists.
+   */
+  private _anchorAccess(
+    panel: NotebookPanel,
+    thread: IThread
+  ): ReturnType<typeof cellAccess> | null {
+    const index = findCellIndexById(panel.context.model, thread.anchor.cellId);
+    if (index === -1) {
+      return null;
+    }
+    const cell = panel.context.model.cells.get(
+      index
+    ) as unknown as IMetadataCell;
+    return cellAccess(cell);
+  }
+
   private _boundBody(body: string): string {
     if (typeof body !== 'string' || body.trim() === '') {
       throw toolError('INVALID_ARGUMENT', 'A comment message is required.');
     }
-    return body.slice(0, LIMITS.MAX_COMMENT_BODY_BYTES);
+    return truncateUtf8(body, LIMITS.MAX_COMMENT_BODY_BYTES);
   }
 
   private _tracker: INotebookTracker;

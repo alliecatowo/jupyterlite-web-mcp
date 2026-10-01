@@ -15,6 +15,12 @@ export const LIMITS = {
   MAX_SELECTED_TEXT_BYTES: 4 * 1024,
   MAX_COMMENT_BODY_BYTES: 8 * 1024,
   MAX_COMMENTS_RETURNED: 50,
+  /**
+   * Maximum number of messages of one review thread returned to an agent
+   * (the first message plus the most recent ones); the rest are reported
+   * as `omittedMessages`.
+   */
+  MAX_COMMENT_MESSAGES_RETURNED: 20,
   MAX_OUTPUTS_PER_CELL: 10,
   MAX_ANCHOR_CONTEXT: 80,
   MAX_PREVIEW_CHARS: 400,
