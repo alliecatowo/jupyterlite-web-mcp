@@ -54,7 +54,7 @@ install() {
 }
 
 echo "==> installing the extension build toolchain"
-install "jupyterlab~=4.6.0"
+install "$(grep -i '^jupyterlab' requirements.txt)"
 
 if [ ! -d packages/jupyterlite-webmcp/node_modules ]; then
   echo "==> installing npm dependencies"

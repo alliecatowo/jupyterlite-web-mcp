@@ -1,6 +1,8 @@
 /** Unit tests cover the pure modules only: no JupyterLab runtime is required. */
 module.exports = {
-  preset: 'ts-jest',
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }]
+  },
   testEnvironment: 'node',
   testMatch: ['<rootDir>/tests/unit/**/*.spec.ts'],
   collectCoverageFrom: [
@@ -13,10 +15,5 @@ module.exports = {
     'src/webmcp/schemas.ts',
     'src/review/model.ts',
     'src/review/anchors.ts'
-  ],
-  globals: {
-    'ts-jest': {
-      tsconfig: '<rootDir>/tsconfig.test.json'
-    }
-  }
+  ]
 };

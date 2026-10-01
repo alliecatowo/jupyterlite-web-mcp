@@ -4,6 +4,10 @@ updates:
     directory: /packages/jupyterlite-webmcp
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    # Only widen a range when the lockfile needs it. Raising the floor of the
+    # shared @jupyterlab/* packages would make the extension refuse older
+    # JupyterLab 4.6.x releases.
+    versioning-strategy: increase-if-necessary
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
