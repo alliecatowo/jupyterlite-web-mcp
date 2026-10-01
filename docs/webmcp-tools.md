@@ -20,10 +20,16 @@ Every tool invocation returns the same shape (`src/webmcp/results.ts`):
 
 On success, `content[0].text` is the handler's return value JSON-serialized and
 bounded to `LIMITS.MAX_TOTAL_RESULT_BYTES` (50 KiB), and `structuredContent` is
-that same value as structured data. If the payload does not fit,
-`content[0].text` becomes a small `{truncated: true, reason, maxBytes, partial}`
-envelope and `structuredContent` is omitted entirely — the bound would mean
-nothing if the unbounded payload were still attached beside it.
+that same value as structured data. If the payload does not fit, trailing
+items are dropped from its largest arrays of objects (cells, threads,
+entries) until it does: the object that held a trimmed array gets
+`truncated: true` and its `omittedCount` increased by the number of items
+dropped, the root object gets `truncated: true`, and `structuredContent` is
+the trimmed copy. Only if no trimming makes it fit does `content[0].text`
+become a small `{truncated: true, reason, maxBytes, partial}` envelope
+(`partial` is an opaque prefix of the JSON), with `structuredContent`
+omitted entirely — the bound would mean nothing if the unbounded payload were
+still attached beside it.
 
 On failure, `isError` is `true`, `structuredContent` is the structured error
 below, and `content[0].text` is that same error JSON-serialized.
@@ -51,7 +57,7 @@ no stack trace is ever included.
 | `NOTEBOOK_NOT_FOUND` | The given path does not resolve to an open or existing notebook (or, for `jupyter_list_workspace`, an existing directory). |
 | `CELL_NOT_FOUND` | No cell with the given id exists in the resolved notebook — or it does, but the notebook owner set its agent access to `"none"` (see "Per-cell agent access control and provenance" below); the two cases are deliberately indistinguishable. |
 | `STALE_CELL` | `expectedSourceHash` did not match the cell's current source hash; the write was refused. |
-| `INVALID_PATH` | A path argument was malformed, absolute, escaped the workspace root, or used a backslash. |
+| `INVALID_PATH` | A path argument was malformed, absolute, escaped the workspace root, or used a backslash; also `jupyter_create_notebook`'s "Could not create a notebook at ..." (see that tool). |
 | `PATH_EXISTS` | `jupyter_create_notebook` would have overwritten an existing file. |
 | `INVALID_CELL_TYPE` | An unsupported cell type was requested for `jupyter_insert_cell` (only `code`/`markdown`/`raw` are valid). |
 | `INVALID_ARGUMENT` | A required argument was missing or the wrong type/shape (also used for an unsupported kernel action or insert `position`). |
@@ -59,9 +65,9 @@ no stack trace is ever included.
 | `EXECUTION_ERROR` | Reserved for execution failures reported through the structured error channel; per-cell execution errors from `jupyter_run_cells` are instead reported inline in that tool's own result (`status: "error"`, `ename`/`evalue`/`traceback`), not as a thrown `ErrorCode`. |
 | `ABORTED` | The tool invocation's `AbortSignal` fired before or during the call. |
 | `WEBMCP_UNAVAILABLE` | Reserved for the case where WebMCP is not available; the extension only registers tools once it is, so it is not normally observed by a tool caller. |
-| `COMMENT_NOT_FOUND` | No review thread with the given `threadId` exists in the resolved notebook. |
+| `COMMENT_NOT_FOUND` | No review thread with the given `threadId` exists in the resolved notebook — or it does, but it is anchored to a cell the owner set to `"none"`; the two cases give the same message and details, and never the hidden cell's id. |
 | `COMMENT_ANCHOR_STALE` | A comment anchor could not be validated: the selected text is no longer present in the cell, the output index doesn't exist, or (for source-range creation via `anchor.text`) the given text was not found in the cell source. |
-| `CELL_ACCESS_DENIED` | The notebook owner restricted a `"read"` cell and the call needed write access (editing, deleting, or running it, or commenting on it). Carries `cellId` and the effective `access` in its details. Never thrown for a `"none"` cell — that yields `CELL_NOT_FOUND` instead, so the restriction can't be probed for. |
+| `CELL_ACCESS_DENIED` | The notebook owner restricted a `"read"` cell and the call needed write access (editing or deleting it, or creating, replying to, resolving or reopening a comment on it). `jupyter_run_cells` raises it only in its up-front check; a cell that becomes read-only mid-call is reported as a `no-op` result instead. Carries `cellId` and the effective `access` in its details. Never thrown for a `"none"` cell — that yields `CELL_NOT_FOUND` instead, so the restriction can't be probed for. |
 | `NOTEBOOK_ACCESS_DENIED` | The notebook owner restricted the whole notebook to `"read"` and the call needed write access (editing, deleting, inserting, or running cells, saving, kernel actions, or creating/replying/resolving/reopening comments). Carries `path` and the effective `access` in its details. Never thrown for a `"none"` notebook — that yields `NOTEBOOK_NOT_FOUND` instead, so the restriction can't be probed for. |
 | `PROPOSAL_ALREADY_PENDING` | Propose mode only: `jupyter_update_cell` was called for a cell that already has an unresolved proposal. Carries `cellId` and `existingProposalId`. See `docs/propose-mode.md`. |
 | `INTERNAL_ERROR` | Any unexpected failure, normalized with a truncated message and no stack trace. |
@@ -98,9 +104,10 @@ when the tool starts, it throws `ABORTED` immediately. If it fires while a
 cell this invocation started is executing, the tool sends a kernel
 **interrupt** — but only while that invocation's own execution is in
 flight; it never interrupts execution the human (or another tool call)
-started, because the kernel is shared. Cells not yet started when an abort
-fires are reported with `status: "abort"` and are not run. Every other tool
-runs to completion or throws normally.
+started, because the kernel is shared. The interrupted cell keeps its own
+status (usually `error`), every remaining cell is reported with
+`status: "abort"` and not run (see `jupyter_run_cells`), and the overall status is `aborted`. Every
+other tool runs to completion or throws normally.
 
 ### Per-cell agent access control and provenance
 
@@ -125,17 +132,18 @@ execution; `none` hides the cell from the agent entirely — not its source,
 outputs, or even its existence as an addressable id. Every id-addressed
 cell operation (`jupyter_get_cells` with explicit `cellIds`,
 `jupyter_update_cell`, `jupyter_delete_cell`, `jupyter_run_cells`,
-`jupyter_focus_cell`, and the cell a review comment is anchored to) runs the
-cell's access through one function, `assertCellAccessible`
+`jupyter_focus_cell`, and the cell a new review comment is anchored to) runs
+the cell's access through one function, `assertCellAccessible`
 (`src/access/guard.ts`): a `"none"` cell always yields `CELL_NOT_FOUND`
 (indistinguishable from a bad id, so the restriction cannot be probed for),
 and a `"read"` cell yields `CELL_ACCESS_DENIED` only when the call needed
-write access. A non-explicit read (a `jupyter_get_cells` range, the cell
-content `jupyter_get_comment` surfaces, or the focus state
+write access. An existing review thread anchored to a `"none"` cell reads
+as a thread that does not exist (`COMMENT_NOT_FOUND`, see "Review" below).
+A non-explicit read (a `jupyter_get_cells` range, or the focus state
 `jupyter_get_context`/`jupyter_open_notebook`/`jupyter_focus_cell` report)
-instead silently omits a `"none"`
-cell and reports how many were omitted in `hiddenCellCount` — never a
-silent gap the agent has no way to notice.
+instead silently omits a `"none"` cell and reports how many were omitted
+(`hiddenCellCount`, `hiddenSelectedCellCount`, `hiddenActiveCell`) — never
+a silent gap the agent has no way to notice.
 
 **Provenance** is a loose, best-effort attribution trail, not version
 control: `history` is bounded to the most recent
@@ -205,7 +213,7 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   has unsaved changes), the kernel status, the active and selected cells,
   the cursor, and the exact text the user currently has selected. Call this
   first; the selection is how the user points at something when they say
-  'this'."
+  "this"."
 - **Read/write:** read-only (`readOnlyHint: true`, `untrustedContentHint: true`)
 - **Inputs:** none (`{}`)
 - **Output:**
@@ -219,6 +227,11 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   }
   ```
   `INotebookInfo`: `{ path, name, dirty, revision, cellCount }`.
+  `revision` is a hash over the agent-visible cells only, so an edit to a
+  `"none"`-access cell does not change it; it is an informational change
+  token, not a write guard (writes are guarded per cell by
+  `expectedSourceHash`). `cellCount` counts every cell, hidden ones
+  included.
   `IKernelInfo`: `{ name: string | null, displayName?, status }`
   (`status` one of `idle`/`busy`/`starting`/`dead`/`unavailable`/`unknown`).
   `IFocusContext`: `{ activeCellId, activeCellIndex, activeCellType,
@@ -318,8 +331,14 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
 - **Bounds:** `name` is limited to `MAX_NAME_BYTES` (256); a longer name is rejected with `INVALID_ARGUMENT`.
 - **Errors:** `INVALID_ARGUMENT` if `name` is empty/blank; `PATH_EXISTS` if
   a file already exists at the target path (nothing is overwritten);
-  `INTERNAL_ERROR` in the (expected never to occur) case the created file
-  cannot be reopened as a notebook. `kernel` is matched case-insensitively
+  `INVALID_PATH` with the message `Could not create a notebook at "<path>".`
+  (details `{ path }`) if the contents manager fails to create or rename the
+  file (a stray `Untitled` notebook is deleted again) — and, identically, if
+  the existing file at the target path is a notebook hidden from the agent
+  (`notebookAccess: "none"`), so creating over a hidden notebook is
+  indistinguishable from a genuine creation failure and never reveals it
+  with a `PATH_EXISTS`; `INTERNAL_ERROR` in the (expected never to occur)
+  case the created file cannot be opened as a notebook. `kernel` is matched case-insensitively
   against installed kernel names, then kernel languages; an unmatched
   request silently falls back to the application default rather than
   erroring.
@@ -359,10 +378,31 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   (`"human"` or `"agent"`) and `lastEditedAt` (ISO timestamp) come from the
   cell's provenance history (see "Per-cell agent access control and
   provenance" below) and are omitted when the cell has no recorded history.
+  Each serialized output (`src/jupyter/outputs.ts`) is
+  ```ts
+  { outputType, executionCount?, name?, text?, html?,
+    ename?, evalue?, traceback?,
+    textData?: Array<{ mimeType, text, truncated? }>,
+    media?: Array<{ mimeType, bytes, included: false }>,
+    truncated? }
+  ```
+  `text` carries `text/plain` (or a stream's text) and `html` is `text/html`
+  reduced to plain text. Every other MIME type in an `execute_result` or
+  `display_data` output is either text-like — `text/*`, `application/json`,
+  any `+json` or `+xml` type, `application/javascript`,
+  `application/x-latex` (so markdown, LaTeX and JSON outputs) — and returned
+  as text in `textData`, or binary (every `image/*` type, `image/svg+xml`
+  included, PDFs, anything else) and returned only as a `media` placeholder
+  giving its approximate size, never its content.
 - **Bounds:** at most `MAX_CELLS_RETURNED` (100) cells per call regardless
   of how many were requested; `source` bounded to `MAX_CELL_SOURCE_BYTES`
-  (25 KiB); outputs (when requested) bounded per `serializeOutputs` (see
-  below), at most `MAX_OUTPUTS_PER_CELL` (10) per cell.
+  (25 KiB of UTF-8); at most `MAX_OUTPUTS_PER_CELL` (10) outputs per cell.
+  Output text is ANSI-stripped and bounded in UTF-8 bytes: `text`,
+  `traceback` and `evalue` to `MAX_TEXT_OUTPUT_BYTES` (10 KiB) each, `html`
+  to half that, `ename` to 400 bytes (`MAX_PREVIEW_CHARS`), and all of one
+  output's `textData` entries share a single 10 KiB budget (an entry that no
+  longer fits is left out). A cut field ends in `…[truncated]`, and any cut
+  or omission sets the output's `truncated`.
 - **Errors:** `CELL_NOT_FOUND` if any id in `cellIds` doesn't exist, or is a
   cell the notebook owner hid from the agent (`access: "none"`) — the two
   are indistinguishable on purpose (see "Per-cell agent access control and
@@ -430,10 +470,15 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   | `activate` | boolean | `true` |
 - **Output:** `{ notebook: INotebookInfo; cell: ICellSnapshot }` (cell
   snapshot always includes source).
-- **Bounds:** `source` over `MAX_CELL_SOURCE_WRITE_BYTES` (256 KiB) is rejected with `INVALID_ARGUMENT`, never truncated; the returned cell follows the standard cell snapshot bounds.
+- **Bounds:** `source` over `MAX_CELL_SOURCE_WRITE_BYTES` (256 KiB of
+  UTF-8) is rejected with `INVALID_ARGUMENT` (details `{ bytes }`, the
+  source's UTF-8 length), never truncated; the returned cell follows the
+  standard cell snapshot bounds.
 - **Errors:** `INVALID_CELL_TYPE` for an unsupported `cellType`;
   `INVALID_ARGUMENT` for an unsupported `position`; `CELL_NOT_FOUND` if
-  `referenceCellId` is given but doesn't exist.
+  `referenceCellId` is given but doesn't exist, or if the human deletes or
+  hides the new cell before the call returns (the result is re-read by the
+  new cell's id, never by its original index).
 - **Concurrency:** if the notebook is empty, the cell is appended
   regardless of `referenceCellId`/`position`. When `activate` is true (the
   default) a markdown cell with `source` is immediately rendered.
@@ -447,10 +492,12 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   changed, the write is refused with a STALE_CELL error containing the
   current hash and a preview. Does not run or save the cell. When the human
   has switched the notebook to Propose mode, this call does not apply
-  immediately: it stages a reviewable diff in the notebook UI and does not
-  resolve until the human accepts (applied, same as Direct mode) or denies
-  it (a normal, non-error result carrying their reason, coded
-  PROPOSAL_DENIED) — or the call is aborted."
+  immediately: it stages a reviewable diff in the notebook UI and waits for
+  the human: it does not resolve until they accept (applied, same as Direct
+  mode) or deny it (a normal, non-error result carrying their reason, coded
+  PROPOSAL_DENIED), or the call is aborted. It is auto-denied the same way,
+  with a reason, if the cell is deleted or the notebook is closed or renamed
+  first."
 - **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs (all required except `notebookPath`):**
   | Field | Type |
@@ -468,9 +515,15 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
     reason: string | null }
   ```
   `reason` is the human's free-text explanation typed into the inline deny
-  control, or `null` when they left it blank.
-- **Bounds:** `source` over `MAX_CELL_SOURCE_WRITE_BYTES` (256 KiB) is rejected with `INVALID_ARGUMENT`, never truncated; standard cell-snapshot bounds on the returned cell;
-  `MAX_DENY_REASON_BYTES` (2KB) on the human's deny reason.
+  control, or `null` when they left it blank. An auto-denied proposal (its
+  cell was deleted, or the notebook's last view closed, or the notebook was
+  renamed or moved, before anyone decided) returns this same result, with
+  `reason` saying which; see `docs/propose-mode.md`.
+- **Bounds:** `source` over `MAX_CELL_SOURCE_WRITE_BYTES` (256 KiB of
+  UTF-8) is rejected with `INVALID_ARGUMENT` (details `{ bytes }`), never
+  truncated — in Propose mode before any proposal is created; standard
+  cell-snapshot bounds on the returned cell; the deny `reason` is cut to
+  2 KiB of UTF-8 (`MAX_DENY_REASON_BYTES` in `src/propose/store.ts`).
 - **Errors:** `INVALID_ARGUMENT` if `source` isn't a string or
   `expectedSourceHash` is missing (a missing `source` is refused, never
   silently treated as "empty the cell"); `CELL_NOT_FOUND` (also thrown for a
@@ -487,8 +540,9 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   rather than queued; and **`ABORTED`** if the caller's `AbortSignal` fires
   before the human decides.
 - **Concurrency:** this is the read-hash-write protocol described in
-  `docs/architecture.md`. In Propose mode, the `sourceHash` is checked
-  **twice** — once before the proposal is even created (so a doomed write
+  `docs/architecture.md`. In Propose mode, the size, access and `sourceHash`
+  checks all run before the proposal is created, and the `sourceHash` is
+  checked **twice** — once then (so a doomed write
   fails immediately instead of sitting in front of the human unnecessarily),
   and again on accept (so a human edit made while the proposal was pending
   still wins). Does not run or save the notebook; the notebook becomes
@@ -529,10 +583,11 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
 
 - **Title:** Run notebook cells
 - **Description:** "Execute cells that already exist in the notebook,
-  using the browser-local kernel the user shares. The user sees the busy
-  state, the execution counts and the outputs. There is no way to run an
-  arbitrary source string: to compute something new, insert a visible cell
-  first and then run it."
+  using the browser-local kernel the user shares. Select them with cellIds,
+  or with an explicit contiguous startIndex/endIndex range; if no selector is
+  given, the active cell runs. The user sees the busy state, the execution
+  counts and the outputs. There is no way to run an arbitrary source string:
+  to compute something new, insert a visible cell first and then run it."
 - **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:**
   | Field | Type | Default |
@@ -560,40 +615,58 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
   (`raw`) cells run as a no-op noting they aren't executed; an empty code
   cell runs as a no-op without contacting the kernel.
 - **Bounds:** `outputSummary` bounded to `MAX_SUMMARY_CHARS` (600
-  characters); `traceback`/`evalue` pass through the same output serializer
-  as `jupyter_get_cells` (ANSI-stripped, bounded to `MAX_TEXT_OUTPUT_BYTES`).
+  characters); `ename`/`evalue`/`traceback` pass through the same output
+  serializer as `jupyter_get_cells` (ANSI-stripped; `evalue` and
+  `traceback` bounded to `MAX_TEXT_OUTPUT_BYTES`, `ename` to 400 bytes).
 - **Selection:** provide either `cellIds` or both `startIndex` and `endIndex`,
   never both. A range uses zero-based indexes with an inclusive start and an
   exclusive end, and may contain at most `MAX_CELL_IDS_PER_CALL` (100) cells.
   With no selector, the active cell is run. The range is resolved in notebook
-  order at invocation time and every result preserves that order. All cells
-  in an explicit range are access-checked before the first one runs, so a
-  hidden (`"none"`) or read-only (`"read"`) cell fails the call without
-  partially executing an earlier target.
+  order at invocation time and every result preserves that order. All
+  targets are access-checked before the first one runs, so a hidden
+  (`"none"`) or read-only (`"read"`) cell fails the call without partially
+  executing an earlier target.
+- **Targets that change mid-call:** targets are remembered by cell id, and
+  each one is re-resolved and re-checked for write access right before it
+  runs, because the human can edit the notebook while earlier cells execute:
+  - a target that was deleted or hidden (`"none"`) since the call started —
+    or whose notebook widget is missing or out of step with the model — is
+    skipped as `status: "no-op"` with `index: -1`. Its `cellId` is the id
+    the agent passed in `cellIds`, or `""` when it was addressed by range or
+    as the active cell, so a hidden cell reads exactly like a deleted one. A
+    cell hidden while it ran is reported the same way, and its outcome does
+    not affect the overall status;
+  - a target that became `"read"`-access is skipped as `status: "no-op"`,
+    keeping its `cellId` and current `index` (the agent can still see it).
+
+  Skips never count as errors, so they do not trigger `stopOnError`.
 - **Errors:** `INVALID_ARGUMENT` if only one range endpoint is provided, both
   selector forms are provided, a range endpoint is negative or non-integer,
   `endIndex` is before `startIndex`, or the range exceeds the per-call cell
   limit; if no selector is given and there is no active cell;
-  `KERNEL_UNAVAILABLE` if any requested cell is a code cell and no kernel is
-  attached; `CELL_NOT_FOUND` if a requested cell has no notebook widget
-  (should not normally occur), or is `"none"`-access (including the active
-  cell, when no selector was given); `CELL_ACCESS_DENIED` if a requested cell
-  is `"read"`-access. Per-cell execution failures are **not** thrown; they
-  are reported inline as `status: "error"` with `ename`/`evalue`/`traceback`
-  on that cell's result, and `stopOnError` (default `true`) stops the
-  remaining queued cells without throwing.
+  `KERNEL_UNAVAILABLE` if any requested cell that still exists is a code
+  cell and no kernel is attached; `CELL_NOT_FOUND` if, at call start, a
+  requested cell doesn't exist or is `"none"`-access (including the active
+  cell, when no selector was given); `CELL_ACCESS_DENIED` if, at call start,
+  a requested cell is `"read"`-access; `ABORTED` if the signal had already
+  fired. Per-cell execution failures are **not** thrown; they are reported
+  inline as `status: "error"` with `ename`/`evalue`/`traceback` on that
+  cell's result, and `stopOnError` (default `true`) stops the remaining
+  queued cells without throwing.
 - **Concurrency / AbortSignal:** honors `AbortSignal` as described above —
   an abort interrupts only execution this invocation started, via a kernel
   interrupt, and never touches work the human launched manually. Cells run
-  strictly in the given order; `overall status` is `'aborted'` if any cell
-  was skipped or interrupted due to the signal.
+  strictly in the given order. Once the signal fires, the interrupted cell
+  keeps its own status (usually `error`), every remaining target (other
+  than one skipped as above) gets an `abort` entry (it is not run, and `stopOnError` does not
+  cut the list short), and the overall `status` is `aborted`.
 
 ### `jupyter_focus_cell`
 
 - **Title:** Focus a cell
 - **Description:** "Scroll to a cell, select it, and optionally place the
   cursor or select an exact range of its source using the notebook
-  editor's own selection. Use it to point the user at the code you are
+  editor’s own selection. Use it to point the user at the code you are
   talking about. Changes only what is on screen."
 - **Read/write:** view-state only (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:**
@@ -657,8 +730,29 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
 
 All seven comment tools resolve the target notebook the same way as the
 cell tools (`notebookPath` or the current notebook) and operate through
-`ReviewStore` (`src/review/storage.ts`), the same store the Review sidebar
-panel uses.
+`ReviewStore` (`src/review/storage.ts`), the same store the Agent panel's
+Comments tab uses.
+
+**Hidden cells.** A thread anchored to a cell the owner set to `"none"` does
+not exist as far as the agent can tell: it is left out of
+`jupyter_list_comments` and of the thread counts every tool reports, and
+`jupyter_get_comment`, `jupyter_reply_comment`, `jupyter_resolve_comment`,
+`jupyter_reopen_comment` and `jupyter_focus_comment` all fail on it with
+exactly the `COMMENT_NOT_FOUND` an unknown `threadId` gives (same message,
+same details, never the hidden cell's id). A thread on a `"read"` cell can
+be listed, read and focused, but replying to, resolving or reopening it is
+refused with `CELL_ACCESS_DENIED`.
+
+**Message cap.** Every tool that returns a whole thread (`get`, `create`,
+`reply`, `resolve`, `reopen`) returns at most
+`MAX_COMMENT_MESSAGES_RETURNED` (20) of its messages, and at most about
+25 KiB of them: always the first message (the original comment), then as
+many of the most recent ones as fit, in order. The number left out (they
+sit between the first and the kept recent ones) is reported beside the
+thread as `omittedMessages`.
+
+`IThread`: `{ id, status, createdAt, updatedAt, anchor, messages[] }`, each
+message `{ id, author: { kind, name }, createdAt, body }`.
 
 ### `jupyter_list_comments`
 
@@ -679,7 +773,7 @@ panel uses.
   ```ts
   {
     notebookPath: string;
-    counts: { openThreads: number; totalThreads: number };
+    counts: { openThreads: number; totalThreads: number };  // agent-visible threads only
     threads: Array<{
       threadId, status, createdAt, updatedAt, messageCount,
       anchor: { kind, cellId, cellIndex, selectedText?, outputIndex?, state, outputChanged? },
@@ -689,10 +783,13 @@ panel uses.
   }
   ```
   Threads are sorted newest-created-first.
-- **Bounds:** at most `limit` (capped at 50) threads; `lastMessage.body`
-  bounded to `MAX_PREVIEW_CHARS` (400 characters).
+- **Bounds:** at most `limit` (capped at 50) threads, and only as many as
+  fit in a byte budget just under `MAX_TOTAL_RESULT_BYTES`, so a long list
+  stops cleanly; either cut sets `truncated` and counts the rest in
+  `omittedCount`. `lastMessage.body` is bounded to `MAX_PREVIEW_CHARS` (400
+  characters).
 - **Errors:** `NO_ACTIVE_NOTEBOOK` if `scope: "current-cell"` is requested
-  with no active cell.
+  with no active cell; the standard notebook-resolution errors.
 - **Concurrency:** `anchor.state`/`outputChanged` are computed live against
   the current notebook on every call, so a thread's anchor status always
   reflects the notebook as it exists right now, not as it existed when the
@@ -710,30 +807,30 @@ panel uses.
   ```ts
   {
     notebookPath: string;
-    thread: IThread;              // full thread: id, status, timestamps, anchor, messages[]
+    thread: IThread;              // messages capped, see "Message cap" above
+    omittedMessages: number;
     anchorStatus: IAnchorStatus;  // kind, cellId, cellExists, cellIndex, state, range?, text?, outputIndex?, outputChanged?
-    context: { cell?: ICellSnapshot };  // present only if the anchored cell still exists and is visible
-    hiddenCellCount: number;            // 1 if the anchored cell exists but is "none"-access, else 0
+    context: { cell?: ICellSnapshot };  // present only if the anchored cell still exists
+    hiddenCellCount: 0;                 // always 0; kept for result-shape compatibility
   }
   ```
   For an `output` anchor, `context.cell` includes outputs; for other kinds
-  it includes source only. When the anchored cell is `"none"`-access,
-  `context.cell` is omitted (never its source or outputs) and
-  `hiddenCellCount` is `1` instead — the same "never a silent gap" rule as
-  `jupyter_get_cells`.
+  it includes source only. Despite "every message" in the description, the
+  thread's messages are capped as described above.
 - **Bounds:** the embedded `cell` follows the same bounds as
   `jupyter_get_cells`.
 - **Errors:** `COMMENT_NOT_FOUND` if `threadId` doesn't exist in the
-  resolved notebook.
+  resolved notebook, or its anchor cell is `"none"`-access.
 - **Concurrency:** same live anchor-status computation as `jupyter_list_comments`.
 
 ### `jupyter_create_comment`
 
 - **Title:** Create a review comment
 - **Description:** "Create a review thread anchored to a whole cell, to an
-  exact range of a cell's source, or to one of a cell's outputs. This is
-  the same kind of comment the user creates from the Review panel, so use
-  it to leave observations without editing their notebook."
+  exact range of a cell’s source, or to one of a cell’s outputs. This is
+  the same kind of comment the user creates from the Comments tab of the
+  Agent panel, so use it to leave observations without editing their
+  notebook."
 - **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs (`anchor` and `message` required):**
   ```ts
@@ -749,17 +846,20 @@ panel uses.
     message: string;
   }
   ```
-- **Output:** `{ notebookPath: string; thread: IThread; counts: { openThreads, totalThreads } }`
-- **Bounds:** `message` bounded to `MAX_COMMENT_BODY_BYTES` (8 KiB) by the
-  store; for a `source-range` anchor, the captured `selectedText` and
-  prefix/suffix context follow the same bounds as human-created anchors
+- **Output:** `{ notebookPath: string; thread: IThread; omittedMessages: number; counts: { openThreads, totalThreads } }`
+- **Bounds:** `message` over `MAX_COMMENT_BODY_BYTES` (8 KiB of UTF-8) and
+  `anchor.text` over `MAX_SELECTED_TEXT_BYTES` (4 KiB) are rejected with
+  `INVALID_ARGUMENT` (details `{ key, bytes }`), never truncated; for a
+  `source-range` anchor, the captured `selectedText` and prefix/suffix
+  context follow the same bounds as human-created anchors
   (`MAX_SELECTED_TEXT_BYTES` / `MAX_ANCHOR_CONTEXT`).
 - **Errors:** `INVALID_ARGUMENT` if `anchor.kind`/`anchor.cellId`/`message`
-  are missing, or if a `source-range` anchor supplies neither `anchor.text`
-  nor `anchor.selection`; `CELL_NOT_FOUND` if `cellId` doesn't exist or is
-  `"none"`-access; `CELL_ACCESS_DENIED` if the cell is `"read"`-access
-  (this check applies only to agent-authored comments; a human commenting
-  from the Review panel is never blocked by their own restriction);
+  are missing or too large, or if a `source-range` anchor supplies neither
+  `anchor.text` nor `anchor.selection`; `CELL_NOT_FOUND` if `cellId`
+  doesn't exist or is `"none"`-access; `CELL_ACCESS_DENIED` if the cell is
+  `"read"`-access (this check applies only to agent-authored comments; a
+  human commenting from the Comments tab is never blocked by their own
+  restriction); `NOTEBOOK_ACCESS_DENIED` if the notebook is `"read"`;
   `COMMENT_ANCHOR_STALE` if `anchor.text` isn't found in the cell's current
   source, if a `source-range` anchor's resulting selected text can't be
   validated against the live cell, or if an `output` anchor's `outputIndex`
@@ -774,14 +874,17 @@ panel uses.
 
 - **Title:** Reply to a review thread
 - **Description:** "Append a message to an existing review thread. The
-  user sees it in the Review panel next to their own messages."
+  user sees it in the Comments tab of the Agent panel next to their own
+  messages."
 - **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:** `{ notebookPath?: string | null; threadId: string; message: string }` (both required)
-- **Output:** `{ notebookPath: string; thread: IThread }`
-- **Bounds:** `message` bounded to `MAX_COMMENT_BODY_BYTES` (8 KiB).
-- **Errors:** `COMMENT_NOT_FOUND` (also thrown if the thread's anchor cell
-  is now `"none"`-access); `CELL_ACCESS_DENIED` if it is now
-  `"read"`-access; `INVALID_ARGUMENT` if `message` is empty/blank.
+- **Output:** `{ notebookPath: string; thread: IThread; omittedMessages: number }`
+- **Bounds:** `message` over `MAX_COMMENT_BODY_BYTES` (8 KiB of UTF-8) is
+  rejected with `INVALID_ARGUMENT`.
+- **Errors:** `COMMENT_NOT_FOUND` (unknown thread, or its anchor cell is
+  `"none"`-access); `CELL_ACCESS_DENIED` if the anchor cell is
+  `"read"`-access; `NOTEBOOK_ACCESS_DENIED` if the notebook is `"read"`;
+  `INVALID_ARGUMENT` if `message` is empty, blank or too large.
 - **Concurrency:** appends to the thread's message list; does not touch its
   anchor or status.
 
@@ -792,9 +895,13 @@ panel uses.
   closing message. The history is preserved and the user can reopen it."
 - **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:** `{ notebookPath?: string | null; threadId: string; resolutionMessage?: string | null }` (`threadId` required)
-- **Output:** `{ notebookPath: string; thread: IThread }`
-- **Bounds:** `resolutionMessage`, if given, bounded like any comment body.
-- **Errors:** `COMMENT_NOT_FOUND`.
+- **Output:** `{ notebookPath: string; thread: IThread; omittedMessages: number }`
+- **Bounds:** `resolutionMessage` over `MAX_COMMENT_BODY_BYTES` (8 KiB of
+  UTF-8) is rejected with `INVALID_ARGUMENT`.
+- **Errors:** `COMMENT_NOT_FOUND` (unknown thread, or its anchor cell is
+  `"none"`-access); `CELL_ACCESS_DENIED` if the anchor cell is
+  `"read"`-access; `NOTEBOOK_ACCESS_DENIED` if the notebook is `"read"`;
+  `INVALID_ARGUMENT` if `resolutionMessage` is too large.
 - **Concurrency:** sets `status: 'resolved'`; the full message history is
   preserved (nothing is deleted), and the thread can be reopened at any
   time.
@@ -805,9 +912,11 @@ panel uses.
 - **Description:** "Reopen a resolved review thread, preserving its history."
 - **Read/write:** write (`readOnlyHint: false`, `untrustedContentHint: true`)
 - **Inputs:** `{ notebookPath?: string | null; threadId: string }` (`threadId` required)
-- **Output:** `{ notebookPath: string; thread: IThread }`
+- **Output:** `{ notebookPath: string; thread: IThread; omittedMessages: number }`
 - **Bounds:** none.
-- **Errors:** `COMMENT_NOT_FOUND`.
+- **Errors:** `COMMENT_NOT_FOUND` (unknown thread, or its anchor cell is
+  `"none"`-access); `CELL_ACCESS_DENIED` if the anchor cell is
+  `"read"`-access; `NOTEBOOK_ACCESS_DENIED` if the notebook is `"read"`.
 - **Concurrency:** sets `status: 'open'`; no message is appended (unlike
   `jupyter_resolve_comment`'s optional `resolutionMessage`).
 
@@ -824,11 +933,13 @@ panel uses.
   { notebookPath: string; threadId: string; anchorStatus: IAnchorStatus; notebook: INotebookInfo }
   ```
 - **Bounds:** none.
-- **Errors:** `COMMENT_NOT_FOUND`; `COMMENT_ANCHOR_STALE` if the anchored
-  cell no longer exists at all (`cellIndex === null`) — note this is
-  distinct from an *orphaned source-range* anchor (text not found but the
-  cell still exists), which instead resolves and reveals the cell without a
-  specific text selection.
+- **Errors:** `COMMENT_NOT_FOUND` (unknown thread, or its anchor cell is
+  `"none"`-access); `COMMENT_ANCHOR_STALE` if the anchored cell no longer
+  exists at all (`cellIndex === null`) — note this is distinct from an
+  *orphaned source-range* anchor (text not found but the cell still
+  exists), which instead resolves and reveals the cell without a specific
+  text selection. A `"read"` cell can be focused. Both checks run before
+  anything on screen changes.
 - **Concurrency:** activates the notebook, reveals the anchored cell, and
   (for a `source-range` anchor that still resolves to a range) focuses the
   editor and applies that selection. Purely a view-state change.
@@ -865,8 +976,10 @@ panel uses.
   ```
   `document` renders markdown cells verbatim; code cells as fenced
   ` ```python ` blocks; and, when `includeOutputs` is true, each code cell's
-  text/stream output and error tracebacks as fenced blocks. An image or
-  other binary output is never embedded: it becomes a single placeholder
+  text/stream output, error tracebacks, and otherwise the first non-empty
+  text-like (`textData`) entry, as fenced blocks. Every fence is longer than
+  any run of backticks in its content, so content containing ```` ``` ````
+  can't close it early. An image or other binary output is never embedded: it becomes a single placeholder
   line, `!\[output\]\(&lt;mime type&gt;, &lt;N&gt; bytes — not included\)`. The rendering is
   implemented in `src/jupyter/export.ts`, a pure module with no
   `@jupyterlab/*` dependency, so it is unit-tested directly
@@ -927,5 +1040,7 @@ panel uses.
   never its cell id, text, or output fingerprint, and a stale record the
   current notebook cannot attribute to a visible cell is `null` too.
   Selections in read-only cells stay visible; reads are permitted there.
-- **Concurrency:** read-only; reflects whatever the tracker currently holds
-  at call time.
+- **Concurrency:** read-only. The record is re-checked against the live
+  notebook on every call: if the output it was taken from has since been
+  replaced or removed (for example by a re-run), so its
+  `outputFingerprint` no longer matches, the result is `null`.

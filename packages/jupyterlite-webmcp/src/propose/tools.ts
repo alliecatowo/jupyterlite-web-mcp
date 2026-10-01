@@ -14,10 +14,14 @@
  */
 import { INotebookInfo } from '../jupyter/notebook';
 import { resolveNotebook } from '../jupyter/notebook';
-import { ICellSnapshot, resolveWritableCell, updateCell } from '../jupyter/cells';
+import {
+  checkSourceSize,
+  ICellSnapshot,
+  resolveWritableCell,
+  updateCell
+} from '../jupyter/cells';
 import { toolError } from '../jupyter/errors';
 import { IJupyterEnv } from '../jupyter/workspace';
-import { LIMITS } from '../limits';
 import { ProposalAlreadyPendingError, ProposeStore } from './store';
 
 export interface IProposeUpdateCellParams {
@@ -60,16 +64,10 @@ export async function proposeUpdateCell(
   if (typeof params.source !== 'string') {
     throw toolError('INVALID_ARGUMENT', 'source must be a string.');
   }
-  // Same size check, error and order as Direct mode's `updateCell`
-  // (`checkSourceSize` in `src/jupyter/cells.ts`, not exported), so an
-  // oversized edit fails now instead of only after the human accepts it.
-  if (params.source.length > LIMITS.MAX_CELL_SOURCE_WRITE_BYTES) {
-    throw toolError(
-      'INVALID_ARGUMENT',
-      `"source" exceeds the maximum size of ${LIMITS.MAX_CELL_SOURCE_WRITE_BYTES} bytes.`,
-      { length: params.source.length }
-    );
-  }
+  // The exact size check Direct mode's `updateCell` runs (UTF-8 bytes, same
+  // error and details), so an oversized edit fails now instead of only after
+  // the human accepts it.
+  checkSourceSize(params.source);
 
   const panel = await resolveNotebook(env, params.notebookPath, { intent: 'write' });
 

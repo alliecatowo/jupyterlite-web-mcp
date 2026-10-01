@@ -8,7 +8,7 @@
 - **No credential surface.** It never reads or exposes cookies, auth tokens, unrelated `localStorage`, or anything outside the notebook workspace.
 - **Narrow selection capture.** An output selection is recorded only when it lies wholly inside one output. Selections crossing cells, touching notebook chrome, or including rich widgets are rejected.
 - **Owner-side lockdown.** Access levels (`write`, `read`, `none`) are set by the human from menus or the Agent panel. No tool can read or change them, and hidden items are reported as *not found*.
-- **Bounded results.** Every size cap lives in one place (`src/limits.ts`).
+- **Bounded results.** The size caps live in `src/limits.ts` (plus Propose mode's deny-reason cap in `src/propose/store.ts`), and every tool result is bounded to 50 KiB.
 
 ## What access levels do not guarantee
 

@@ -124,10 +124,31 @@ describe('proposeUpdateCell source size and auto-deny', () => {
       })
     ).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
-      details: { length: huge.length }
+      details: { bytes: huge.length }
     });
     expect(store.pending).toHaveLength(0);
     expect(store.proposals).toHaveLength(0);
+  });
+
+  it('counts the source size in UTF-8 bytes, not characters', async () => {
+    const cellId = 'cell-1';
+    const source = 'print(1)';
+    const { env } = makeEnv([makeCell(cellId, 'code', source)]);
+    const store = new ProposeStore();
+    // Fewer characters than the limit, but two UTF-8 bytes each.
+    const wide = '\u00e9'.repeat(128 * 1024 + 1);
+
+    await expect(
+      proposeUpdateCell(env, store, {
+        cellId,
+        source: wide,
+        expectedSourceHash: hashCellSource('code', source)
+      })
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { bytes: 2 * wide.length }
+    });
+    expect(store.pending).toHaveLength(0);
   });
 
   it('resolves an auto-denied proposal as a non-error PROPOSAL_DENIED result carrying the reason', async () => {
