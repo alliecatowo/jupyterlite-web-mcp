@@ -801,9 +801,9 @@ export function buildTools(
       inputSchema: SCHEMAS.jupyter_focus_comment,
       annotations: { readOnlyHint: false, untrustedContentHint: true },
       handler: async input => {
-        // Check the thread is visible to the agent before bringing the
-        // notebook to the front, so a hidden or unknown thread changes
-        // nothing on screen.
+        // Check the thread is visible to the agent (and still anchored)
+        // before bringing the notebook to the front, so a hidden, unknown
+        // or stale thread changes nothing on screen.
         const panel = await resolveNotebook(
           env,
           optionalString(input, 'notebookPath')
@@ -812,7 +812,6 @@ export function buildTools(
           panel,
           requiredString(input, 'threadId')
         );
-        env.app.shell.activateById(panel.id);
         const status = review.anchorStatus(panel, thread);
         if (status.cellIndex === null) {
           throw toolError(
@@ -821,6 +820,7 @@ export function buildTools(
             { threadId: thread.id }
           );
         }
+        env.app.shell.activateById(panel.id);
         const cell = await revealCell(panel, status.cellIndex);
         if (cell?.editor && status.range) {
           cell.editor.focus();
