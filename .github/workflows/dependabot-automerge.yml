@@ -1,7 +1,7 @@
 name: Bot PR auto-merge
 
 # Enables auto-merge on PRs opened by our maintenance bots (Dependabot, and
-# Copilot's CodeQL autofixes). No approval is involved: the `main` ruleset lets
+# Copilot's CodeQL autofixes only: other Copilot PRs get a normal review). No approval is involved: the `main` ruleset lets
 # those bots bypass the required human review. GitHub then merges each one only
 # once the required checks (build, test, analyze) pass, so a change that breaks
 # the build or tests is never merged.
@@ -24,7 +24,8 @@ jobs:
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (github.event.pull_request.user.login == 'dependabot[bot]' ||
-       github.event.pull_request.user.login == 'Copilot')
+       (github.event.pull_request.user.login == 'Copilot' &&
+        startsWith(github.event.pull_request.head.ref, 'copilot/fix-code-scanning')))
     runs-on: ubuntu-24.04
     steps:
       - name: Enable auto-merge
