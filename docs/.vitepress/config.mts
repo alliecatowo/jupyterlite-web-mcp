@@ -1,0 +1,92 @@
+import { defineConfig } from 'vitepress';
+
+const repo = 'https://github.com/alliecatowo/jupyterlite-web-mcp';
+
+// GitHub Pages serves project sites under /<repo>/. Set DOCS_BASE=/ when the
+// site moves to its own domain or a Vercel project.
+const base = process.env.DOCS_BASE ?? '/jupyterlite-web-mcp/';
+
+export default defineConfig({
+  title: 'JupyterLite WebMCP',
+  description:
+    'A JupyterLab / JupyterLite extension that lets a browser agent read, edit, run and review the notebook you already have open, through WebMCP.',
+  base,
+  cleanUrls: true,
+  lastUpdated: true,
+  head: [
+    ['meta', { name: 'theme-color', content: '#d4a017' }],
+    ['meta', { property: 'og:title', content: 'JupyterLite WebMCP' }],
+    [
+      'meta',
+      {
+        property: 'og:description',
+        content:
+          'Your notebook is already in the browser. Now your agent can be too.'
+      }
+    ]
+  ],
+  themeConfig: {
+    nav: [
+      { text: 'Guide', link: '/quickstart', activeMatch: '/(quickstart|install|concepts|faq)' },
+      { text: 'Reference', link: '/webmcp-tools', activeMatch: '/(webmcp-tools|security|propose-mode|multiplayer|architecture|webmcp-compatibility)' },
+      { text: 'Roadmap', link: '/roadmap' },
+      {
+        text: 'Links',
+        items: [
+          { text: 'Live demo', link: 'https://jupyterlite-web-mcp.vercel.app/lab/index.html' },
+          { text: 'PyPI', link: 'https://pypi.org/project/jupyterlite-webmcp/' },
+          { text: 'Discussions', link: `${repo}/discussions` },
+          { text: 'Changelog', link: `${repo}/blob/main/CHANGELOG.md` }
+        ]
+      }
+    ],
+    sidebar: [
+      {
+        text: 'Get started',
+        items: [
+          { text: 'Quickstart', link: '/quickstart' },
+          { text: 'Install', link: '/install' },
+          { text: 'Concepts', link: '/concepts' },
+          { text: 'FAQ', link: '/faq' }
+        ]
+      },
+      {
+        text: 'Reference',
+        items: [
+          { text: 'Tools (22)', link: '/webmcp-tools' },
+          { text: 'Propose / Deny mode', link: '/propose-mode' },
+          { text: 'Security model', link: '/security' },
+          { text: 'Multiplayer', link: '/multiplayer' }
+        ]
+      },
+      {
+        text: 'Under the hood',
+        items: [
+          { text: 'Architecture', link: '/architecture' },
+          { text: 'WebMCP compatibility', link: '/webmcp-compatibility' },
+        ]
+      },
+      {
+        text: 'Project',
+        items: [
+          { text: 'Roadmap', link: '/roadmap' },
+          { text: 'Changelog', link: `${repo}/blob/main/CHANGELOG.md` },
+          { text: 'Contributing', link: `${repo}/blob/main/CONTRIBUTING.md` }
+        ]
+      }
+    ],
+    socialLinks: [
+      { icon: 'github', link: repo },
+      { icon: 'githubsponsors' as any, link: 'https://github.com/sponsors/alliecatowo' }
+    ],
+    editLink: {
+      pattern: `${repo}/edit/main/docs/:path`,
+      text: 'Edit this page on GitHub'
+    },
+    search: { provider: 'local' },
+    footer: {
+      message: 'Released under the MIT License. Winner of the OpenAI WebMCP Challenge.',
+      copyright: 'Allison Coleman (@alliecatowo), with Juan Mendoza (@mennymendoza)'
+    }
+  }
+});

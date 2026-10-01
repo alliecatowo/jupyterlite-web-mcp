@@ -32,3 +32,6 @@ dist-shim/
 .vercel
 .env*
 .claude/worktrees/
+
+# VitePress
+docs/.vitepress/cache/

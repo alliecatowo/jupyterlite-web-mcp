@@ -38,6 +38,13 @@ npm ci && npm run typecheck && npx jest && npm run lint:check && npm run build:p
 ./scripts/build-site.sh     # from the repo root; fails if the extensions are missing from dist/
 ```
 
+## Docs site
+
+`docs/` is a VitePress site (`cd docs && npm ci && npm run build`), deployed to
+GitHub Pages by `.github/workflows/docs.yml` on pushes to `main` that touch
+`docs/`. Base path is `/jupyterlite-web-mcp/`; set `DOCS_BASE=/` when it moves.
+A dead link fails the build, so link repo files via github.com URLs.
+
 ## Automation (the owner has very limited time: keep it self-maintaining)
 
 - Dependabot and Copilot (CodeQL autofix) PRs get auto-merge enabled by

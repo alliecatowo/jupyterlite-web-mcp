@@ -867,7 +867,7 @@ panel uses.
   ` ```python ` blocks; and, when `includeOutputs` is true, each code cell's
   text/stream output and error tracebacks as fenced blocks. An image or
   other binary output is never embedded: it becomes a single placeholder
-  line, `![output](<mime type>, <N> bytes — not included)`. The rendering is
+  line, `!\[output\]\(&lt;mime type&gt;, &lt;N&gt; bytes — not included\)`. The rendering is
   implemented in `src/jupyter/export.ts`, a pure module with no
   `@jupyterlab/*` dependency, so it is unit-tested directly
   (`tests/unit/export.spec.ts`).

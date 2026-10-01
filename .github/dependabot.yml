@@ -42,3 +42,10 @@ updates:
     groups:
       ui-tests-minor-patch:
         update-types: [minor, patch]
+  # The VitePress docs site (docs/).
+  - package-ecosystem: npm
+    directory: /docs
+    schedule: { interval: weekly }
+    groups:
+      docs-minor-patch:
+        update-types: [minor, patch]
