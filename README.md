@@ -14,6 +14,7 @@ API keys. Selected as one of the
 ([project page](https://devpost.com/software/jupyterlite-webmcp)).
 
 **[Try the live demo](https://jupyterlite-web-mcp.vercel.app/lab/index.html)** ·
+[Docs](https://alliecatowo.github.io/jupyterlite-web-mcp/) ·
 [60-second walkthrough](#try-it-in-60-seconds) ·
 [Install](#install) ·
 [Open an issue](https://github.com/alliecatowo/jupyterlite-web-mcp/issues) ·

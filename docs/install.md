@@ -71,9 +71,9 @@ jupyter lite build --contents content --output-dir dist
 ```
 
 This repository's own demo is built this way: see
-[`requirements.txt`](../requirements.txt) for a complete, working set of
+[`requirements.txt`](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/requirements.txt) for a complete, working set of
 pins (JupyterLite core, JupyterLab, Notebook, the Pyodide kernel and this
-extension) and [`scripts/build-site.sh`](../scripts/build-site.sh) for the
+extension) and [`scripts/build-site.sh`](https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/scripts/build-site.sh) for the
 build that Vercel and CI run.
 
 ## Uninstalling
