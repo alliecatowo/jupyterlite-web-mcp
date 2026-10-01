@@ -225,7 +225,8 @@ these DOM attributes back as a source of truth.
 | `MAX_CELL_SOURCE_BYTES` | 25 KiB (25 * 1024) | Cap on one cell's returned source text. |
 | `MAX_TEXT_OUTPUT_BYTES` | 10 KiB (10 * 1024) | Cap on one output's serialized text (stream/result/error `traceback` and `evalue`), and the shared budget for one output's `textData`. |
 | `MAX_TOTAL_RESULT_BYTES` | 50 KiB (50 * 1024) | Cap on the serialized size of one whole tool result's `content` text. |
-| `MAX_SELECTED_TEXT_BYTES` | 4 KiB (4 * 1024) | Cap on the returned text of the human's current editor selection. |
+| `MAX_SELECTED_TEXT_BYTES` | 4 KiB (4 * 1024) | Cap, in UTF-8 bytes, on the returned text of the human's current editor selection, a captured output selection, and a comment anchor's `selectedText` (an oversized anchor keeps its longest prefix that fits, with its stored range shrunk to match). |
+| `MAX_ERROR_STRING_BYTES` | 2 KiB (2 * 1024) | Cap on any one string in an error result (errors echo caller input such as a `cellId`). |
 | `MAX_COMMENT_BODY_BYTES` | 8 KiB (8 * 1024) | Cap on one comment message body. |
 | `MAX_COMMENTS_RETURNED` | 50 | Cap on threads returned by `jupyter_list_comments`. |
 | `MAX_OUTPUTS_PER_CELL` | 10 | Cap on outputs serialized per cell. |
@@ -237,7 +238,7 @@ these DOM attributes back as a source of truth.
 | `MAX_CELL_SOURCE_WRITE_BYTES` | 256 KiB (256 * 1024) | Cap on a cell `source` accepted by `jupyter_insert_cell`/`jupyter_update_cell`. Deliberately larger than `MAX_CELL_SOURCE_BYTES`, and an oversized write is rejected outright, never truncated — it's real content the human keeps. |
 | `MAX_NAME_BYTES` | 256 | Cap on a notebook/file `name` argument. |
 | `MAX_CELL_IDS_PER_CALL` | 100 | Cap on the number of cell ids accepted in one id-array argument (e.g. `jupyter_run_cells`'s explicit range). |
-| `MAX_EXPORT_BYTES` | 40 KiB (40 * 1024) | Cap on the rendered size of a `jupyter_export_notebook` document. |
+| `MAX_EXPORT_BYTES` | 40 KiB (40 * 1024) | Cap on the size of a `jupyter_export_notebook` document, measured JSON-escaped so the whole result stays under `MAX_TOTAL_RESULT_BYTES`. |
 | `MAX_EXPORT_CELLS` | 500 | Cap on the number of cells `jupyter_export_notebook` walks. |
 | `MAX_COMMENT_MESSAGES_RETURNED` | 20 | Cap on messages of one review thread returned to an agent: the first message plus the most recent ones, with the rest counted in `omittedMessages`. |
 
@@ -259,7 +260,8 @@ of objects (cells, threads, entries) until it does; the object that held a
 trimmed array gets `truncated: true` and its `omittedCount` increased by the
 number dropped, and the root gets `truncated: true`. Only when no trimming
 makes it fit is it replaced by a small `{truncated: true, reason, maxBytes,
-partial}` envelope, with `partial` an opaque prefix of the JSON.
+partial}` envelope, with `partial` an opaque prefix of the JSON whose length
+is chosen (by binary search) so the re-escaped envelope itself fits.
 `structuredContent` is a convenience copy of the same payload for a client
 that can consume structured data directly: the payload itself when it fitted,
 the trimmed copy when it was trimmed, and omitted for the `partial` envelope,

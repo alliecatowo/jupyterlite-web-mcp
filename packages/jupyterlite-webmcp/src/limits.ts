@@ -13,6 +13,11 @@ export const LIMITS = {
   MAX_TEXT_OUTPUT_BYTES: 10 * 1024,
   MAX_TOTAL_RESULT_BYTES: 50 * 1024,
   MAX_SELECTED_TEXT_BYTES: 4 * 1024,
+  /**
+   * Maximum UTF-8 size of any one string inside an error result (errors
+   * echo caller input such as a cell id or an enum value).
+   */
+  MAX_ERROR_STRING_BYTES: 2 * 1024,
   MAX_COMMENT_BODY_BYTES: 8 * 1024,
   MAX_COMMENTS_RETURNED: 50,
   /**
@@ -40,7 +45,12 @@ export const LIMITS = {
   MAX_NAME_BYTES: 256,
   /** Maximum number of cell ids accepted in one id-array argument. */
   MAX_CELL_IDS_PER_CALL: 100,
-  /** Maximum rendered size of a `jupyter_export_notebook` document. */
+  /**
+   * Maximum size of a `jupyter_export_notebook` document, measured as its
+   * JSON-escaped form (what the tool result actually carries), so quotes,
+   * backslashes and newlines can never push the result past
+   * `MAX_TOTAL_RESULT_BYTES`.
+   */
   MAX_EXPORT_BYTES: 40 * 1024,
   /** Maximum number of cells `jupyter_export_notebook` will walk. */
   MAX_EXPORT_CELLS: 500

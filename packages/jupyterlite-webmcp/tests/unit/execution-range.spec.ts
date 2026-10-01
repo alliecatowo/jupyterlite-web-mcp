@@ -72,9 +72,12 @@ function makeEnv(
   execute: jest.Mock;
   widgets: { model: IFakeCell }[];
   interrupt: jest.Mock;
+  notebookMetadata: Record<string, unknown>;
 } {
+  const notebookMetadata: Record<string, unknown> = {};
   const model = {
     dirty: false,
+    sharedModel: { getMetadata: (key: string) => notebookMetadata[key] },
     cells: {
       get length() {
         return cells.length;
@@ -100,7 +103,7 @@ function makeEnv(
     tracker: { currentWidget: panel as unknown },
     fileBrowser: null
   } as unknown as IJupyterEnv;
-  return { env, execute, widgets, interrupt };
+  return { env, execute, widgets, interrupt, notebookMetadata };
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -305,6 +308,105 @@ describe('jupyter_run_cells re-resolves targets by id while running', () => {
 
     expect(result.results[0]).toMatchObject({ index: -1, status: 'no-op' });
     expect(JSON.stringify(result)).not.toContain('SECRET');
+  });
+});
+
+describe('jupyter_run_cells re-checks notebook access while running', () => {
+  function threeCells(): IFakeCell[] {
+    return [
+      makeCell('first', 'print(1)'),
+      makeCell('second', 'print(2)'),
+      makeCell('third', 'print(3)')
+    ];
+  }
+
+  const secretError = {
+    content: {
+      status: 'error',
+      ename: 'E',
+      evalue: 'SECRET',
+      traceback: ['SECRET']
+    }
+  };
+
+  async function rejection(promise: Promise<unknown>): Promise<unknown> {
+    try {
+      await promise;
+    } catch (error) {
+      return error;
+    }
+    throw new Error('expected a rejection');
+  }
+
+  it('stops and reports the notebook as gone when it is hidden mid-run', async () => {
+    const cells = threeCells();
+    const { env, execute, notebookMetadata } = makeEnv(cells);
+    execute.mockImplementationOnce(async () => {
+      notebookMetadata.jupyterlite_webmcp = { notebookAccess: 'none' };
+      return secretError;
+    });
+
+    const run = runCells(env, {
+      cellIds: ['first', 'second', 'third'],
+      stopOnError: false
+    });
+    const caught = await rejection(run);
+
+    expect(errorCode(caught)).toBe('NO_ACTIVE_NOTEBOOK');
+    expect(execute).toHaveBeenCalledTimes(1);
+    const message = String((caught as Error).message);
+    const serialized = JSON.stringify(caught) + message;
+    expect(serialized).not.toContain('SECRET');
+    expect(serialized).not.toContain('"first"');
+    expect(serialized).not.toContain('cellId');
+    expect(serialized).not.toContain('notebook.ipynb');
+  });
+
+  it('returns nothing when the notebook is hidden while the last cell runs', async () => {
+    const cells = [makeCell('only', 'print(1)')];
+    const { env, execute, notebookMetadata } = makeEnv(cells);
+    execute.mockImplementationOnce(async () => {
+      notebookMetadata.jupyterlite_webmcp = { notebookAccess: 'none' };
+      return secretError;
+    });
+
+    const caught = await rejection(runCells(env, { cellIds: ['only'] }));
+
+    expect(errorCode(caught)).toBe('NO_ACTIVE_NOTEBOOK');
+    expect(JSON.stringify(caught)).not.toContain('SECRET');
+  });
+
+  it('runs nothing further once the notebook becomes read-only', async () => {
+    const cells = threeCells();
+    const { env, execute, notebookMetadata } = makeEnv(cells);
+    execute.mockImplementationOnce(async () => {
+      notebookMetadata.jupyterlite_webmcp = { notebookAccess: 'read' };
+      // A remaining target hidden at the same time must stay unreported.
+      cells[2].sharedModel.setMetadata('jupyterlite_webmcp', {
+        access: 'none'
+      });
+      return { content: { status: 'ok' } };
+    });
+
+    const result = await runCells(env, { startIndex: 0, endIndex: 3 });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('ok');
+    expect(result.results).toEqual([
+      expect.objectContaining({ cellId: 'first', index: 0, status: 'ok' }),
+      {
+        cellId: 'second',
+        index: 1,
+        status: 'no-op',
+        outputSummary: '(not run: the notebook is now read-only for agents)'
+      },
+      {
+        cellId: '',
+        index: -1,
+        status: 'no-op',
+        outputSummary: '(not run: the cell is no longer available)'
+      }
+    ]);
   });
 });
 

@@ -2,6 +2,7 @@ import { CodeCell, ICodeCellModel, MarkdownCell } from '@jupyterlab/cells';
 import { NotebookPanel } from '@jupyterlab/notebook';
 
 import { assertPositionalCellAccessible, cellAccess, IMetadataCell, recordCellHistory } from '../access/guard';
+import { assertNotebookAccessible, notebookAccessOfPanel } from '../access/notebook';
 import { LIMITS } from '../limits';
 import { ToolError, toolError } from './errors';
 import { INotebookInfo, kernelInfo, notebookInfo, resolveNotebook } from './notebook';
@@ -257,9 +258,48 @@ export async function runCells(
     outputSummary: UNAVAILABLE_SUMMARY
   });
 
+  // The human can also restrict or hide the whole notebook while this call
+  // awaits each execution. A notebook hidden mid-run is reported exactly as
+  // `resolveNotebook` reports a hidden notebook (nothing about the cells that
+  // already ran is returned); one made read-only stops before the next cell.
+  const throwIfNotebookHidden = (): void => {
+    if (notebookAccessOfPanel(panel) !== 'none') {
+      return;
+    }
+    if (params.notebookPath) {
+      assertNotebookAccessible(panel.context.path, 'none', 'write');
+    }
+    throw toolError(
+      'NO_ACTIVE_NOTEBOOK',
+      'There is no notebook open. Open one first, or pass notebookPath.'
+    );
+  };
+  const notRunReadOnlyNotebook = (id: string): ICellExecutionResult => {
+    const index = findCellIndexById(model, id);
+    if (
+      index === -1 ||
+      cellAccess(model.cells.get(index) as unknown as IMetadataCell) === 'none'
+    ) {
+      return unavailable(id);
+    }
+    return {
+      cellId: id,
+      index,
+      status: 'no-op',
+      outputSummary: '(not run: the notebook is now read-only for agents)'
+    };
+  };
+
   try {
     for (let i = 0; i < targets.length; i++) {
       const id = targets[i];
+      throwIfNotebookHidden();
+      if (notebookAccessOfPanel(panel) === 'read') {
+        for (let j = i; j < targets.length; j++) {
+          results.push(notRunReadOnlyNotebook(targets[j]));
+        }
+        break;
+      }
       // Re-resolve right before running; there is no await between here and
       // `CodeCell.execute`, so the index and widget cannot go stale.
       let index: number;
@@ -379,6 +419,7 @@ export async function runCells(
         );
       }
 
+      throwIfNotebookHidden();
       if (cellAccess(codeModel as unknown as IMetadataCell) === 'none') {
         // Hidden while it ran: return nothing about it, exactly as if it had
         // vanished, and do not let its outcome shape the overall status.
@@ -450,6 +491,7 @@ export async function runCells(
   if (aborted) {
     overall = 'aborted';
   }
+  throwIfNotebookHidden();
   return { status: overall, notebook: notebookInfo(panel), results };
 }
 

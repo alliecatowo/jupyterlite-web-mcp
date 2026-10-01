@@ -21,6 +21,7 @@ import { ISignal, Signal } from '@lumino/signaling';
 
 import { fingerprintOutput } from '../jupyter/outputs';
 import { LIMITS } from '../limits';
+import { utf8Length } from '../utf8';
 
 /** DOM selector for one rendered output's wrapper element. */
 const OUTPUT_WRAPPER_SELECTOR = '.jp-OutputArea-child';
@@ -232,7 +233,7 @@ export function resolveOutputSelection(
     if (!text || !text.trim()) {
       return null;
     }
-    if (text.length > LIMITS.MAX_SELECTED_TEXT_BYTES) {
+    if (utf8Length(text) > LIMITS.MAX_SELECTED_TEXT_BYTES) {
       return null;
     }
 

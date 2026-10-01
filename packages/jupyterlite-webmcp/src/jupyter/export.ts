@@ -6,6 +6,7 @@
  * runtime.
  */
 import { LIMITS } from '../limits';
+import { utf8Length } from '../utf8';
 import { boundText, serializeOutput } from './outputs';
 
 /** Export formats `jupyter_export_notebook` accepts. Only one exists today. */
@@ -28,7 +29,10 @@ export interface IExportCellInput {
 
 /** The bounded result of rendering a notebook to a portable document. */
 export interface IRenderedExport {
-  /** The rendered document, bounded to `LIMITS.MAX_EXPORT_BYTES`. */
+  /**
+   * The rendered document, bounded so its JSON-escaped form fits in
+   * `LIMITS.MAX_EXPORT_BYTES`.
+   */
   document: string;
   /** Whether the document was cut short to fit the size bound. */
   truncated: boolean;
@@ -109,10 +113,45 @@ export function renderNotebookMarkdown(
   const bounded = cells.slice(0, LIMITS.MAX_EXPORT_CELLS);
   const rendered = bounded.map(cell => renderCell(cell, options.includeOutputs));
   const joined = rendered.join('\n\n---\n\n');
-  const bound = boundText(joined, LIMITS.MAX_EXPORT_BYTES);
+  const bound = boundExportDocument(joined, LIMITS.MAX_EXPORT_BYTES);
   return {
     document: bound.text,
     truncated: bound.truncated || bounded.length < cells.length,
     cellCount: bounded.length
   };
+}
+
+/** UTF-8 size of `text` once JSON-escaped, as it travels in a tool result. */
+function jsonBytes(text: string): number {
+  return utf8Length(JSON.stringify(text));
+}
+
+/**
+ * Bounds `text` so its JSON-escaped form fits in `maxBytes`. Quotes,
+ * backslashes, newlines and control characters all grow when escaped, so a
+ * raw-byte bound alone could still overflow the tool result budget. The
+ * longest raw prefix that fits (truncation marker included) is found by
+ * binary search over its raw byte budget.
+ */
+function boundExportDocument(
+  text: string,
+  maxBytes: number
+): { text: string; truncated: boolean } {
+  if (jsonBytes(text) <= maxBytes) {
+    return { text, truncated: false };
+  }
+  let lo = 0;
+  let hi = Math.min(utf8Length(text), maxBytes);
+  let best = boundText(text, 0).text;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const candidate = boundText(text, mid).text;
+    if (jsonBytes(candidate) <= maxBytes) {
+      best = candidate;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return { text: best, truncated: true };
 }

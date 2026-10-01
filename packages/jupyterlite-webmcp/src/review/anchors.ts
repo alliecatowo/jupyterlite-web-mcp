@@ -5,6 +5,7 @@
 import type { IAnchor, IPosition, ISourceRange } from './model';
 import { stableHash } from '../jupyter/revisions';
 import { LIMITS } from '../limits';
+import { truncateUtf8, utf8Length } from '../utf8';
 
 /**
  * How well a previously-recorded anchor was able to be matched against a
@@ -77,30 +78,36 @@ export function textInRange(source: string, range: ISourceRange): string {
   return source.slice(Math.min(start, end), Math.max(start, end));
 }
 
-function clamp(text: string, maxChars: number): string {
-  return text.length > maxChars ? text.slice(0, maxChars) : text;
-}
-
 /**
  * Builds a `'source-range'` anchor for a selection within a cell's source:
- * captures the selected text (clamped to
- * {@link LIMITS.MAX_SELECTED_TEXT_BYTES} characters) and its hash, plus a
- * small amount of surrounding context (up to
- * {@link LIMITS.MAX_ANCHOR_CONTEXT} characters before and after) used to
- * disambiguate re-anchoring later.
+ * captures the selected text and its hash, plus a small amount of
+ * surrounding context (up to {@link LIMITS.MAX_ANCHOR_CONTEXT} characters
+ * before and after) used to disambiguate re-anchoring later.
+ *
+ * A selection larger than {@link LIMITS.MAX_SELECTED_TEXT_BYTES} of UTF-8 is
+ * clamped to its longest prefix that fits (never splitting a surrogate
+ * pair), and the stored `sourceRange` and `suffix` shrink to match, so the
+ * stored range always covers exactly the stored text and the anchor still
+ * resolves as `'exact'` while the source is unchanged.
  */
 export function makeSourceAnchor(cellId: string, source: string, range: ISourceRange): IAnchor {
   const startOffset = offsetAt(source, range.start);
   const endOffset = offsetAt(source, range.end);
   const lo = Math.min(startOffset, endOffset);
-  const hi = Math.max(startOffset, endOffset);
-  const selectedText = clamp(source.slice(lo, hi), LIMITS.MAX_SELECTED_TEXT_BYTES);
+  let hi = Math.max(startOffset, endOffset);
+  let sourceRange = range;
+  let selectedText = source.slice(lo, hi);
+  if (utf8Length(selectedText) > LIMITS.MAX_SELECTED_TEXT_BYTES) {
+    selectedText = truncateUtf8(selectedText, LIMITS.MAX_SELECTED_TEXT_BYTES);
+    hi = lo + selectedText.length;
+    sourceRange = { start: positionAt(source, lo), end: positionAt(source, hi) };
+  }
   const prefix = source.slice(Math.max(0, lo - LIMITS.MAX_ANCHOR_CONTEXT), lo);
   const suffix = source.slice(hi, hi + LIMITS.MAX_ANCHOR_CONTEXT);
   return {
     kind: 'source-range',
     cellId,
-    sourceRange: range,
+    sourceRange,
     selectedText,
     selectedTextHash: stableHash(selectedText),
     prefix,
