@@ -31,6 +31,7 @@ everything else.
 - **Propose/Deny for running cells.** A "propose to run" flow, including what a pending-but-unrun cell should look like.
 - **Policy templates.** Per-notebook or team-wide defaults for what an agent may touch, instead of setting access cell by cell.
 - **Agent in the collaboration layer.** Show the agent as a labelled participant (Yjs awareness) when several humans share a notebook through `jupyter-collaboration`.
+- **Batch cell operations.** Narrow primitives (insert, update, delete, move, clear outputs) over a shared cell selector, with a preview step that shows exactly which cells a broad selector resolves to, per-cell source hashes, and separate permissions so "can edit" never implies "can delete". Starts with explicit cell ids and contiguous ranges; tag or query selectors come later because they make surprising scope too easy.
 - **A 1.0 tool contract.** Freeze names, schemas and error codes, with a documented deprecation policy.
 
 ## Later <span class="status later">ideas</span>
