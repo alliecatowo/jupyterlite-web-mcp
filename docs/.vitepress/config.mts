@@ -64,7 +64,6 @@ export default defineConfig({
         items: [
           { text: 'Architecture', link: '/architecture' },
           { text: 'WebMCP compatibility', link: '/webmcp-compatibility' },
-          { text: 'Release checklist', link: '/release-checklist' }
         ]
       },
       {

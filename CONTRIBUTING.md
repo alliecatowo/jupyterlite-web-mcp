@@ -83,8 +83,7 @@ Releases are cut by the maintainer: bump the version in
 `packages/jupyterlite-webmcp/package.json`, update `CHANGELOG.md`, and push a
 `vX.Y.Z` tag. The [`release.yml`](.github/workflows/release.yml) workflow
 builds and smoke-tests the wheel, publishes to PyPI after an approval, and
-creates the GitHub Release. See
-[`docs/release-checklist.md`](docs/release-checklist.md) for the full list.
+creates the GitHub Release.
 
 ## Guidelines
 
