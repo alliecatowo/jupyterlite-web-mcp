@@ -47,9 +47,7 @@ automatically and does nothing unless the browser exposes
 The same install works for JupyterLab 4.6 and Notebook 7, which share one
 extension system: there is no separate build or flag for either. Both, and
 the JupyterLite demo, have been tested end to end (open, read, edit and run
-cells through the WebMCP tools). The release process that checks the built
-wheel in a fresh environment is described in
-[`docs/release-checklist.md`](release-checklist.md).
+cells through the WebMCP tools).
 
 ## JupyterLite
 

@@ -239,7 +239,7 @@ pretends otherwise, and the UI says so out loud.
   `read`, or `none` (hidden — looked up by id, it is indistinguishable from a
   cell or file that does not exist). Human-only; no tool can change it. This is
   a guardrail for the agent's tools, not a sandbox: see
-  [Threat model](#threat-model-what-access-levels-do-and-dont-guarantee).
+  [Security](#security).
 - **Review before it sticks, if you want to.** Switch the Agent panel to
   **Propose mode** and `jupyter_update_cell` stops applying immediately —
   it waits, inline, for you to Accept or Deny. See below.
@@ -443,7 +443,7 @@ Seven small plugins keep notebook features decoupled from WebMCP:
 | `jupyterlite-webmcp:review` | yes | Threaded comments in notebook metadata, plus per-cell comment markers. |
 | `jupyterlite-webmcp:access` | yes | Per-cell / per-notebook access levels, restricted-cell markers, and human-edit provenance. |
 | `jupyterlite-webmcp:activity` | yes | The bounded, in-memory log of recent tool activity. |
-| `jupyterlite-webmcp:propose` | yes | The Direct/Propose mode toggle and the pending-proposal state machine ([`docs/propose-mode.md`](docs/propose-mode.md)). |
+| `jupyterlite-webmcp:propose` | yes | The Direct/Propose mode toggle and pending proposals ([`docs/propose-mode.md`](docs/propose-mode.md)). |
 | `jupyterlite-webmcp:panel` | yes | The right-sidebar **Agent** panel (Activity / Comments / Access), the mode toggle, the presence markers, and the inline proposal banner. |
 | `jupyterlite-webmcp:output-selection` | yes | Output-selection capture and the "Ask about…" handoff affordances. |
 | `jupyterlite-webmcp:tools` | **no** — this is the WebMCP surface | Registers all 22 tools; depends on `:review` so it can expose comment tools. |
@@ -578,85 +578,27 @@ is never part of the extension, and is never injected into the deployed site.
 
 ---
 
-## Security notes
+## Security
 
-- **Notebook content is untrusted input.** Cell source, outputs and comment
-  bodies can contain text written to look like instructions. Every tool that
-  can return them sets `untrustedContentHint: true`.
-- **No arbitrary execution.** Execution happens only through
-  `jupyter_run_cells`, on cells that already visibly exist. There is no way
-  to execute a source string and no hidden kernel-introspection tool.
-- **No silent overwrites.** `jupyter_update_cell` / `jupyter_delete_cell`
-  require a `sourceHash` from a previous read; a stale write is refused with
-  `STALE_CELL`, never applied.
-- **No credential surface.** The extension never reads or exposes cookies,
-  browser auth tokens, unrelated `localStorage`, or anything outside the
-  notebook workspace.
-- **Selection capture is narrow.** An output selection is recorded only when
-  it lies wholly inside one output; a selection that crosses cells, includes
-  notebook chrome, or touches a rich widget (`canvas`, `svg`, `img`,
-  `iframe`, …) is rejected rather than degraded into a meaningless string.
-- **Owner-side lockdown, not per-call consent.** Access levels are set by the
-  human from the cell context menu, the file-browser context menu, or the
-  Agent panel's Access tab. No tool can read or change them, and hidden cells
-  and notebooks are reported as *not found* — consistently, across listing,
-  focus, export, output selection and comment threads. There are deliberately
-  no allow-once/allow-always prompts anywhere in the page: that permissioning
-  UX belongs to the WebMCP client, not to the site.
-- **Bounded results.** Every cap lives in `src/limits.ts`; see the limits
-  table in `docs/architecture.md`.
+Notebook content is untrusted input, there is no hidden execution path, and
+writes can never silently overwrite your edits. Access levels are a guardrail on
+the agent's tools, not a sandbox. The full model, including what it does *not*
+guarantee, is in the [security docs](https://alliecatowo.github.io/jupyterlite-web-mcp/security).
+To report a vulnerability, see [`SECURITY.md`](SECURITY.md).
 
-## What is deliberately not built
+## What's next
 
-Two things a reader might reasonably expect, stated plainly rather than
-implied:
+Propose/Deny for insert, delete and run, policy templates, the agent in
+the collaboration layer, and more: see the
+[roadmap](https://alliecatowo.github.io/jupyterlite-web-mcp/roadmap).
 
-- **Propose/Deny mode covers `jupyter_update_cell` only.**
-  `jupyter_insert_cell`, `jupyter_delete_cell` and `jupyter_run_cells`
-  still apply directly even with Propose mode on. An insert/delete
-  proposal needs a different diff representation than a source
-  replacement (there is no "before" to diff against for an insert), and a
-  "propose to run this cell" UX raises its own questions about what a
-  pending-but-not-yet-run cell should show the human. Extending the same
-  state machine to those tools is real, separate design work; see
-  [`docs/propose-mode.md`](docs/propose-mode.md) for what shipped and why
-  the scope stops there for now.
-- **The agent is not in the Yjs awareness layer.** Behind
-  `jupyter-collaboration`, remote humans see the agent's edits arrive, but
-  without a labelled cursor. Additive and plausible; not claimed as done. See
-  [`docs/multiplayer.md`](docs/multiplayer.md).
+## Credits
 
-## How this was built
-
-Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/)
-(August 25 – September 3, 2026). Created and maintained by Allison Coleman
-([@alliecatowo](https://github.com/alliecatowo)), with contributions from
-Juan Mendoza ([@mennymendoza](https://github.com/mennymendoza)). It was
-selected as one of the challenge's [10 winning projects](https://webmcp.devpost.com/project-gallery)
-([Devpost entry](https://devpost.com/software/jupyterlite-webmcp)).
-
-## Threat model: what access levels do and don't guarantee
-
-Cell and notebook access levels (`write` / `read` / `none`) are enforced in
-every tool the extension registers, from a single checkpoint. They are a
-guardrail against the *agent's tools*, not a sandbox:
-
-- **Code the agent runs is not restricted by them.** An agent allowed to
-  insert and run a cell can run Python, and that code can read whatever the
-  kernel can reach — including the saved `.ipynb` file (in JupyterLite, the
-  browser workspace is mounted in the kernel). If a notebook contains secrets
-  you must keep from the agent, keep it `read`-only and don't let the agent
-  run cells in it, or keep the secrets out of the workspace.
-- **Metadata is editable.** Access levels live in notebook and cell
-  metadata, so a collaborator or anyone hand-editing the `.ipynb` can change
-  them.
-- **It fails open.** If an access level can't be read, it degrades to
-  `write` rather than locking the workspace.
-- **Hidden cells are not invisible in aggregate.** Range reads report a
-  `hiddenCellCount`; only by-id lookups are indistinguishable from a missing
-  cell.
-
-Found something that contradicts this? See [`SECURITY.md`](SECURITY.md).
+Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/) and
+selected as one of its [10 winners](https://webmcp.devpost.com/project-gallery)
+([Devpost entry](https://devpost.com/software/jupyterlite-webmcp)). Created and
+maintained by Allison Coleman ([@alliecatowo](https://github.com/alliecatowo)),
+with contributions from Juan Mendoza ([@mennymendoza](https://github.com/mennymendoza)).
 
 ## Feedback and issues
 
@@ -677,17 +619,12 @@ Project Jupyter) were studied as implementation references; neither is a
 runtime dependency and no code from either was copied verbatim. Full
 third-party attribution: [`NOTICE.md`](NOTICE.md).
 
-## Further reading
+## Documentation
 
-| Document | What's in it |
-| --- | --- |
-| [`docs/architecture.md`](docs/architecture.md) | Dependency direction, file-by-file, concurrency protocol, bounds. |
-| [`docs/webmcp-tools.md`](docs/webmcp-tools.md) | Every tool: inputs, outputs, bounds, error codes. |
-| [`docs/propose-mode.md`](docs/propose-mode.md) | Propose/Deny mode: the design, the one-pending-proposal-per-cell rule, `AbortSignal` handling, and its current scope. |
-| [`docs/webmcp-compatibility.md`](docs/webmcp-compatibility.md) | Which WebMCP API, Chrome's calling convention, annotation choices. |
-| [`docs/multiplayer.md`](docs/multiplayer.md) | What happens behind `jupyter-collaboration`, verified; and what is deliberately not shipped. |
-| [`docs/install.md`](docs/install.md) | Per-platform install and verification. |
-| [`docs/release-checklist.md`](docs/release-checklist.md) | How releases are built, verified and published. |
-| [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release. |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Development setup, tests, and how to open a PR. |
-| [`SECURITY.md`](SECURITY.md) | Supported versions and how to report a vulnerability. |
+Full docs live at **<https://alliecatowo.github.io/jupyterlite-web-mcp/>**:
+[quickstart](https://alliecatowo.github.io/jupyterlite-web-mcp/quickstart),
+[tool reference](https://alliecatowo.github.io/jupyterlite-web-mcp/webmcp-tools),
+[architecture](https://alliecatowo.github.io/jupyterlite-web-mcp/architecture),
+[roadmap](https://alliecatowo.github.io/jupyterlite-web-mcp/roadmap). Also in
+this repo: [`CHANGELOG.md`](CHANGELOG.md), [`CONTRIBUTING.md`](CONTRIBUTING.md),
+[`SECURITY.md`](SECURITY.md).

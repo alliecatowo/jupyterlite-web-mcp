@@ -140,7 +140,7 @@ reader/writer of exactly the same model, exposed outward through
 | `src/access/markers.ts` | Purely cosmetic: toggles a CSS class and a native tooltip (access state, plus provenance when known) on cell DOM nodes whose agent access is restricted. |
 | `src/selection/capture.ts` | `OutputSelectionTracker`: records the human's text selection when it lies wholly inside one text output (bounded, `null` when it crosses outputs or cells or sits in a rich widget). It only prepares context for an explicit handoff; it never contacts the agent. |
 | `src/selection/visible.ts` | Filters the output-selection tracker's record through agent access control before the `jupyter_get_output_selection` tool sees it: a selection inside a `'none'` cell or notebook — or one the current notebook cannot verify — reads as `null`, so the tool can never leak a hidden cell's id, text, or output fingerprint. |
-| `src/propose/store.ts` | `ProposeStore`: the human-only Direct/Propose mode toggle and the pending-proposal state machine — one pending proposal per cell, `accept`/`deny`/`abort`, each settling the `Promise` the tool call is waiting on. No WebMCP tool can read or change the mode. |
+| `src/propose/store.ts` | `ProposeStore`: the human-only Direct/Propose mode toggle and pending proposals machine — one pending proposal per cell, `accept`/`deny`/`abort`, each settling the `Promise` the tool call is waiting on. No WebMCP tool can read or change the mode. |
 | `src/propose/tools.ts` | `proposeUpdateCell`: the Propose-mode branch of `jupyter_update_cell` — validates the write (access + `sourceHash`) before staging a proposal, waits on `ProposeStore`, and re-validates the `sourceHash` on accept before calling the same `updateCell` Direct mode uses. |
 | `src/propose/commands.ts` | `jupyterlite-webmcp:toggle-propose-mode` / `:set-propose-mode`, reachable from the Agent panel's mode toggle and the command palette — a human control with no WebMCP dependency. |
 | `src/propose/markers.ts` | `ProposalMarkers`: renders the inline accept/deny banner and diff under the targeted cell for a pending proposal; purely presentational, reusing the same before/after diff rendering as the `±N changed` popover. |
@@ -187,42 +187,14 @@ their own plugins, with only the tools plugin touching
 `document.modelContext`, and the panel plugin owning the one consolidated
 Agent panel that surfaces all three.
 
-## Concurrency: hashing and the read-hash-write protocol
+## Concurrency: read, hash, write
 
-Three hashing primitives, all in `src/jupyter/revisions.ts`, all
-deterministic and explicitly non-cryptographic (two independent 32-bit
-FNV-1a passes folded into a 16-hex-character digest — cheap change
-detection, not security):
-
-- **`stableHash(input)`** — the base primitive: a 16-hex-character digest of
-  any string.
-- **`hashCellSource(cellType, source)`** — `stableHash(cellType + ' ' +
-  source)`. This is the `sourceHash` every cell-read tool returns and every
-  mutating cell tool requires back.
-- **`computeNotebookRevision(cells)`** — folds every cell's id, type, and
-  `hashCellSource` (in cell order) into one `rev_<16 hex>` token, returned
-  as `INotebookInfo.revision`. Any change to a cell's id, type, source, or
-  the notebook's cell order or count changes this token.
-
-The read-hash-write protocol used by `jupyter_update_cell` and
-`jupyter_delete_cell`:
-
-1. A prior `jupyter_get_cells` (or the mutation result of a previous write)
-   returns a cell's live `sourceHash`.
-2. The agent calls `jupyter_update_cell`/`jupyter_delete_cell` with that
-   hash as `expectedSourceHash`.
-3. The handler recomputes `hashCellSource` from the cell's *current* live
-   source and compares it to `expectedSourceHash`.
-4. On a match, the mutation proceeds. On a mismatch — because a human (or
-   another tool call) changed the cell in between — the handler throws a
-   structured `STALE_CELL` error carrying `expectedSourceHash`,
-   `currentSourceHash`, and a bounded `currentSourcePreview`, and the write
-   never happens.
-
-This is the **STALE_CELL guarantee**: a concurrent human edit always wins.
-The agent is expected to re-read the cell, see the human's new state, and
-decide how to reconcile from there — the tool never silently overwrites or
-discards it.
+Every cell read returns a `sourceHash` (a cheap, non-cryptographic digest of the
+cell's type and source; see `src/jupyter/revisions.ts`). `jupyter_update_cell`
+and `jupyter_delete_cell` must send that hash back. If the cell changed in the
+meantime, the write is refused with `STALE_CELL`, carrying the current hash and a
+bounded preview, and nothing is written. The agent re-reads and reconciles; a
+concurrent human edit always wins.
 
 ## Why correctness never depends on DOM/CSS selectors
 
