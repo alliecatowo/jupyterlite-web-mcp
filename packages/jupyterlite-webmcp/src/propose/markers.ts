@@ -24,6 +24,7 @@ import { IDisposable } from '@lumino/disposable';
 
 import { diffLines, IDiffLine } from '../activity/diff';
 import { LIMITS } from '../limits';
+import { truncateUtf8 as boundedUtf8 } from '../utf8';
 import { ProposalLifecycle } from './lifecycle';
 import { IProposal, MAX_DENY_REASON_BYTES, ProposeStore, truncateUtf8 } from './store';
 
@@ -39,9 +40,38 @@ function findCellWidget(panel: NotebookPanel, cellId: string) {
 }
 
 function bounded(source: string): string {
-  return source.length > LIMITS.MAX_CELL_SOURCE_BYTES
-    ? source.slice(0, LIMITS.MAX_CELL_SOURCE_BYTES)
-    : source;
+  return boundedUtf8(source, LIMITS.MAX_CELL_SOURCE_BYTES);
+}
+
+/**
+ * Puts `banner` where it belongs in a cell's node: right after the activity
+ * row when there is one, else right after the input, else at the end. Only
+ * touches the DOM when the banner is missing or out of place, so a banner
+ * that is already where it belongs (and whatever the human is typing in it)
+ * is left alone.
+ *
+ * A moved cell is a brand-new widget: JupyterLab's `Notebook._removeCell`
+ * disposes the old one, taking the banner's old parent with it. A banner
+ * that is no longer inside its cell's current node is therefore re-inserted
+ * here, the same element, so a half-typed deny reason survives the move.
+ */
+export function placeBanner(cellNode: HTMLElement, banner: HTMLElement): void {
+  const row = cellNode.querySelector(':scope > .jp-webmcp-cellRow');
+  const inputWrapper = cellNode.querySelector(':scope > .jp-Cell-inputWrapper');
+  const anchor = row ?? inputWrapper;
+  if (anchor) {
+    if (anchor.nextElementSibling !== banner) {
+      anchor.insertAdjacentElement('afterend', banner);
+    }
+  } else if (banner.parentElement !== cellNode) {
+    cellNode.appendChild(banner);
+  }
+}
+
+interface IBannerEntry {
+  banner: HTMLElement;
+  /** The proposal the banner was painted for. */
+  proposalId: string;
 }
 
 export class ProposalMarkers implements IDisposable {
@@ -67,10 +97,8 @@ export class ProposalMarkers implements IDisposable {
     this._lifecycle.dispose();
     this._store.changed.disconnect(this._onChanged, this);
     this._tracker.currentChanged.disconnect(this._onChanged, this);
-    for (const banner of this._banners.values()) {
-      banner.remove();
-    }
-    this._banners.clear();
+    this._watchCells(null);
+    this._clearBanners();
   }
 
   private _onChanged = (): void => {
@@ -91,11 +119,9 @@ export class ProposalMarkers implements IDisposable {
       // Switching notebooks: drop every banner from the previous one. Its
       // proposals (if any) stay pending in the store and reappear if the
       // human switches back.
-      for (const banner of this._banners.values()) {
-        banner.remove();
-      }
-      this._banners.clear();
+      this._clearBanners();
       this._renderedPanel = panel;
+      this._watchCells(panel && !panel.isDisposed ? panel : null);
     }
     if (!panel || panel.isDisposed) {
       return;
@@ -104,9 +130,9 @@ export class ProposalMarkers implements IDisposable {
     const pending = this._store.pending.filter(p => p.notebookPath === panel.context.path);
     const pendingByCell = new Map(pending.map(p => [p.cellId, p]));
 
-    for (const [cellId, banner] of Array.from(this._banners.entries())) {
-      if (!pendingByCell.has(cellId)) {
-        banner.remove();
+    for (const [cellId, entry] of Array.from(this._banners.entries())) {
+      if (pendingByCell.get(cellId)?.id !== entry.proposalId) {
+        entry.banner.remove();
         this._banners.delete(cellId);
       }
     }
@@ -122,27 +148,52 @@ export class ProposalMarkers implements IDisposable {
       return;
     }
 
-    let banner = this._banners.get(proposal.cellId);
-    if (!banner) {
-      banner = document.createElement('div');
+    // Painted once per proposal: repainting on every store or notebook
+    // change would wipe a deny reason the human is typing and drop focus.
+    let entry = this._banners.get(proposal.cellId);
+    if (!entry) {
+      const banner = document.createElement('div');
       banner.className = 'jp-webmcp-proposal';
-      const inputWrapper = widget.node.querySelector('.jp-Cell-inputWrapper');
-      const row = widget.node.querySelector(':scope > .jp-webmcp-cellRow');
-      if (row && row.parentElement === widget.node) {
-        row.insertAdjacentElement('afterend', banner);
-      } else if (inputWrapper && inputWrapper.parentElement === widget.node) {
-        inputWrapper.insertAdjacentElement('afterend', banner);
-      } else {
-        widget.node.appendChild(banner);
-      }
-      this._banners.set(proposal.cellId, banner);
+      this._paintBanner(banner, proposal);
+      entry = { banner, proposalId: proposal.id };
+      this._banners.set(proposal.cellId, entry);
     }
+    placeBanner(widget.node, entry.banner);
 
-    this._paintBanner(banner, proposal);
+    // A cell widget created by a move may still be a placeholder with no
+    // input yet; place the banner again once it has rendered.
+    const ready = (widget as { ready?: Promise<void> }).ready;
+    if (ready && !this._awaitedWidgets.has(widget)) {
+      this._awaitedWidgets.add(widget);
+      ready.then(this._onChanged, () => undefined);
+    }
+  }
+
+  /** Re-renders when the shown notebook's cells change: a move swaps the cell's widget. */
+  private _watchCells(panel: NotebookPanel | null): void {
+    if (this._watchedCells) {
+      try {
+        this._watchedCells.changed.disconnect(this._onChanged, this);
+      } catch {
+        // The cell list may already be disposed.
+      }
+      this._watchedCells = null;
+    }
+    const cells = panel?.context.model?.cells;
+    if (cells && !this._isDisposed) {
+      cells.changed.connect(this._onChanged, this);
+      this._watchedCells = cells;
+    }
+  }
+
+  private _clearBanners(): void {
+    for (const entry of this._banners.values()) {
+      entry.banner.remove();
+    }
+    this._banners.clear();
   }
 
   private _paintBanner(banner: HTMLElement, proposal: IProposal): void {
-    banner.innerHTML = '';
     banner.setAttribute('role', 'region');
     banner.setAttribute('aria-label', 'Proposed change, awaiting review');
 
@@ -204,7 +255,9 @@ export class ProposalMarkers implements IDisposable {
   }
 
   private _isDisposed = false;
-  private _banners = new Map<string, HTMLElement>();
+  private _banners = new Map<string, IBannerEntry>();
+  private _awaitedWidgets = new WeakSet<object>();
+  private _watchedCells: NotebookPanel['context']['model']['cells'] | null = null;
   private _renderedPanel: NotebookPanel | null | undefined = undefined;
   private _tracker: INotebookTracker;
   private _store: ProposeStore;

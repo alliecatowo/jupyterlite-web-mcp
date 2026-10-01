@@ -77,6 +77,20 @@ describe('ProposeStore.autoDeny', () => {
   });
 });
 
+describe('ProposeStore.markFailed', () => {
+  it('turns an accepted proposal whose apply failed into failed, with the code', () => {
+    const store = new ProposeStore();
+    const { proposal } = store.propose(target(), params());
+    expect(store.markFailed(proposal.id, 'STALE_CELL')).toBe(false); // still pending
+    store.accept(proposal.id);
+    expect(store.markFailed(proposal.id, 'STALE_CELL')).toBe(true);
+    expect(proposal.status).toBe('failed');
+    expect(proposal.failureCode).toBe('STALE_CELL');
+    expect(store.markFailed(proposal.id, 'STALE_CELL')).toBe(false);
+    expect(store.markFailed('nope', 'STALE_CELL')).toBe(false);
+  });
+});
+
 describe('deny reason byte cap', () => {
   it('truncateUtf8 respects the byte budget without splitting code points', () => {
     expect(truncateUtf8('abc', 2)).toBe('ab');

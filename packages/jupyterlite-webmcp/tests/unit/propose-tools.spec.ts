@@ -392,5 +392,8 @@ describe('proposeUpdateCell', () => {
     expect(caught).toBeInstanceOf(ToolError);
     expect((caught as ToolError).code).toBe('STALE_CELL');
     expect(cells[0].sharedModel.getSource()).toBe('print("human edit")');
+    // The store agrees with the result: the change was never made.
+    expect(pending.status).toBe('failed');
+    expect(pending.failureCode).toBe('STALE_CELL');
   });
 });

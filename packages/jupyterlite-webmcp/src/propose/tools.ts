@@ -20,7 +20,7 @@ import {
   resolveWritableCell,
   updateCell
 } from '../jupyter/cells';
-import { toolError } from '../jupyter/errors';
+import { ToolError, toolError } from '../jupyter/errors';
 import { IJupyterEnv } from '../jupyter/workspace';
 import { ProposalAlreadyPendingError, ProposeStore } from './store';
 
@@ -131,13 +131,20 @@ export async function proposeUpdateCell(
   // plenty of real time may have passed while the proposal was pending, so
   // an accept can never resurrect a write over a human edit made in the
   // meantime. A mismatch here surfaces as the same STALE_CELL an agent
-  // already knows how to handle, not a special propose-mode error.
-  const applied = await updateCell(env, {
-    notebookPath: proposal.notebookPath,
-    cellId: params.cellId,
-    source: params.source,
-    expectedSourceHash: params.expectedSourceHash
-  });
+  // already knows how to handle, not a special propose-mode error. The
+  // proposal is then marked `'failed'` so the store agrees with the result.
+  let applied;
+  try {
+    applied = await updateCell(env, {
+      notebookPath: proposal.notebookPath,
+      cellId: params.cellId,
+      source: params.source,
+      expectedSourceHash: params.expectedSourceHash
+    });
+  } catch (err) {
+    proposals.markFailed(proposal.id, err instanceof ToolError ? err.code : 'INTERNAL_ERROR');
+    throw err;
+  }
 
   return { status: 'accepted', proposalId: proposal.id, ...applied };
 }

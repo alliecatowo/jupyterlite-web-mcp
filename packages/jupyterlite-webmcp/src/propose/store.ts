@@ -45,8 +45,13 @@ export interface IProposalTarget {
   cellId: string;
 }
 
-/** Terminal or in-flight state of one proposal. */
-export type ProposalStatus = 'pending' | 'accepted' | 'denied' | 'aborted';
+/**
+ * Terminal or in-flight state of one proposal. `'failed'` means the human
+ * accepted it but applying the write then failed (for example the cell
+ * changed while the proposal was pending, so the tool call returned
+ * `STALE_CELL`): the change was never made.
+ */
+export type ProposalStatus = 'pending' | 'accepted' | 'denied' | 'aborted' | 'failed';
 
 /** A pending or resolved proposed edit. */
 export interface IProposal extends IProposalTarget {
@@ -68,6 +73,8 @@ export interface IProposal extends IProposalTarget {
   resolvedAt?: string;
   /** The human's reason for denying, when given and when denied. */
   denyReason?: string;
+  /** The tool error code the apply failed with, when `'failed'`. */
+  failureCode?: string;
 }
 
 /** What {@link ProposeStore.propose}'s returned `decision` promise resolves to. */
@@ -273,6 +280,23 @@ export class ProposeStore {
       return false;
     }
     this.deny(id, reason);
+    return true;
+  }
+
+  /**
+   * Records that an accepted proposal could not be applied (`code` is the
+   * tool error the call returned, e.g. `STALE_CELL`), so the store never
+   * reports as accepted a change that was not made. Returns `false` (and
+   * does nothing) unless `id` is a known, accepted proposal.
+   */
+  markFailed(id: string, code: string): boolean {
+    const proposal = this._byId.get(id);
+    if (!proposal || proposal.status !== 'accepted') {
+      return false;
+    }
+    proposal.status = 'failed';
+    proposal.failureCode = code;
+    this._changed.emit();
     return true;
   }
 

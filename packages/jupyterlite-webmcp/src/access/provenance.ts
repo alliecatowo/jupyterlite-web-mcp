@@ -45,11 +45,16 @@ interface ISourceChangeLike {
  * {@link NotebookCellWatcher}, so a closed-and-reopened notebook, a moved
  * cell, or two notebooks sharing cell ids each get their own listener, and
  * every listener (and pending timer) is released when its cell or panel
- * goes away.
+ * goes away. A pending human edit survives a move (it carries over to the
+ * cell's new model) and is recorded ahead of an agent edit that lands while
+ * it is still debouncing; it is dropped only when the cell is deleted or the
+ * notebook closes.
  */
 export class ProvenanceTracker implements IDisposable {
   constructor(tracker: INotebookTracker) {
-    this._watcher = new NotebookCellWatcher<NotebookPanel>(tracker, cell => this._attachCell(cell));
+    this._watcher = new NotebookCellWatcher<NotebookPanel>(tracker, (cell, panel) =>
+      this._attachCell(cell, panel)
+    );
   }
 
   /** Whether {@link dispose} has been called. */
@@ -66,40 +71,91 @@ export class ProvenanceTracker implements IDisposable {
     this._watcher.dispose();
   }
 
-  private _attachCell(cell: ICellModel): () => void {
+  private _attachCell(cell: ICellModel, panel: NotebookPanel): () => void {
+    const cellId = cell.id;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const onChange = (_: unknown, change: ISourceChangeLike): void => {
-      if (this._isDisposed || !change || !change.sourceChange) {
-        return; // Metadata/output-only changes (including our own) are not edits.
+    const record = (): void => {
+      if (cell.isDisposed) {
+        return;
       }
-      if (isAgentAttributed()) {
-        return; // The tool path that made this change already recorded it.
+      try {
+        recordCellHistory(cell as unknown as IMetadataCell, 'human', 'edited');
+      } catch {
+        // Provenance bookkeeping must never throw into the editor.
       }
+    };
+    const schedule = (): void => {
       if (timer !== undefined) {
         clearTimeout(timer);
       }
       timer = setTimeout(() => {
         timer = undefined;
-        if (cell.isDisposed) {
-          return;
-        }
-        try {
-          recordCellHistory(cell as unknown as IMetadataCell, 'human', 'edited');
-        } catch {
-          // Provenance bookkeeping must never throw into the editor.
-        }
+        record();
       }, HUMAN_EDIT_DEBOUNCE_MS);
     };
+    const onChange = (_: unknown, change: ISourceChangeLike): void => {
+      if (this._isDisposed || !change || !change.sourceChange) {
+        return; // Metadata/output-only changes (including our own) are not edits.
+      }
+      if (isAgentAttributed()) {
+        // The tool path that made this change records it itself, right after
+        // this listener runs. A human edit still waiting out the debounce
+        // happened first, so record it now: left to fire later it would land
+        // after the agent's entry and make the cell read as human-edited.
+        if (timer !== undefined) {
+          clearTimeout(timer);
+          timer = undefined;
+          record();
+        }
+        return;
+      }
+      schedule();
+    };
     cell.sharedModel.changed.connect(onChange);
+
+    // A move replaces the cell's model with a new one under the same id
+    // (see `./cellwatch.ts`); pick up a human edit the old model was still
+    // debouncing when it went away.
+    const carried = this._carried.get(panel);
+    if (carried?.delete(cellId)) {
+      schedule();
+    }
+
     return () => {
       cell.sharedModel.changed.disconnect(onChange);
-      if (timer !== undefined) {
-        clearTimeout(timer);
-        timer = undefined;
+      if (timer === undefined) {
+        return;
       }
+      clearTimeout(timer);
+      timer = undefined;
+      if (this._isDisposed || panel.isDisposed) {
+        return; // Shutting down, or the notebook closed: nothing left to record into.
+      }
+      if (!cell.isDisposed) {
+        record();
+        return;
+      }
+      // The model was removed from a notebook that is still open: either a
+      // move, whose replacement model is attached right after this in the
+      // same reconcile pass and picks the edit up, or a deletion, in which
+      // case nothing claims it and it is dropped at the next microtask.
+      this._carry(panel, cellId);
     };
   }
 
+  private _carry(panel: NotebookPanel, cellId: string): void {
+    let ids = this._carried.get(panel);
+    if (!ids) {
+      ids = new Set();
+      this._carried.set(panel, ids);
+    }
+    ids.add(cellId);
+    queueMicrotask(() => {
+      ids.delete(cellId);
+    });
+  }
+
   private _isDisposed = false;
+  private _carried = new WeakMap<NotebookPanel, Set<string>>();
   private _watcher: NotebookCellWatcher<NotebookPanel>;
 }
