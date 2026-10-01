@@ -5,6 +5,7 @@ import { NotebookPanel } from '@jupyterlab/notebook';
 import { resolveCellIndex, cellAccess, IMetadataCell } from '../access/guard';
 import { notebookAccessOfPanel } from '../access/notebook';
 import { LIMITS } from '../limits';
+import { truncateUtf8, utf8Length } from '../utf8';
 import { toolError } from './errors';
 import {
   IKernelInfo,
@@ -105,11 +106,11 @@ function boundedSelectionText(text: string): {
   text: string;
   truncated: boolean;
 } {
-  if (text.length <= LIMITS.MAX_SELECTED_TEXT_BYTES) {
+  if (utf8Length(text) <= LIMITS.MAX_SELECTED_TEXT_BYTES) {
     return { text, truncated: false };
   }
   return {
-    text: text.slice(0, LIMITS.MAX_SELECTED_TEXT_BYTES),
+    text: truncateUtf8(text, LIMITS.MAX_SELECTED_TEXT_BYTES),
     truncated: true
   };
 }
@@ -283,13 +284,14 @@ export async function focusCell(
     checkPosition(params.selection.start, 'selection.start');
     checkPosition(params.selection.end, 'selection.end');
   }
-  const panel = await resolveNotebook(env, params.notebookPath, {
-    activate: true
-  });
+  const panel = await resolveNotebook(env, params.notebookPath);
   // `'read'`: a cell the notebook owner restricted to read-only can still be
   // pointed at — only a `'none'` cell is refused, exactly like a bad id
   // (CELL_NOT_FOUND), since the agent isn't supposed to know it exists.
+  // Checked before the notebook is brought to the front, so a bad or hidden
+  // id never changes what the human sees.
   const index = resolveCellIndex(panel, params.cellId, 'read');
+  env.app.shell.activateById(panel.id);
 
   const cell = await revealCell(panel, index);
   const editor = cell?.editor ?? null;

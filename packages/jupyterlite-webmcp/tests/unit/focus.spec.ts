@@ -8,7 +8,9 @@
 jest.mock('@jupyterlab/cells', () => ({ MarkdownCell: class {} }));
 jest.mock('@jupyterlab/notebook', () => ({ NotebookPanel: class {} }));
 
-import { readFocus } from '../../src/jupyter/focus';
+import { focusCell, readFocus } from '../../src/jupyter/focus';
+import type { IJupyterEnv } from '../../src/jupyter/workspace';
+import { LIMITS } from '../../src/limits';
 
 interface IFakeCellModel {
   id: string;
@@ -155,5 +157,62 @@ describe('readFocus access policy', () => {
       cursor: { line: 0, column: 2 },
       textSelection: null
     });
+  });
+});
+
+describe('readFocus text selection bound', () => {
+  it('bounds a multibyte selection by UTF-8 bytes, never splitting a pair', () => {
+    // 2000 emoji = 4000 UTF-16 units (under the old character check) but
+    // 8000 UTF-8 bytes.
+    const source = '😀'.repeat(2000);
+    const cell = makeCellModel('emoji');
+    cell.sharedModel.getSource = () => source;
+    const { panel } = makePanel({
+      cells: [cell],
+      activeIndex: 0,
+      selection: { from: 0, to: source.length }
+    });
+
+    const focus = readFocus(
+      panel as unknown as Parameters<typeof readFocus>[0]
+    );
+
+    const text = focus.textSelection?.text ?? '';
+    const bytes = Buffer.byteLength(text, 'utf8');
+    expect(bytes).toBeLessThanOrEqual(LIMITS.MAX_SELECTED_TEXT_BYTES);
+    expect(text.length).toBeGreaterThan(0);
+    expect(text).toBe('😀'.repeat(text.length / 2));
+    expect(focus.textSelection?.truncated).toBe(true);
+  });
+});
+
+describe('focusCell', () => {
+  function makeEnv(cells: IFakeCellModel[]) {
+    const { panel } = makePanel({ cells, activeIndex: 0 });
+    const fullPanel = panel as Record<string, unknown>;
+    fullPanel.id = 'panel-1';
+    fullPanel.context = {
+      ready: Promise.resolve(),
+      path: 'nb.ipynb',
+      model: {
+        cells: { length: cells.length, get: (i: number) => cells[i] }
+      }
+    };
+    const activateById = jest.fn();
+    const env = {
+      app: { shell: { activateById } },
+      tracker: { currentWidget: fullPanel }
+    } as unknown as IJupyterEnv;
+    return { env, activateById };
+  }
+
+  // A bad id and a hidden cell must not bring the notebook forward.
+  const badIds = [['missing'], ['cell-none']];
+
+  it.each(badIds)('leaves the screen alone for id %s', async cellId => {
+    const { env, activateById } = makeEnv(threeCells());
+    const run = focusCell(env, { cellId });
+    await expect(run).rejects.toMatchObject({ code: 'CELL_NOT_FOUND' });
+    expect(activateById).not.toHaveBeenCalled();
   });
 });

@@ -142,9 +142,11 @@ function trimToFit(root: JsonObject, maxBytes: number): string | null {
  * trimmed array. The caller's `value` is never mutated.
  *
  * Only when that is impossible (no trimmable array, or what remains is still
- * too large) does it fall back to a small JSON envelope carrying the first
- * `maxBytes - 300` UTF-8 bytes of the original JSON as an opaque `partial`
- * string, with no `value`. The returned `text` is always valid JSON.
+ * too large) does it fall back to a small JSON envelope carrying the longest
+ * prefix of the original JSON whose re-escaped form still fits, as an opaque
+ * `partial` string, with no `value`. The returned `text` is always valid
+ * JSON and never exceeds `maxBytes` (for any `maxBytes` large enough to hold
+ * the envelope itself).
  */
 export function boundJson(
   value: unknown,
@@ -161,15 +163,31 @@ export function boundJson(
       return { text, truncated: true, value: copy };
     }
   }
-  const partialBudget = Math.max(0, maxBytes - 300);
-  const partial = truncateUtf8(json, partialBudget);
-  const envelope = {
-    truncated: true,
-    reason: 'Result exceeded the maximum tool result size.',
-    maxBytes,
-    partial
-  };
-  return { text: JSON.stringify(envelope), truncated: true };
+  // The `partial` string is re-escaped when the envelope is serialized
+  // (every `"`, `\`, newline or control character in `json` grows), so
+  // its length is chosen by the byte size of the *final* envelope, by
+  // binary search over the prefix budget, never by a fixed margin.
+  const envelopeText = (budget: number): string =>
+    JSON.stringify({
+      truncated: true,
+      reason: 'Result exceeded the maximum tool result size.',
+      maxBytes,
+      partial: truncateUtf8(json, budget)
+    });
+  let lo = 0;
+  let hi = maxBytes;
+  let best = envelopeText(0);
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const text = envelopeText(mid);
+    if (utf8Length(text) <= maxBytes) {
+      best = text;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return { text: best, truncated: true };
 }
 
 /**
@@ -195,15 +213,72 @@ export function okResult(payload: unknown): IToolResult {
   return result;
 }
 
+/** Marker appended to an error string that was clamped. */
+const CLAMP_MARKER = '…[truncated]';
+
+/**
+ * `value` with every string longer than `maxBytes` of UTF-8 cut to fit
+ * (marker included). Returns `value` itself when nothing needed cutting,
+ * otherwise a copy; the input is never mutated.
+ */
+function clampStrings(value: unknown, maxBytes: number): unknown {
+  if (typeof value === 'string') {
+    if (utf8Length(value) <= maxBytes) {
+      return value;
+    }
+    const budget = Math.max(0, maxBytes - utf8Length(CLAMP_MARKER));
+    return truncateUtf8(value, budget) + CLAMP_MARKER;
+  }
+  if (Array.isArray(value)) {
+    let changed = false;
+    const out = value.map(item => {
+      const next = clampStrings(item, maxBytes);
+      changed = changed || next !== item;
+      return next;
+    });
+    return changed ? out : value;
+  }
+  if (isPlainObject(value)) {
+    let changed = false;
+    const out: JsonObject = {};
+    for (const key of Object.keys(value)) {
+      const next = clampStrings(value[key], maxBytes);
+      changed = changed || next !== value[key];
+      out[key] = next;
+    }
+    return changed ? out : value;
+  }
+  return value;
+}
+
 /**
  * Builds a failed tool result for a normalized structured error: a single
- * bounded-JSON text block, `structuredContent` set to the error, and
+ * JSON text block, `structuredContent` set to the same (bounded) error, and
  * `isError: true`.
+ *
+ * Errors often echo the caller's own input (a cell id, an enum value), so
+ * every string in the error is clamped to
+ * {@link LIMITS.MAX_ERROR_STRING_BYTES} of UTF-8; the `error` code itself is
+ * never altered. If the clamped error is still over
+ * {@link LIMITS.MAX_TOTAL_RESULT_BYTES} (say, a long array of echoed ids),
+ * both the text and `structuredContent` fall back to `{error, message}`.
  */
 export function errorResult(err: IStructuredError): IToolResult {
+  let bounded = clampStrings(
+    err,
+    LIMITS.MAX_ERROR_STRING_BYTES
+  ) as IStructuredError;
+  if (bounded !== err) {
+    bounded.error = err.error;
+  }
+  let text = JSON.stringify(bounded);
+  if (utf8Length(text) > LIMITS.MAX_TOTAL_RESULT_BYTES) {
+    bounded = { error: err.error, message: bounded.message };
+    text = JSON.stringify(bounded);
+  }
   return {
-    content: [{ type: 'text', text: boundJson(err).text }],
-    structuredContent: err,
+    content: [{ type: 'text', text }],
+    structuredContent: bounded,
     isError: true
   };
 }

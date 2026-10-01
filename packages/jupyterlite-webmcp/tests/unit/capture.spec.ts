@@ -231,6 +231,35 @@ describe('resolveOutputSelection', () => {
     expect(typeof result!.capturedAt).toBe('string');
   });
 
+  it('measures the bound in UTF-8 bytes, not characters', () => {
+    const t1 = textNode('hello world');
+    const wrapper = makeElement({
+      matches: ['.jp-OutputArea-child'],
+      children: [t1]
+    });
+    (t1 as unknown as { parentElement: unknown }).parentElement = wrapper;
+    const range = makeRange({
+      startContainer: t1,
+      startOffset: 0,
+      endContainer: t1,
+      endOffset: 5,
+      commonAncestorContainer: t1
+    });
+    const panel = makePanel([
+      makeCellWidget({
+        id: 'cell-1',
+        wrappers: [wrapper],
+        containerMatches: wrapper
+      })
+    ]);
+    // 1500 emoji: 3000 UTF-16 units (under the bound as characters) but
+    // 6000 UTF-8 bytes (over it).
+    const over = makeSelection({ text: '😀'.repeat(1500), range });
+    expect(resolveOutputSelection(over, panel as never)).toBeNull();
+    const under = makeSelection({ text: '😀'.repeat(1000), range });
+    expect(resolveOutputSelection(under, panel as never)).not.toBeNull();
+  });
+
   it('returns null when no cell owns the matched wrapper', () => {
     const t1 = textNode('hello world');
     const wrapper = makeElement({

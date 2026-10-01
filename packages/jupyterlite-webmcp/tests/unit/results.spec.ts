@@ -1,5 +1,10 @@
 import { okResult, errorResult, boundJson } from '../../src/webmcp/results';
 import type { IStructuredError } from '../../src/jupyter/errors';
+import { LIMITS } from '../../src/limits';
+
+function bytes(text: string): number {
+  return Buffer.byteLength(text, 'utf8');
+}
 
 describe('okResult with an oversized payload', () => {
   it('omits structuredContent when only an opaque partial notice fits', () => {
@@ -166,5 +171,103 @@ describe('boundJson', () => {
     const bigArray = new Array(5000).fill('x'.repeat(50));
     const { text } = boundJson({ items: bigArray }, 1024);
     expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(1024 + 50);
+  });
+});
+
+describe('the opaque partial fallback stays within the cap', () => {
+  // Content that grows when its JSON is escaped a second time inside the
+  // `partial` string: quotes, backslashes and newlines grow 4x, a control
+  // character 7x, so a fixed safety margin can never be enough.
+  const heavy: [string, string][] = [
+    ['quotes', '"'.repeat(200)],
+    ['backslashes', '\\'.repeat(200)],
+    ['newlines', '\n'.repeat(200)],
+    ['control characters', '\u0001'.repeat(200)],
+    ['multibyte', '日本語😀'.repeat(50)],
+    ['mixed', '"\\\n\u0001é😀'.repeat(40)]
+  ];
+  const cap = LIMITS.MAX_TOTAL_RESULT_BYTES;
+
+  function expectWithinCap(result: ReturnType<typeof okResult>): void {
+    const text = result.content[0].text;
+    expect(bytes(text)).toBeLessThanOrEqual(cap);
+    expect(() => JSON.parse(text)).not.toThrow();
+    if (result.structuredContent !== undefined) {
+      const structured = JSON.stringify(result.structuredContent);
+      expect(bytes(structured)).toBeLessThanOrEqual(cap);
+    }
+  }
+
+  it.each(heavy)('object payload of %s strings', (_name, chunk) => {
+    const payload = { rows: new Array(2000).fill(chunk) };
+    const result = okResult(payload);
+    expectWithinCap(result);
+    const text = result.content[0].text;
+    expect(JSON.parse(text).truncated).toBe(true);
+    // The partial is as large as fits, not needlessly short.
+    expect(bytes(text)).toBeGreaterThan(cap - 64);
+  });
+
+  it.each(heavy)('root-level string of %s', (_name, chunk) => {
+    expectWithinCap(okResult(chunk.repeat(2000)));
+  });
+
+  it.each(heavy)('root-level array of %s', (_name, chunk) => {
+    expectWithinCap(okResult(new Array(2000).fill(chunk)));
+  });
+
+  it('honours a small explicit maxBytes too', () => {
+    const { text } = boundJson({ s: '"\\\n'.repeat(5000) }, 1024);
+    expect(bytes(text)).toBeLessThanOrEqual(1024);
+    expect(JSON.parse(text).truncated).toBe(true);
+  });
+});
+
+describe('errorResult bounds echoed input', () => {
+  it('returns a small error unchanged', () => {
+    const err: IStructuredError = {
+      error: 'CELL_NOT_FOUND',
+      message: 'No cell with id "abc".',
+      cellId: 'abc'
+    };
+    const result = errorResult(err);
+    expect(result.structuredContent).toBe(err);
+  });
+
+  it('clamps an arbitrarily long echoed cell id in text and structuredContent', () => {
+    const cellId = '"😀'.repeat(100000);
+    const err: IStructuredError = {
+      error: 'CELL_NOT_FOUND',
+      message: `No cell with id "${cellId}" in "nb.ipynb".`,
+      cellId,
+      notebookPath: 'nb.ipynb'
+    };
+    const result = errorResult(err);
+    const text = result.content[0].text;
+    expect(bytes(text)).toBeLessThanOrEqual(LIMITS.MAX_TOTAL_RESULT_BYTES);
+    const structured = result.structuredContent as IStructuredError;
+    expect(JSON.parse(text)).toEqual(structured);
+    expect(structured.error).toBe('CELL_NOT_FOUND');
+    expect(structured.notebookPath).toBe('nb.ipynb');
+    const maxString = LIMITS.MAX_ERROR_STRING_BYTES;
+    expect(bytes(structured.cellId as string)).toBeLessThanOrEqual(maxString);
+    expect(bytes(structured.message)).toBeLessThanOrEqual(maxString);
+    // The caller's error object is not mutated.
+    expect(err.cellId).toBe(cellId);
+  });
+
+  it('falls back to {error, message} when many echoed values are still too large', () => {
+    const err: IStructuredError = {
+      error: 'INVALID_ARGUMENT',
+      message: 'Bad ids.',
+      ids: new Array(1000).fill('x'.repeat(1000))
+    };
+    const result = errorResult(err);
+    expect(result.structuredContent).toEqual({
+      error: 'INVALID_ARGUMENT',
+      message: 'Bad ids.'
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toEqual(result.structuredContent);
   });
 });

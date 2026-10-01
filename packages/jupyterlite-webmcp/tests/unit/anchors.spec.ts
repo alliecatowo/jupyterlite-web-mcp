@@ -6,6 +6,7 @@ import {
   resolveSourceAnchor
 } from '../../src/review/anchors';
 import type { IAnchor, IPosition, ISourceRange } from '../../src/review/model';
+import { LIMITS } from '../../src/limits';
 
 const MULTILINE = 'first line\nsecond line here\nthird\n';
 
@@ -67,6 +68,74 @@ describe('makeSourceAnchor', () => {
     expect(anchor.selectedTextHash!.length).toBeGreaterThan(0);
     expect(anchor.prefix).toBe('before context here\n');
     expect(anchor.suffix).toBe('\nafter context here');
+  });
+});
+
+describe('makeSourceAnchor with an oversized selection', () => {
+  const max = LIMITS.MAX_SELECTED_TEXT_BYTES;
+
+  function expectConsistent(source: string, range: ISourceRange) {
+    const anchor = makeSourceAnchor('cell-1', source, range);
+    const text = anchor.selectedText!;
+    expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(max);
+    expect(text.length).toBeGreaterThan(0);
+    // Never ends on a lone high surrogate.
+    const last = text.charCodeAt(text.length - 1);
+    expect(last >= 0xd800 && last <= 0xdbff).toBe(false);
+    // The stored range covers exactly the stored text, and the suffix
+    // follows it directly.
+    expect(textInRange(source, anchor.sourceRange!)).toBe(text);
+    const end = source.indexOf(text) + text.length;
+    const after = source.slice(end, end + LIMITS.MAX_ANCHOR_CONTEXT);
+    expect(anchor.suffix).toBe(after);
+    const resolved = resolveSourceAnchor(anchor, source);
+    expect(resolved.state).toBe('exact');
+    expect(resolved.text).toBe(text);
+    return anchor;
+  }
+
+  it('clamps a long multibyte selection by bytes and still resolves exact', () => {
+    // 3000 characters of 3-byte text: under the old character clamp, over
+    // the byte bound.
+    const body = 'é日'.repeat(1500);
+    const source = `head\n${body}\ntail`;
+    const anchor = expectConsistent(source, {
+      start: { line: 1, column: 0 },
+      end: { line: 1, column: body.length }
+    });
+    expect(anchor.selectedText!.length).toBeLessThan(body.length);
+  });
+
+  it('never splits an emoji pair at the cut', () => {
+    // 4095 ASCII bytes then emoji: the next 4-byte pair cannot fit.
+    const body = 'a'.repeat(max - 1) + '😀'.repeat(10);
+    const source = `${body}\nrest`;
+    const anchor = expectConsistent(source, {
+      start: { line: 0, column: 0 },
+      end: { line: 0, column: body.length }
+    });
+    expect(anchor.selectedText).toBe('a'.repeat(max - 1));
+  });
+
+  it('handles a reversed range spanning several lines', () => {
+    const lines: string[] = [];
+    for (let i = 0; i < 100; i++) {
+      lines.push(`line ${i} ${'x'.repeat(60)}`);
+    }
+    const source = lines.join('\n');
+    expectConsistent(source, {
+      start: { line: 99, column: 10 },
+      end: { line: 2, column: 3 }
+    });
+  });
+
+  it('keeps the original range untouched when nothing is clamped', () => {
+    const source = 'abc\ndef';
+    const range: ISourceRange = {
+      start: { line: 1, column: 2 },
+      end: { line: 0, column: 1 }
+    };
+    expect(makeSourceAnchor('c', source, range).sourceRange).toBe(range);
   });
 });
 

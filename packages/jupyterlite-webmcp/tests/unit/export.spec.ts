@@ -5,6 +5,11 @@ import {
   IExportCellInput,
   renderNotebookMarkdown
 } from '../../src/jupyter/export';
+import { okResult } from '../../src/webmcp/results';
+
+function utf8Bytes(text: string): number {
+  return Buffer.byteLength(text, 'utf8');
+}
 
 function cell(partial: Partial<IExportCellInput>): IExportCellInput {
   return { id: 'c1', type: 'code', source: '', outputs: [], ...partial };
@@ -108,6 +113,35 @@ describe('renderNotebookMarkdown', () => {
     const result = renderNotebookMarkdown([huge], { includeOutputs: true });
     expect(result.truncated).toBe(true);
     expect(result.document.length).toBeLessThanOrEqual(LIMITS.MAX_EXPORT_BYTES);
+  });
+
+  it.each([
+    ['quotes', '"'],
+    ['newlines', '\n'],
+    ['backslashes', '\\'],
+    ['control characters', '\u0001'],
+    ['mixed', 'print("a\\tb")\n']
+  ])('keeps a %s-heavy export within the result budget', (_name, chunk) => {
+    const repeats = Math.ceil(LIMITS.MAX_EXPORT_BYTES / chunk.length);
+    const source = chunk.repeat(repeats);
+    const cells = [cell({ source }), cell({ id: 'c2', source })];
+    const rendered = renderNotebookMarkdown(cells, { includeOutputs: true });
+    const escaped = JSON.stringify(rendered.document);
+    expect(rendered.truncated).toBe(true);
+    expect(utf8Bytes(escaped)).toBeLessThanOrEqual(LIMITS.MAX_EXPORT_BYTES);
+    expect(rendered.document.endsWith('…[truncated]')).toBe(true);
+
+    const result = okResult({
+      notebookPath: 'deeply/nested/notebook.ipynb',
+      ...rendered,
+      hiddenCellCount: 0
+    });
+    // A normal export never hits the opaque fallback.
+    const structured = result.structuredContent as { document?: string };
+    expect(structured).toBeDefined();
+    expect(structured.document).toBe(rendered.document);
+    const textBytes = utf8Bytes(result.content[0].text);
+    expect(textBytes).toBeLessThanOrEqual(LIMITS.MAX_TOTAL_RESULT_BYTES);
   });
 
   it('reports truncated when more cells are given than LIMITS.MAX_EXPORT_CELLS', () => {

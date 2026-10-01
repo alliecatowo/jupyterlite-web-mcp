@@ -27,12 +27,16 @@ entries) until it does: the object that held a trimmed array gets
 dropped, the root object gets `truncated: true`, and `structuredContent` is
 the trimmed copy. Only if no trimming makes it fit does `content[0].text`
 become a small `{truncated: true, reason, maxBytes, partial}` envelope
-(`partial` is an opaque prefix of the JSON), with `structuredContent`
-omitted entirely — the bound would mean nothing if the unbounded payload were
-still attached beside it.
+(`partial` is an opaque prefix of the JSON, as long as fits once
+re-escaped, so the envelope itself never exceeds the cap), with
+`structuredContent` omitted entirely — the bound would mean nothing if the
+unbounded payload were still attached beside it.
 
 On failure, `isError` is `true`, `structuredContent` is the structured error
-below, and `content[0].text` is that same error JSON-serialized.
+below, and `content[0].text` is that same error JSON-serialized. Every string
+in an error (errors often echo the caller's own input, such as a `cellId`) is
+clamped to `MAX_ERROR_STRING_BYTES` (2 KiB of UTF-8); an error still over the
+total bound is reduced to `{error, message}`.
 
 ## Structured error shape
 
@@ -637,7 +641,12 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
     cell hidden while it ran is reported the same way, and its outcome does
     not affect the overall status;
   - a target that became `"read"`-access is skipped as `status: "no-op"`,
-    keeping its `cellId` and current `index` (the agent can still see it).
+    keeping its `cellId` and current `index` (the agent can still see it);
+  - notebook-level access is re-checked too: if the owner makes the whole
+    notebook read-only mid-call, every remaining target is skipped as a
+    `no-op` the same way; if the owner hides it, the call fails exactly as a
+    hidden notebook would (`NO_ACTIVE_NOTEBOOK`, or `NOTEBOOK_NOT_FOUND` when
+    `notebookPath` was given) and returns nothing about cells already run.
 
   Skips never count as errors, so they do not trigger `stopOnError`.
 - **Errors:** `INVALID_ARGUMENT` if only one range endpoint is provided, both
@@ -682,6 +691,8 @@ for the agent; the WebMCP client owns any allow-once/allow-always UX.
 - **Errors:** `CELL_NOT_FOUND` if `cellId` doesn't exist in the resolved
   notebook, or is `"none"`-access. A `"read"`-access cell can be focused —
   focusing never changes cell content, so it's never `CELL_ACCESS_DENIED`.
+  The cell is checked before anything on screen changes, so a bad or hidden
+  `cellId` never brings the notebook to the front.
 - **Concurrency:** activates the notebook panel, scrolls the target cell
   into view (notebooks are windowed, so a far-off-screen cell may need to be
   scrolled to before it has a live editor), then focuses the editor and
@@ -984,7 +995,9 @@ message `{ id, author: { kind, name }, createdAt, body }`.
   implemented in `src/jupyter/export.ts`, a pure module with no
   `@jupyterlab/*` dependency, so it is unit-tested directly
   (`tests/unit/export.spec.ts`).
-- **Bounds:** `document` bounded to `LIMITS.MAX_EXPORT_BYTES` (40 KiB); at
+- **Bounds:** `document` bounded to `LIMITS.MAX_EXPORT_BYTES` (40 KiB,
+  measured JSON-escaped, so quote- or newline-heavy notebooks still fit the
+  total result bound with `structuredContent` intact); at
   most `LIMITS.MAX_EXPORT_CELLS` (500) cells are walked, in notebook order;
   either bound sets `truncated: true`. Text/error outputs go through the
   same serializer (and the same `MAX_TEXT_OUTPUT_BYTES` bound) as
