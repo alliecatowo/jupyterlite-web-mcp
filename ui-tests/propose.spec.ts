@@ -177,4 +177,54 @@ test.describe.serial('propose/deny mode', () => {
     await expect(page.locator('.jp-webmcp-proposal')).toHaveCount(0);
     expect(await getCellSource(page, 'working-filter')).toBe(beforeSource);
   });
+
+  test('a moved cell keeps its banner (and a half-typed reason) and can still be decided', async () => {
+    await setMode(page, 'propose');
+    const read = await callTool(page, 'jupyter_get_cells', { cellIds: ['working-filter'] });
+    const hash = read.payload.cells[0].sourceHash;
+    const beforeSource = read.payload.cells[0].source as string;
+
+    await callToolInBackground(page, '__proposeMoved', 'jupyter_update_cell', {
+      cellId: 'working-filter',
+      source: 'working = "proposed, then the cell was moved"',
+      expectedSourceHash: hash
+    });
+    const banner = page.locator('.jp-webmcp-proposal');
+    await expect(banner).toBeVisible();
+    await banner.locator('.jp-webmcp-proposal-reason').fill('Moved it first');
+
+    // A move replaces the cell's widget; do it both ways, as the human
+    // would with the toolbar arrows.
+    for (const delta of [1, -1]) {
+      await moveCell(page, 'working-filter', delta);
+      await expect(banner).toHaveCount(1);
+      await expect(banner).toBeVisible();
+      await expect(banner.locator('.jp-webmcp-proposal-reason')).toHaveValue('Moved it first');
+    }
+
+    await banner.locator('.jp-webmcp-proposal-deny').click();
+    const result = await awaitBackgroundCall(page, '__proposeMoved');
+    expect(result.payload.status).toBe('denied');
+    expect(result.payload.reason).toBe('Moved it first');
+    await expect(banner).toHaveCount(0);
+    expect(await getCellSource(page, 'working-filter')).toBe(beforeSource);
+  });
 });
+
+/** Moves a cell by `delta` positions through the shared model, as the move commands do. */
+async function moveCell(page: Page, cellId: string, delta: number): Promise<void> {
+  await page.evaluate(
+    ([id, d]) => {
+      const panel = (window as any).jupyterapp.shell.currentWidget;
+      const cells = panel.context.model.cells;
+      for (let i = 0; i < cells.length; i++) {
+        if (cells.get(i).id === id) {
+          panel.context.model.sharedModel.moveCell(i, i + d);
+          return;
+        }
+      }
+      throw new Error(`no cell ${id}`);
+    },
+    [cellId, delta] as const
+  );
+}
