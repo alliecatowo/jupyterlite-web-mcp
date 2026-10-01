@@ -2,10 +2,12 @@ import { INotebookModel, NotebookPanel } from '@jupyterlab/notebook';
 
 import {
   assertNotebookAccessible,
+  notebookAccessOf,
   notebookAccessOfContent,
   notebookAccessOfPanel
 } from '../access/notebook';
-import type { AccessIntent } from '../access/guard';
+import { cellAccess } from '../access/guard';
+import type { AccessIntent, IMetadataCell } from '../access/guard';
 import { toolError } from './errors';
 import { basename, joinPath, validatePath } from './paths';
 import { computeNotebookRevision, ICellHashInput } from './revisions';
@@ -170,17 +172,24 @@ export async function resolveNotebook(
         { path: normalized }
       );
     }
-    if (saved.type === 'notebook') {
-      // Check the saved file's own access metadata *before* opening it, so a
-      // hidden notebook is never visibly opened (or otherwise touched) on the
-      // agent's behalf. The error is byte-identical to the not-on-disk case
-      // above: same code, same message, same details.
-      assertNotebookAccessible(
-        normalized,
-        notebookAccessOfContent(saved.content),
-        intent
+    if (saved.type !== 'notebook') {
+      // Refuse before opening: a file or directory must never be opened on
+      // screen on the agent's behalf only to be rejected afterwards.
+      throw toolError(
+        'NOTEBOOK_NOT_FOUND',
+        `"${normalized}" is not a notebook.`,
+        { path: normalized }
       );
     }
+    // Check the saved file's own access metadata *before* opening it, so a
+    // hidden notebook is never visibly opened (or otherwise touched) on the
+    // agent's behalf. The error is byte-identical to the not-on-disk case
+    // above: same code, same message, same details.
+    assertNotebookAccessible(
+      normalized,
+      notebookAccessOfContent(saved.content),
+      intent
+    );
     const opened = env.docManager.openOrReveal(normalized, 'default', undefined, {
       activate
     });
@@ -229,14 +238,25 @@ export function cellHashInputs(model: INotebookModel): ICellHashInput[] {
   return inputs;
 }
 
-/** Summarize the live notebook model. */
+/**
+ * Summarize the live notebook model.
+ *
+ * `revision` is computed over the cells visible to the agent only, so an edit
+ * to a hidden (`access: "none"`) cell cannot be detected through it. It is an
+ * informational change token, not a write guard: writes are guarded per cell
+ * by `expectedSourceHash`.
+ */
 export function notebookInfo(panel: NotebookPanel): INotebookInfo {
   const model = panel.context.model;
+  const visible = cellHashInputs(model).filter(
+    (_input, i) =>
+      cellAccess(model.cells.get(i) as unknown as IMetadataCell) !== 'none'
+  );
   return {
     path: panel.context.path,
     name: basename(panel.context.path),
     dirty: model.dirty,
-    revision: computeNotebookRevision(cellHashInputs(model)),
+    revision: computeNotebookRevision(visible),
     cellCount: model.cells.length
   };
 }
@@ -275,6 +295,15 @@ export async function createNotebook(
   const target = joinPath(directory, fileName);
 
   const contents = contentsManager(env);
+  // A notebook hidden from the agent (`notebookAccess: 'none'`) must not be
+  // revealed by a PATH_EXISTS that echoes its path. It cannot be created
+  // either (that would overwrite it), so it fails with exactly the error a
+  // genuine creation failure below produces (`cannotCreate`): same code,
+  // message and details, so the two cases are indistinguishable.
+  const cannotCreate = () =>
+    toolError('INVALID_PATH', `Could not create a notebook at "${target}".`, {
+      path: target
+    });
   let exists = true;
   try {
     await contents.get(target, { content: false });
@@ -282,6 +311,11 @@ export async function createNotebook(
     exists = false;
   }
   if (exists) {
+    // Reads the open panel's live access when there is one, so an unsaved
+    // owner switch to hidden counts too; any non-notebook reads as visible.
+    if ((await notebookAccessOf(env, target)) === 'none') {
+      throw cannotCreate();
+    }
     throw toolError(
       'PATH_EXISTS',
       `A file already exists at "${target}". Nothing was overwritten.`,
@@ -290,11 +324,22 @@ export async function createNotebook(
   }
 
   await serviceManagerReady(env);
-  const created = await contents.newUntitled({
-    type: 'notebook',
-    path: directory
-  });
-  await contents.rename(created.path, target);
+  let created: { path: string };
+  try {
+    created = await contents.newUntitled({
+      type: 'notebook',
+      path: directory
+    });
+  } catch {
+    throw cannotCreate();
+  }
+  try {
+    await contents.rename(created.path, target);
+  } catch {
+    // Do not leave a stray Untitled notebook behind.
+    await contents.delete(created.path).catch(() => undefined);
+    throw cannotCreate();
+  }
 
   const kernelName = await resolveKernelName(env, params.kernel);
   const widget = env.docManager.openOrReveal(

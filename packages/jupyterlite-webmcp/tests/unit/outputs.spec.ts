@@ -5,8 +5,12 @@ import {
   serializeOutput,
   serializeOutputs,
   summarizeOutputs,
-  fingerprintOutput
+  fingerprintOutput,
+  isTextLikeMime,
+  sliceUtf8,
+  utf8Length
 } from '../../src/jupyter/outputs';
+import { LIMITS } from '../../src/limits';
 
 describe('stripAnsi', () => {
   it('removes color escape sequences from a realistic traceback line', () => {
@@ -180,6 +184,92 @@ describe('serializeOutput', () => {
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain(bigBase64);
     expect(serialized.length).toBeLessThan(bigBase64.length);
+  });
+
+  it('bounds an oversized ename/evalue and marks the output truncated', () => {
+    const result = serializeOutput(
+      {
+        output_type: 'error',
+        ename: 'E'.repeat(5000),
+        evalue: 'v'.repeat(100000),
+        traceback: ['short']
+      },
+      1000
+    );
+    expect(Buffer.byteLength(result.evalue ?? '', 'utf8')).toBeLessThanOrEqual(
+      1000
+    );
+    expect(Buffer.byteLength(result.ename ?? '', 'utf8')).toBeLessThanOrEqual(
+      LIMITS.MAX_PREVIEW_CHARS
+    );
+    expect(result.truncated).toBe(true);
+  });
+
+  it('surfaces small text-like MIME types as text instead of dropping them', () => {
+    const result = serializeOutput({
+      output_type: 'display_data',
+      data: {
+        'text/markdown': '# Hi',
+        'application/json': { a: 1 },
+        'text/latex': '$x^2$'
+      }
+    });
+    expect(result.textData).toEqual([
+      { mimeType: 'text/markdown', text: '# Hi' },
+      { mimeType: 'application/json', text: '{"a":1}' },
+      { mimeType: 'text/latex', text: '$x^2$' }
+    ]);
+    expect(result.media).toBeUndefined();
+  });
+
+  it('bounds large text-like MIME types as text, not as base64 media', () => {
+    const big = '# '.repeat(5000);
+    const result = serializeOutput(
+      { output_type: 'display_data', data: { 'text/markdown': big } },
+      1000
+    );
+    expect(result.media).toBeUndefined();
+    expect(result.textData).toHaveLength(1);
+    expect(result.textData![0].truncated).toBe(true);
+    expect(
+      Buffer.byteLength(result.textData![0].text, 'utf8')
+    ).toBeLessThanOrEqual(1000);
+    expect(result.truncated).toBe(true);
+  });
+
+  it('keeps small binary payloads as placeholders rather than dropping them', () => {
+    const result = serializeOutput({
+      output_type: 'display_data',
+      data: { 'image/png': 'iVBORw0KGgo=', 'application/octet-stream': 'AAAA' }
+    });
+    expect(result.media?.map(m => m.mimeType)).toEqual([
+      'image/png',
+      'application/octet-stream'
+    ]);
+    expect(result.textData).toBeUndefined();
+  });
+});
+
+describe('isTextLikeMime', () => {
+  it.each([
+    ['text/markdown', true],
+    ['text/latex', true],
+    ['application/json', true],
+    ['application/vnd.vega.v5+json', true],
+    ['image/svg+xml', false],
+    ['image/png', false],
+    ['application/pdf', false]
+  ])('%s -> %p', (mime, expected) => {
+    expect(isTextLikeMime(mime)).toBe(expected);
+  });
+});
+
+describe('utf8Length / sliceUtf8', () => {
+  it('counts UTF-8 bytes and slices on character boundaries', () => {
+    expect(utf8Length('aé日😀')).toBe(1 + 2 + 3 + 4);
+    expect(sliceUtf8('aé日😀', 6)).toBe('aé日');
+    expect(sliceUtf8('aé日😀', 9)).toBe('aé日');
+    expect(sliceUtf8('aé日😀', 10)).toBe('aé日😀');
   });
 });
 

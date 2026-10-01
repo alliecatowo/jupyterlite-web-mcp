@@ -31,7 +31,16 @@ export interface ISerializedOutput {
   ename?: string;
   evalue?: string;
   traceback?: string;
+  /** Other text-like MIME bundles (markdown, LaTeX, JSON, ...), bounded. */
+  textData?: ITextDataRef[];
   media?: IMediaRef[];
+  truncated?: boolean;
+}
+
+/** A text-like MIME bundle entry other than `text/plain`/`text/html`. */
+export interface ITextDataRef {
+  mimeType: string;
+  text: string;
   truncated?: boolean;
 }
 
@@ -55,7 +64,12 @@ export function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '');
 }
 
-function utf8Length(str: string): number {
+/**
+ * Returns the UTF-8 byte length of `str` (not its UTF-16 character count).
+ * A lone surrogate counts as 3 bytes, as `TextEncoder` would encode it as
+ * U+FFFD.
+ */
+export function utf8Length(str: string): number {
   let bytes = 0;
   for (let i = 0; i < str.length; i++) {
     const code = str.charCodeAt(i);
@@ -92,6 +106,16 @@ export function boundText(text: string, maxBytes: number): { text: string; trunc
   const suffix = '\n…[truncated]';
   const suffixBytes = utf8Length(suffix);
   const budget = Math.max(0, maxBytes - suffixBytes);
+  return { text: sliceUtf8(text, budget) + suffix, truncated: true };
+}
+
+/**
+ * Returns the longest prefix of `text` whose UTF-8 encoding fits in
+ * `maxBytes`, cut on character (and surrogate-pair) boundaries. Unlike
+ * {@link boundText} it appends no marker.
+ */
+export function sliceUtf8(text: string, maxBytes: number): string {
+  const budget = Math.max(0, maxBytes);
   let bytes = 0;
   let result = '';
   let i = 0;
@@ -121,7 +145,7 @@ export function boundText(text: string, maxBytes: number): { text: string; trunc
     result += text.substr(i, charLen);
     i += charLen;
   }
-  return { text: result + suffix, truncated: true };
+  return result;
 }
 
 const BASIC_ENTITIES: Record<string, string> = {
@@ -194,6 +218,30 @@ function joinIfArray(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+/**
+ * Whether an output MIME type carries human-readable text (rather than
+ * base64-encoded binary). `image/svg+xml` is text on the wire but is treated
+ * as an image, like every other `image/*` type.
+ */
+export function isTextLikeMime(mimeType: string): boolean {
+  const mime = mimeType.toLowerCase();
+  if (mime.startsWith('image/')) {
+    return false;
+  }
+  return (
+    mime.startsWith('text/') ||
+    mime === 'application/json' ||
+    mime.endsWith('+json') ||
+    mime === 'application/javascript' ||
+    mime === 'application/x-latex' ||
+    mime.endsWith('+xml')
+  );
+}
+
+/**
+ * Kept only for output fingerprinting (`prepareForFingerprint`), whose hashes
+ * may back persisted review anchors and therefore must not change.
+ */
 function isBase64Media(mimeType: string, value: string): boolean {
   if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
     return true;
@@ -204,8 +252,9 @@ function isBase64Media(mimeType: string, value: string): boolean {
 /**
  * Serializes one raw nbformat output object into a bounded
  * {@link ISerializedOutput}, dispatching on its `output_type`. Text fields
- * are ANSI-stripped and bounded to `maxTextBytes`; image/PDF/large-base64
- * payloads are never included, only referenced via {@link IMediaRef}.
+ * are ANSI-stripped and bounded to `maxTextBytes`; other text-like MIME
+ * types are returned as bounded `textData`, and binary payloads (images,
+ * PDFs, ...) are never included, only referenced via {@link IMediaRef}.
  */
 export function serializeOutput(
   output: unknown,
@@ -232,13 +281,24 @@ export function serializeOutput(
   if (outputType === 'error') {
     const traceback = Array.isArray(o.traceback) ? (o.traceback as unknown[]) : [];
     const bounded = boundText(stripAnsi(traceback.map(String).join('\n')), maxTextBytes);
+    // `ename`/`evalue` come straight from the kernel and can be arbitrarily
+    // large (an exception message can embed a whole data structure), so they
+    // are bounded like the traceback rather than passed through.
+    const ename = boundText(
+      stripAnsi(typeof o.ename === 'string' ? o.ename : ''),
+      LIMITS.MAX_PREVIEW_CHARS
+    );
+    const evalue = boundText(
+      stripAnsi(typeof o.evalue === 'string' ? o.evalue : ''),
+      maxTextBytes
+    );
     const result: ISerializedOutput = {
       outputType: 'error',
-      ename: typeof o.ename === 'string' ? o.ename : '',
-      evalue: typeof o.evalue === 'string' ? o.evalue : '',
+      ename: ename.text,
+      evalue: evalue.text,
       traceback: bounded.text
     };
-    if (bounded.truncated) {
+    if (bounded.truncated || ename.truncated || evalue.truncated) {
       result.truncated = true;
     }
     return result;
@@ -261,19 +321,45 @@ export function serializeOutput(
       truncatedAny = truncatedAny || bounded.truncated;
     }
 
+    // Every other MIME type is either text-like (markdown, LaTeX, JSON, ...),
+    // surfaced as bounded text sharing one budget, or binary, which is only
+    // ever referenced by a placeholder. Nothing is silently dropped.
     const media: IMediaRef[] = [];
+    const textData: ITextDataRef[] = [];
+    let textBudget = maxTextBytes;
     for (const mimeType of Object.keys(data)) {
       if (mimeType === 'text/plain' || mimeType === 'text/html') {
         continue;
       }
       const value = data[mimeType];
-      if (typeof value === 'string' && isBase64Media(mimeType, value)) {
+      if (isTextLikeMime(mimeType)) {
+        const raw =
+          typeof value === 'string' || Array.isArray(value)
+            ? joinIfArray(value)
+            : JSON.stringify(value) ?? '';
+        if (textBudget <= 0) {
+          truncatedAny = true;
+          continue;
+        }
+        const bounded = boundText(stripAnsi(raw), textBudget);
+        textBudget -= utf8Length(bounded.text);
+        const entry: ITextDataRef = { mimeType, text: bounded.text };
+        if (bounded.truncated) {
+          entry.truncated = true;
+          truncatedAny = true;
+        }
+        textData.push(entry);
+      } else {
+        const encoded = typeof value === 'string' ? value : joinIfArray(value);
         media.push({
           mimeType,
-          bytes: Math.floor((value.length * 3) / 4),
+          bytes: Math.floor((encoded.length * 3) / 4),
           included: false
         });
       }
+    }
+    if (textData.length > 0) {
+      result.textData = textData;
     }
     if (media.length > 0) {
       result.media = media;

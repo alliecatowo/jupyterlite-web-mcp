@@ -15,7 +15,12 @@ import { LIMITS } from '../limits';
 import { toolError } from './errors';
 import { revealCell } from './focus';
 import { INotebookInfo, notebookInfo, resolveNotebook } from './notebook';
-import { ISerializedOutput, serializeOutputs } from './outputs';
+import {
+  ISerializedOutput,
+  serializeOutputs,
+  sliceUtf8,
+  utf8Length
+} from './outputs';
 import { hashCellSource } from './revisions';
 import { IJupyterEnv } from './workspace';
 import {
@@ -183,26 +188,32 @@ function checkCellIdBatch(cellIds: string[]): void {
 }
 
 /**
- * Rejects a cell `source` write outright once it exceeds
+ * Rejects a cell `source` write outright once its UTF-8 encoding exceeds
  * `LIMITS.MAX_CELL_SOURCE_WRITE_BYTES`, rather than silently truncating real
  * notebook content the human would then see was quietly cut short.
  */
-function checkSourceSize(source: string): void {
-  if (source.length > LIMITS.MAX_CELL_SOURCE_WRITE_BYTES) {
+export function checkSourceSize(source: string): void {
+  const bytes = utf8Length(source);
+  if (bytes > LIMITS.MAX_CELL_SOURCE_WRITE_BYTES) {
     throw toolError(
       'INVALID_ARGUMENT',
       `"source" exceeds the maximum size of ${LIMITS.MAX_CELL_SOURCE_WRITE_BYTES} bytes.`,
-      { length: source.length }
+      { bytes }
     );
   }
 }
 
-function boundSource(source: string): { text: string; truncated: boolean } {
-  if (source.length <= LIMITS.MAX_CELL_SOURCE_BYTES) {
+/**
+ * Bounds a cell source returned by a read to `LIMITS.MAX_CELL_SOURCE_BYTES`
+ * of UTF-8, cut on a character boundary. No marker is appended: the caller
+ * reports truncation through `sourceTruncated`.
+ */
+export function boundSource(source: string): { text: string; truncated: boolean } {
+  if (utf8Length(source) <= LIMITS.MAX_CELL_SOURCE_BYTES) {
     return { text: source, truncated: false };
   }
   return {
-    text: source.slice(0, LIMITS.MAX_CELL_SOURCE_BYTES),
+    text: sliceUtf8(source, LIMITS.MAX_CELL_SOURCE_BYTES),
     truncated: true
   };
 }
@@ -443,8 +454,13 @@ export async function insertCell(
     source: params.source ?? '',
     metadata: cellType === 'code' ? { trusted: true } : {}
   });
+  // Capture the new cell's id synchronously, before any await: the human can
+  // insert, delete or hide cells while `revealCell` runs, so the final
+  // snapshot is taken by id, never by the index it was inserted at.
+  const inserted = model.cells.get(insertIndex);
+  const insertedId = inserted.id;
   recordCellHistory(
-    model.cells.get(insertIndex) as unknown as IMetadataCell,
+    inserted as unknown as IMetadataCell,
     'agent',
     'inserted',
     'jupyter_insert_cell'
@@ -459,9 +475,13 @@ export async function insertCell(
     }
   }
 
+  // Re-resolve by id with a read check: a cell the human deleted or hid in
+  // the meantime fails as CELL_NOT_FOUND instead of snapshotting whatever
+  // now sits at the original index.
+  const finalIndex = requireCellIndex(panel, insertedId, 'read');
   return {
     notebook: notebookInfo(panel),
-    cell: snapshotCell(model, insertIndex, { includeSource: true })
+    cell: snapshotCell(model, finalIndex, { includeSource: true })
   };
 }
 
