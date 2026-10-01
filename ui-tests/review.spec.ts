@@ -363,7 +363,13 @@ test.describe.serial('review comments', () => {
       threadId: sourceRangeThreadId
     });
     expect(hiddenThread.ok).toBe(false);
-    expect(hiddenThread.payload.error).toBe('CELL_NOT_FOUND');
+    // Indistinguishable from a thread that does not exist, and no cell id echoed.
+    expect(hiddenThread.payload.error).toBe('COMMENT_NOT_FOUND');
+    expect(JSON.stringify(hiddenThread.payload)).not.toContain('conversion-rate');
+    const unknownThread = await callTool(page, 'jupyter_get_comment', {
+      threadId: 'no-such-thread'
+    });
+    expect(unknownThread.payload.error).toBe(hiddenThread.payload.error);
 
     const listed = await callTool(page, 'jupyter_list_comments', { status: 'all' });
     expect(listed.ok).toBe(true);
