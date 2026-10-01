@@ -14,9 +14,15 @@ const UNAVAILABLE_SUMMARY = '(not run: the cell is no longer available)';
 
 /** Outcome of executing a single cell. */
 export interface ICellExecutionResult {
-  /** Stable id of the executed cell. */
+  /**
+   * Stable id of the executed cell. Empty for a target addressed by position
+   * that was deleted or hidden before it could run.
+   */
   cellId: string;
-  /** Position of the cell at execution time. */
+  /**
+   * Position of the cell at execution time, or `-1` for a target that was
+   * deleted or hidden before it could run.
+   */
   index: number;
   /** `ok`, `error`, `abort` or `no-op`. */
   status: string;
