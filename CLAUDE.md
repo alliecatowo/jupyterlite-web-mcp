@@ -20,8 +20,8 @@ Owner and maintainer: @alliecatowo. Contributor: @mennymendoza (Juan Mendoza).
   (single source), push a `vX.Y.Z` tag, approve the `pypi` environment.
 - Prefer `npm` scripts, `mise` tasks or Python over new shell scripts, and never
   commit throwaway helper scripts. The only shell scripts are
-  `scripts/build-site.sh` (the site build Vercel and CI both run) and
-  `ui-tests/make-shim-site.sh`.
+  `scripts/build-site.sh` (the site build Vercel and CI both run),
+  `scripts/deploy-vercel.sh` (manual deploy) and `ui-tests/make-shim-site.sh`.
 
 ## Tooling
 
@@ -47,11 +47,14 @@ A dead link fails the build, so link repo files via github.com URLs.
 
 ## Automation (the owner has very limited time: keep it self-maintaining)
 
-- Dependabot and Copilot (CodeQL autofix) PRs get auto-merge enabled by
-  `.github/workflows/dependabot-automerge.yml` and merge themselves once the
-  required checks pass. The `main` ruleset lets those bots bypass the human
-  review; everyone else needs 1 review. A bump that breaks the build just stays
-  open: fix it on its branch or `@dependabot ignore` it.
+- Dependency updates are moving from Dependabot to Renovate (`renovate.json`),
+  which merges as its own app (`renovate[bot]`); that app is the one actor the
+  `main` ruleset lets bypass the 1-review rule. Until it is installed, bot PRs
+  (including Copilot CodeQL autofixes) wait for a maintainer admin-merge once
+  `build`, `test` and `analyze` pass: the auto-merge workflow runs as
+  `github-actions`, which is not a bypass actor, so it cannot finish a merge on
+  its own. A bump that breaks the build just stays open: fix it on its branch or
+  ignore it.
 - **Vercel previews are opt-in** (free-tier limit: ~100 deployments/day, and a
   blown limit blocks production deploys). `vercel.json`'s `ignoreCommand` builds
   only `main` and branches named `preview/*`; every other branch, including all

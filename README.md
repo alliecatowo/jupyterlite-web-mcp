@@ -540,7 +540,7 @@ Vercel runs on every push to `main`, configured in `vercel.json`):
 npm --prefix packages/jupyterlite-webmcp test          # unit tests (jest)
 npm --prefix packages/jupyterlite-webmcp run lint:check
 npm --prefix packages/jupyterlite-webmcp run typecheck
-cd ui-tests && npm install && npm test                 # 52 browser tests
+cd ui-tests && npm install && npm test                 # browser tests
 ```
 
 The browser suite serves the built `dist/` — the same artifact that gets

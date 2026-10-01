@@ -1,0 +1,58 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "timezone": "America/Los_Angeles",
+  "schedule": ["before 6am on monday"],
+  "dependencyDashboard": false,
+  "prConcurrentLimit": 5,
+  "rangeStrategy": "update-lockfile",
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "description": "Majors always wait for a human.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "React is shared with JupyterLab (4.6 ships React 18); TypeScript 6 breaks ts-jest.",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom", "typescript"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "A JupyterLab or Notebook minor changes the supported floor; review it.",
+      "matchPackageNames": ["jupyterlab", "notebook"],
+      "matchUpdateTypes": ["minor"],
+      "automerge": false
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchFileNames": ["packages/jupyterlite-webmcp/package.json"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "extension npm (minor/patch)"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchFileNames": ["ui-tests/package.json"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "ui-tests npm (minor/patch)"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchFileNames": ["docs/package.json"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "docs npm (minor/patch)"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "matchManagers": ["pip_requirements"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "site pip pins (minor/patch)"
+    }
+  ]
+}
