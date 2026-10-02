@@ -133,7 +133,7 @@ there. This one was independently checked against all three environments
 pictured above:
 
 - **JupyterLite** (this repo's live demo) — the in-browser Pyodide kernel,
-  exercised end-to-end by the full 52-test Playwright suite on every push.
+  exercised end-to-end by the full Playwright suite on every push.
 - **A real JupyterLab 4.6 server** — `pip install`, a real ipykernel,
   `jupyter_run_cells` executing real code.
 - **A real Notebook 7 server** — the *exact same* installed package, no
@@ -540,7 +540,7 @@ Vercel runs on every push to `main`, configured in `vercel.json`):
 npm --prefix packages/jupyterlite-webmcp test          # unit tests (jest)
 npm --prefix packages/jupyterlite-webmcp run lint:check
 npm --prefix packages/jupyterlite-webmcp run typecheck
-cd ui-tests && npm install && npm test                 # 52 browser tests
+cd ui-tests && npm install && npm test                 # browser tests
 ```
 
 The browser suite serves the built `dist/` — the same artifact that gets

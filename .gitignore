@@ -35,3 +35,7 @@ dist-shim/
 
 # VitePress
 docs/.vitepress/cache/
+
+*.log
+!.env.example
+.mcp.json
