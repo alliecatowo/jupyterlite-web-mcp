@@ -6,6 +6,12 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Added
+
+- Published to npm as `jupyterlite-webmcp` (with provenance) alongside PyPI.
+
 ### Security
 
 - Replaced an insecure random-ID fallback.
