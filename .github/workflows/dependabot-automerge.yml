@@ -1,10 +1,15 @@
 name: Bot PR auto-merge
 
-# Enables auto-merge on PRs opened by our maintenance bots (Dependabot, and
-# Copilot's CodeQL autofixes only: other Copilot PRs get a normal review). No approval is involved: the `main` ruleset lets
-# those bots bypass the required human review. GitHub then merges each one only
-# once the required checks (build, test, analyze) pass, so a change that breaks
-# the build or tests is never merged.
+# Gets bot PRs merged without a human review or a bot approval. The `main`
+# ruleset lets the Dependabot app bypass the 1-review rule, but a bypass only
+# counts for the actor that performs the merge, and `gh pr merge --auto` run
+# with GITHUB_TOKEN is performed by `github-actions`. So for Dependabot PRs this
+# asks Dependabot to merge them itself (`@dependabot merge`): it merges as the
+# Dependabot app once the required checks (build, test, analyze) pass, so a bump
+# that breaks the build or tests never lands.
+#
+# Copilot CodeQL autofixes only get auto-merge enabled (other Copilot PRs get a
+# normal review); that still needs a maintainer admin-merge to finish.
 #
 # Safety: uses pull_request_target, so it never checks out or runs code from
 # the PR; it only acts on PRs authored by the bots below, from a branch in this
@@ -28,6 +33,13 @@ jobs:
         startsWith(github.event.pull_request.head.ref, 'copilot/fix-code-scanning')))
     runs-on: ubuntu-24.04
     steps:
+      - name: Ask Dependabot to merge it (as itself, once checks pass)
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        run: gh pr comment "$PR_URL" --body "@dependabot merge"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Enable auto-merge
         run: gh pr merge --auto --merge "$PR_URL"
         env:

@@ -47,14 +47,14 @@ A dead link fails the build, so link repo files via github.com URLs.
 
 ## Automation (the owner has very limited time: keep it self-maintaining)
 
-- Dependency updates are moving from Dependabot to Renovate (`renovate.json`),
-  which merges as its own app (`renovate[bot]`); that app is the one actor the
-  `main` ruleset lets bypass the 1-review rule. Until it is installed, bot PRs
-  (including Copilot CodeQL autofixes) wait for a maintainer admin-merge once
-  `build`, `test` and `analyze` pass: the auto-merge workflow runs as
-  `github-actions`, which is not a bypass actor, so it cannot finish a merge on
-  its own. A bump that breaks the build just stays open: fix it on its branch or
-  ignore it.
+- Dependabot PRs: `.github/workflows/dependabot-automerge.yml` comments
+  `@dependabot merge`, so Dependabot itself merges once `build`, `test` and
+  `analyze` pass. The `main` ruleset lets the Dependabot app bypass the 1-review
+  rule, but a bypass only counts for the actor doing the merge: auto-merge
+  enabled with the workflow token is performed by `github-actions`, which is not
+  a bypass actor and gets stuck on "review required". Copilot CodeQL autofix
+  PRs (and anything stuck) need a maintainer admin-merge. A bump that breaks the
+  build just stays open: fix it on its branch or `@dependabot ignore` it.
 - **Vercel previews are opt-in** (free-tier limit: ~100 deployments/day, and a
   blown limit blocks production deploys). `vercel.json`'s `ignoreCommand` builds
   only `main` and branches named `preview/*`; every other branch, including all
