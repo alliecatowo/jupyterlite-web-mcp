@@ -38,6 +38,8 @@ Issues = "https://github.com/alliecatowo/jupyterlite-web-mcp/issues"
 Documentation = "https://alliecatowo.github.io/jupyterlite-web-mcp/"
 Changelog = "https://github.com/alliecatowo/jupyterlite-web-mcp/blob/main/CHANGELOG.md"
 Demo = "https://jupyterlite-web-mcp.vercel.app/lab/index.html"
+"Project page" = "https://allisons.dev/projects/jupyterlite-webmcp/"
+Author = "https://allisons.dev/"
 
 [tool.hatch.version]
 source = "nodejs"

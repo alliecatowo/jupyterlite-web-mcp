@@ -606,6 +606,9 @@ selected as one of its [10 winners](https://webmcp.devpost.com/project-gallery)
 maintained by Allison Coleman ([@alliecatowo](https://github.com/alliecatowo)),
 with contributions from Juan Mendoza ([@mennymendoza](https://github.com/mennymendoza)).
 
+There is a write-up on the [project page](https://allisons.dev/projects/jupyterlite-webmcp/)
+at [allisons.dev](https://allisons.dev/).
+
 ## Feedback and issues
 
 Bug reports, questions, integration ideas and feature requests are all
