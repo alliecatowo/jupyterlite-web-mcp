@@ -98,9 +98,12 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-24.04
+    # npm trusted publishing: registered on npmjs.com for this repo, workflow
+    # release.yml and environment `npm`. No long-lived registry token is used.
+    environment: npm
     permissions:
       contents: read
-      id-token: write # npm provenance
+      id-token: write # OIDC token for trusted publishing and provenance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -111,9 +114,12 @@ jobs:
         run: |
           npm ci
           npm run build:lib:prod
-          npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Trusted publishing (OIDC) needs npm >= 11.5.1.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest && npm --version
+      - name: Publish to npm
+        working-directory: packages/jupyterlite-webmcp
+        run: npm publish --provenance --access public
 
   github-release:
     if: startsWith(github.ref, 'refs/tags/v')
