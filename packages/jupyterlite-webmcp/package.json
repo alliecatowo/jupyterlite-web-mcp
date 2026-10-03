@@ -33,7 +33,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/alliecatowo/jupyterlite-web-mcp.git"
+    "url": "git+https://github.com/alliecatowo/jupyterlite-web-mcp.git",
+    "directory": "packages/jupyterlite-webmcp"
   },
   "engines": {
     "node": ">=22"
@@ -106,7 +107,8 @@
     "outputDir": "jupyterlite_webmcp/labextension"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "prettier": {
     "singleQuote": true,
