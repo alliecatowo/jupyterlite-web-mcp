@@ -28,8 +28,26 @@ jobs:
         startsWith(github.event.pull_request.head.ref, 'copilot/fix-code-scanning')))
     runs-on: ubuntu-24.04
     steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Enable auto-merge
+        # Dependabot major bumps are labelled for a human instead (next step).
+        if: github.event.pull_request.user.login != 'dependabot[bot]' || steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
         run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Label major updates for manual review
+        if: github.event.pull_request.user.login == 'dependabot[bot]' && steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: |
+          gh label create major-update --color D93F0B --description "Major version bump, needs a human" 2>/dev/null || true
+          gh pr edit "$PR_URL" --add-label major-update
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
