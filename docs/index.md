@@ -6,7 +6,7 @@ pageClass: jl-page
 sidebar: false
 ---
 
-<h1><span class="jl-prompt">$</span> Your notebook is already in the browser. Now your agent can be too.</h1>
+<h1>Your notebook is already in the browser. Now your agent can be too.</h1>
 <p class="jl-lede">A JupyterLab and JupyterLite extension that lets a browser agent read, edit, run and review the live notebook through WebMCP. No server, no API keys.</p>
 <div class="jl-actions">
   <a class="jl-primary" href="https://jupyterlite-web-mcp.vercel.app/lab/index.html">try the live demo</a>
@@ -29,18 +29,30 @@ Published on [PyPI](https://pypi.org/project/jupyterlite-webmcp/). The extension
 ## what it does
 
 <dl class="jl-facts">
+  <div>
   <dt>the live notebook</dt>
   <dd>Unsaved edits, your exact text selection, the running kernel and its outputs. State that exists only inside the tab. <a href="./concepts">Why it matters</a>.</dd>
+  </div>
+  <div>
   <dt>22 webmcp tools</dt>
   <dd>Read, navigate, edit, execute and review through <code>document.modelContext</code>. Writes are guarded by a source hash, so the human always wins. <a href="./webmcp-tools">Tool reference</a>.</dd>
+  </div>
+  <div>
   <dt>you set the limits</dt>
   <dd>Per-cell and per-notebook access levels, plus Propose mode where each edit waits for your Accept or Deny. <a href="./propose-mode">Propose mode</a>.</dd>
+  </div>
+  <div>
   <dt>visible by design</dt>
   <dd>Presence rings, state badges, inline diffs and output provenance show every agent action in the notebook itself.</dd>
+  </div>
+  <div>
   <dt>review threads</dt>
   <dd>Comments live in the notebook metadata, so the conversation travels with the .ipynb.</dd>
+  </div>
+  <div>
   <dt>one pip install</dt>
   <dd>A prebuilt extension for JupyterLab, Notebook 7 and JupyterLite. No Node.js, no lab build. <a href="./install">Install</a>.</dd>
+  </div>
 </dl>
 
 ## screenshots
