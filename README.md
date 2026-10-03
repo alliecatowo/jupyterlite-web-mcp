@@ -488,6 +488,9 @@ jupyter labextension list   # should show jupyterlite-webmcp enabled OK
 jupyter lab
 ```
 
+The TypeScript library is also published to npm for bundler-based builds:
+`npm install jupyterlite-webmcp`.
+
 **JupyterLite** (a static, browser-only site)
 
 ```bash
