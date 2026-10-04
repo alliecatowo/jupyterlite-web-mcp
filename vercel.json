@@ -50,5 +50,27 @@
       ]
     }
   ],
-  "ignoreCommand": "case \"$VERCEL_GIT_COMMIT_REF\" in main|preview/*) exit 1 ;; *) exit 0 ;; esac"
+  "ignoreCommand": "case \"$VERCEL_GIT_COMMIT_REF\" in main|preview/*) exit 1 ;; *) exit 0 ;; esac",
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/lab/index.html?path=customer-analysis.ipynb",
+      "permanent": false
+    },
+    {
+      "source": "/lab/index.html",
+      "missing": [
+        {
+          "type": "query",
+          "key": "path"
+        },
+        {
+          "type": "query",
+          "key": "reset"
+        }
+      ],
+      "destination": "/lab/index.html?path=customer-analysis.ipynb",
+      "permanent": false
+    }
+  ]
 }
